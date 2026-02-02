@@ -1,0 +1,1594 @@
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight, Code } from 'lucide-react';
+
+interface StepOutputViewerProps {
+  output: any;
+  stepId: number;
+}
+
+export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, stepId }) => {
+  const [showRaw, setShowRaw] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['main']));
+
+  const toggleSection = (section: string) => {
+    const newExpanded = new Set(expandedSections);
+    if (newExpanded.has(section)) {
+      newExpanded.delete(section);
+    } else {
+      newExpanded.add(section);
+    }
+    setExpandedSections(newExpanded);
+  };
+
+  const renderGoalPillar = (goal: any, index: number) => {
+    const failureChannels = goal.bridge_tags?.failure_channels || [];
+    const systemProps = goal.bridge_tags?.system_properties_required || [];
+    
+    return (
+      <div key={goal.id || index} className="border-l-4 border-purple-500 pl-4 py-2 mb-4 bg-purple-500/10 rounded-r">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h4 className="font-bold text-purple-400 text-lg">{goal.id || `G-${index + 1}`}: {goal.title || 'Untitled'}</h4>
+            {goal.catastrophe_primary && (
+              <p className="text-sm text-purple-300 mt-1"><span className="font-semibold">Primary Catastrophe:</span> {goal.catastrophe_primary}</p>
+            )}
+          </div>
+        </div>
+        
+        <div className="mt-3 space-y-2">
+          {goal.state_definition && (
+            <div className="bg-secondary/30 p-3 rounded">
+              <p className="text-xs font-semibold text-muted-foreground uppercase">State Definition</p>
+              <p className="text-sm text-foreground mt-1">{goal.state_definition}</p>
+            </div>
+          )}
+          
+          {goal.done_criteria && (
+            <div className="bg-secondary/30 p-3 rounded">
+              <p className="text-xs font-semibold text-muted-foreground uppercase">Done Criteria</p>
+              <p className="text-sm text-foreground mt-1">{goal.done_criteria}</p>
+            </div>
+          )}
+          
+          {goal.triz_contradiction && (
+            <div className="bg-secondary/30 p-3 rounded">
+              <p className="text-xs font-semibold text-muted-foreground uppercase">TRIZ Contradiction</p>
+              <p className="text-sm text-foreground mt-1">{goal.triz_contradiction}</p>
+            </div>
+          )}
+          
+          {(failureChannels.length > 0 || systemProps.length > 0) && (
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {failureChannels.length > 0 && (
+                <div className="bg-pink-500/10 p-2 rounded border border-pink-500/30">
+                  <p className="text-xs font-semibold text-pink-400">Failure Channels</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {failureChannels.map((fcc: string, i: number) => (
+                      <span key={i} className="text-xs bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded border border-pink-500/30">{fcc}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {systemProps.length > 0 && (
+                <div className="bg-amber-500/10 p-2 rounded border border-amber-500/30">
+                  <p className="text-xs font-semibold text-amber-400">System Properties</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {systemProps.map((spv: any, i: number) => (
+                      <span key={i} className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
+                        {spv.spv_id} ({spv.importance})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRequirementAtom = (ra: any, index: number) => {
+    // Safely handle arrays
+    const meterClasses = Array.isArray(ra.meter_classes) 
+      ? ra.meter_classes 
+      : (ra.meter_classes ? [ra.meter_classes] : []);
+    
+    const perturbationClasses = Array.isArray(ra.perturbation_classes)
+      ? ra.perturbation_classes
+      : (ra.perturbation_classes ? [ra.perturbation_classes] : []);
+    
+    return (
+      <div key={ra.ra_id || index} className="border-l-4 border-emerald-500 pl-4 py-3 mb-4 bg-emerald-500/10 rounded-r">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <h5 className="font-bold text-emerald-400 text-base flex-1">
+            {ra.ra_id || `RA-${index + 1}`}: {ra.atom_title || 'Untitled'}
+          </h5>
+          {ra.meter_status && (
+            <span className={`text-xs px-2 py-0.5 rounded border ml-2 ${
+              ra.meter_status === 'EXISTS_2026' 
+                ? 'bg-green-500/20 text-green-300 border-green-500/30'
+                : ra.meter_status === 'PARTIAL_2026'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                : 'bg-red-500/20 text-red-300 border-red-500/30'
+            }`}>
+              {ra.meter_status}
+            </span>
+          )}
+        </div>
+        
+        {/* Requirement Statement */}
+        {ra.requirement_statement && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Requirement</p>
+            <p className="text-sm text-foreground mt-1">{ra.requirement_statement}</p>
+          </div>
+        )}
+        
+        {/* Done Criteria */}
+        {ra.done_criteria && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Done Criteria</p>
+            <p className="text-sm text-foreground mt-1">{ra.done_criteria}</p>
+          </div>
+        )}
+        
+        {/* Key Properties Grid */}
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          {ra.state_variable && (
+            <div className="bg-blue-500/10 p-2 rounded border border-blue-500/30">
+              <span className="font-semibold text-blue-400">State Variable:</span>
+              <p className="text-blue-300 mt-0.5">{ra.state_variable}</p>
+            </div>
+          )}
+          {ra.failure_shape && (
+            <div className="bg-red-500/10 p-2 rounded border border-red-500/30">
+              <span className="font-semibold text-red-400">Failure Shape:</span>
+              <p className="text-red-300 mt-0.5">{ra.failure_shape}</p>
+            </div>
+          )}
+          {ra.timescale && (
+            <div className="bg-purple-500/10 p-2 rounded border border-purple-500/30">
+              <span className="font-semibold text-purple-400">Timescale:</span>
+              <p className="text-purple-300 mt-0.5">{ra.timescale}</p>
+            </div>
+          )}
+        </div>
+        
+        {/* Perturbation Classes */}
+        {perturbationClasses.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Perturbation Classes:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {perturbationClasses.map((pc: string, i: number) => (
+                <span key={i} className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded border border-orange-500/30">
+                  {pc}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Meter Classes */}
+        {meterClasses.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Meter Classes:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {meterClasses.map((meter: string, i: number) => (
+                <span key={i} className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
+                  {meter}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Multiple Realizability Check */}
+        {ra.multiple_realizability_check && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Multiple Realizability</p>
+            <p className="text-sm text-foreground mt-1">{ra.multiple_realizability_check}</p>
+          </div>
+        )}
+        
+        {/* Notes */}
+        {ra.notes && (
+          <div className="mt-2 bg-secondary/30 p-2 rounded">
+            <p className="text-xs font-semibold text-muted-foreground">Notes:</p>
+            <p className="text-xs text-foreground mt-1">{ra.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderScientificPillar = (pillar: any, index: number) => {
+    const spvEffects = Array.isArray(pillar.spv_effects) ? pillar.spv_effects : 
+                       Array.isArray(pillar.capabilities) ? pillar.capabilities : [];
+    
+    return (
+      <div key={pillar.id || index} className="border-l-4 border-cyan-500 pl-4 py-2 mb-3 bg-cyan-500/10 rounded-r">
+        <h5 className="font-bold text-cyan-400">{pillar.id || `S-${index + 1}`}: {pillar.title || 'Untitled'}</h5>
+        <p className="text-sm text-foreground mt-1">{pillar.mechanism_summary || pillar.mechanism || pillar.description || 'No description'}</p>
+        
+        <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+          {pillar.readiness_level && <div><span className="font-semibold">Readiness:</span> {pillar.readiness_level}</div>}
+          {pillar.evidence_strength && <div><span className="font-semibold">Evidence:</span> {pillar.evidence_strength}</div>}
+          {pillar.fragility_score !== undefined && <div><span className="font-semibold">Fragility:</span> {pillar.fragility_score}/10</div>}
+        </div>
+        
+        {spvEffects.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">SPV Effects:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {spvEffects.map((effect: any, i: number) => (
+                <span key={i} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">
+                  {effect.spv_id}: {effect.direction || effect.effect_direction}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMatchingEdge = (edge: any, index: number) => {
+    const relationshipColors = {
+      solves: 'bg-green-100 border-green-400 text-green-900',
+      partially_solves: 'bg-amber-100 border-amber-400 text-amber-900',
+      violates: 'bg-red-100 border-red-400 text-red-900',
+      proxies_for: 'bg-blue-100 border-blue-400 text-blue-900',
+      enables_measurement_for: 'bg-purple-100 border-purple-400 text-purple-900',
+    };
+    
+    const colorClass = relationshipColors[edge.relationship as keyof typeof relationshipColors] || 'bg-gray-100 border-gray-400 text-gray-900';
+    
+    return (
+      <div key={index} className={`border-l-4 pl-4 py-2 mb-3 rounded-r ${colorClass}`}>
+        <div className="flex items-center justify-between">
+          <h5 className="font-bold">{edge.source_s_id} → {edge.relationship}</h5>
+          <span className="text-xs font-semibold">Confidence: {(edge.confidence_score * 100).toFixed(0)}%</span>
+        </div>
+        <p className="text-sm mt-1">{edge.rationale}</p>
+        
+        {edge.gap_analysis && (
+          <div className="mt-2 bg-white bg-opacity-50 p-2 rounded">
+            <p className="text-xs font-semibold">Gap: {edge.gap_analysis.primary_delta}</p>
+            <p className="text-xs mt-1">{edge.gap_analysis.description}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderL3Question = (q: any, index: number) => (
+    <div key={q.id || index} className="border-l-4 border-rose-500 pl-4 py-3 mb-4 bg-rose-500/10 rounded-r">
+      <div className="flex items-start justify-between">
+        <h5 className="font-bold text-rose-400 flex-1 text-base">{q.id}</h5>
+        {q.strategy_used && (
+          <span className="text-xs bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded ml-2 border border-rose-500/30">
+            {q.strategy_used}
+          </span>
+        )}
+      </div>
+      
+      {/* Question Text */}
+      {q.text && (
+        <div className="mt-2 bg-secondary/30 p-3 rounded">
+          <p className="text-sm text-foreground font-semibold">{q.text}</p>
+        </div>
+      )}
+      
+      {/* Rationale */}
+      {q.rationale && (
+        <div className="mt-2 bg-secondary/30 p-3 rounded">
+          <p className="text-xs font-semibold text-muted-foreground uppercase">Rationale</p>
+          <p className="text-sm text-foreground mt-1">{q.rationale}</p>
+        </div>
+      )}
+      
+      {/* Discriminator Target */}
+      {q.discriminator_target && (
+        <div className="mt-2">
+          <p className="text-xs font-semibold text-muted-foreground">Discriminator Target:</p>
+          <p className="text-xs text-rose-300 mt-1">{q.discriminator_target}</p>
+        </div>
+      )}
+      
+      {/* Priority/Category */}
+      {(q.priority || q.strategic_category) && (
+        <div className="mt-2 flex gap-2">
+          {q.priority && (
+            <span className="text-xs bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded border border-rose-500/30">
+              Priority: {q.priority}
+            </span>
+          )}
+          {q.strategic_category && (
+            <span className="text-xs bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded border border-rose-500/30">
+              {q.strategic_category}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderIH = (ih: any, index: number) => {
+    const meterClasses = Array.isArray(ih.meter_classes) ? ih.meter_classes : (ih.meter_classes ? [ih.meter_classes] : []);
+    const mapsToRAs = Array.isArray(ih.maps_to_ra_ids) ? ih.maps_to_ra_ids : (ih.maps_to_ra_ids ? [ih.maps_to_ra_ids] : []);
+    
+    return (
+      <div key={ih.ih_id || index} className="border-l-4 border-orange-500 pl-4 py-3 mb-4 bg-orange-500/10 rounded-r">
+        <div className="flex items-start justify-between">
+          <h5 className="font-bold text-orange-400 flex-1 text-base">{ih.ih_id}</h5>
+          <div className="flex gap-2">
+            {ih.domain_category && (
+              <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded border border-orange-500/30">
+                {ih.domain_category}
+              </span>
+            )}
+            {ih.confidence_score && (
+              <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded border border-orange-500/30">
+                {(ih.confidence_score * 100).toFixed(0)}%
+              </span>
+            )}
+          </div>
+        </div>
+        
+        {/* Process Hypothesis */}
+        {ih.process_hypothesis && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Process Hypothesis</p>
+            <p className="text-sm text-foreground mt-1 font-semibold">{ih.process_hypothesis}</p>
+          </div>
+        )}
+        
+        {/* Mechanism Sketch */}
+        {ih.mechanism_sketch && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Mechanism</p>
+            <p className="text-sm text-foreground mt-1">{ih.mechanism_sketch}</p>
+          </div>
+        )}
+        
+        {/* Discriminating Prediction */}
+        {ih.discriminating_prediction && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Discriminating Prediction</p>
+            <p className="text-sm text-foreground mt-1">{ih.discriminating_prediction}</p>
+          </div>
+        )}
+        
+        {/* Target SPV & Lens Origin */}
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          {ih.target_spv && (
+            <div className="bg-blue-500/10 p-2 rounded border border-blue-500/30">
+              <span className="font-semibold text-blue-400">Target SPV:</span>
+              <p className="text-blue-300 mt-0.5">{ih.target_spv}</p>
+            </div>
+          )}
+          {ih.lens_origin && (
+            <div className="bg-purple-500/10 p-2 rounded border border-purple-500/30">
+              <span className="font-semibold text-purple-400">Lens Origin:</span>
+              <p className="text-purple-300 mt-0.5">{ih.lens_origin}</p>
+            </div>
+          )}
+        </div>
+        
+        {/* Maps to RAs */}
+        {mapsToRAs.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Maps to RAs:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {mapsToRAs.map((id: string, i: number) => (
+                <span key={i} className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">{id}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Meter Classes */}
+        {meterClasses.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Meter Classes:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {meterClasses.map((meter: string, i: number) => (
+                <span key={i} className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded border border-orange-500/30">{meter}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Distinguishes IHs */}
+        {ih.distinguishes_ih_ids && ih.distinguishes_ih_ids.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Distinguishes IHs:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {ih.distinguishes_ih_ids.map((id: string, i: number) => (
+                <span key={i} className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded border border-orange-500/30">{id}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Notes */}
+        {(ih.testability_notes || ih.notes) && (
+          <div className="mt-2 bg-secondary/30 p-2 rounded">
+            <p className="text-xs font-semibold text-muted-foreground">Notes:</p>
+            <p className="text-xs text-foreground mt-1">{ih.testability_notes || ih.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderL4Question = (q: any, index: number) => {
+    const distinguishesIHs = Array.isArray(q.distinguishes_ih_ids) ? q.distinguishes_ih_ids : [];
+    
+    return (
+      <div key={q.id || index} className="border-l-4 border-lime-500 pl-4 py-3 mb-4 bg-lime-500/10 rounded-r">
+        <div className="flex items-start justify-between">
+          <h5 className="font-bold text-lime-400 flex-1 text-base">{q.id}</h5>
+          <div className="flex gap-2">
+            {q.type && (
+              <span className="text-xs bg-lime-500/20 text-lime-300 px-2 py-0.5 rounded border border-lime-500/30">
+                {q.type}
+              </span>
+            )}
+            {q.lens && (
+              <span className="text-xs bg-lime-500/20 text-lime-300 px-2 py-0.5 rounded border border-lime-500/30">
+                {q.lens}
+              </span>
+            )}
+            {q.priority && (
+              <span className="text-xs bg-lime-500/20 text-lime-300 px-2 py-0.5 rounded border border-lime-500/30">
+                {q.priority}
+              </span>
+            )}
+          </div>
+        </div>
+        
+        {/* Question Text */}
+        {q.text && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-sm text-foreground font-semibold">{q.text}</p>
+          </div>
+        )}
+        
+        {/* Rationale */}
+        {q.rationale && (
+          <div className="mt-2 bg-secondary/30 p-3 rounded">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Rationale</p>
+            <p className="text-sm text-foreground mt-1">{q.rationale}</p>
+          </div>
+        )}
+        
+        {/* Distinguishes IHs */}
+        {distinguishesIHs.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Distinguishes IHs:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {distinguishesIHs.map((id: string, i: number) => (
+                <span key={i} className="text-xs bg-lime-500/20 text-lime-300 px-2 py-0.5 rounded border border-lime-500/30">{id}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Measurement Approach */}
+        {q.measurement_approach && (
+          <div className="mt-2 bg-secondary/30 p-2 rounded">
+            <p className="text-xs font-semibold text-muted-foreground">Measurement Approach:</p>
+            <p className="text-xs text-foreground mt-1">{q.measurement_approach}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderL5Node = (l5: any, index: number) => (
+    <div key={l5.id || index} className="border-l-4 border-lime-400 pl-4 py-2 mb-3 bg-lime-400/10 rounded-r">
+      <h5 className="font-bold text-lime-400">{l5.id}</h5>
+      <p className="text-xs text-lime-300 mb-1">
+        <span className="font-semibold">Type:</span> {l5.type}
+      </p>
+      <p className="text-sm text-foreground mt-1">{l5.text}</p>
+      
+      {l5.rationale && (
+        <div className="mt-2 bg-secondary/30 p-2 rounded">
+          <p className="text-xs font-semibold text-muted-foreground">Rationale</p>
+          <p className="text-xs text-foreground mt-1">{l5.rationale}</p>
+        </div>
+      )}
+      
+      {l5.parent_l4_id && (
+        <p className="text-xs text-lime-300 mt-2">
+          <span className="font-semibold">Parent L4:</span> {l5.parent_l4_id}
+        </p>
+      )}
+    </div>
+  );
+
+  const renderL6Task = (task: any, index: number) => (
+    <div key={task.id || index} className="border-l-4 border-teal-500 pl-4 py-2 mb-3 bg-teal-500/10 rounded-r">
+      <h5 className="font-bold text-teal-400">{task.id}: {task.title}</h5>
+      <p className="text-xs text-teal-300 mb-1">
+        <span className="font-semibold">Type:</span> {task.type}
+      </p>
+      
+      {task.simt_parameters && (
+        <div className="mt-2 space-y-1 text-xs">
+          <div className="bg-secondary/30 p-2 rounded">
+            <span className="font-semibold">System (S):</span> {task.simt_parameters.system}
+          </div>
+          <div className="bg-secondary/30 p-2 rounded">
+            <span className="font-semibold">Intervention (I):</span> {task.simt_parameters.intervention}
+          </div>
+          <div className="bg-secondary/30 p-2 rounded">
+            <span className="font-semibold">Meter (M):</span> {task.simt_parameters.meter}
+          </div>
+          <div className="bg-secondary/30 p-2 rounded">
+            <span className="font-semibold">Threshold/Time (T):</span> {task.simt_parameters.threshold_time}
+          </div>
+        </div>
+      )}
+      
+      {task.expected_impact && (
+        <div className="mt-2 bg-secondary/30 p-2 rounded">
+          <p className="text-xs font-semibold text-muted-foreground">Expected Impact</p>
+          <p className="text-xs text-foreground mt-1">{task.expected_impact}</p>
+        </div>
+      )}
+      
+      <div className="flex gap-2 mt-2 text-xs">
+        {task.parent_l5_id && (
+          <p className="text-teal-300">
+            <span className="font-semibold">Parent L5:</span> {task.parent_l5_id}
+          </p>
+        )}
+        {task.parent_l4_id && (
+          <p className="text-teal-300">
+            <span className="font-semibold">Parent L4:</span> {task.parent_l4_id}
+          </p>
+        )}
+        {task.spv_link && (
+          <p className="text-teal-300">
+            <span className="font-semibold">SPV:</span> {task.spv_link}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderContent = () => {
+    if (!output) return null;
+
+    // Step 1: Q0
+    if (stepId === 1) {
+      const q0Text = output.Q0 || output.q0 || output.text || output.master_question;
+      if (q0Text) {
+        return (
+          <div className="space-y-3">
+            <div className="bg-primary/10 border-l-4 border-primary p-4 rounded-r">
+              <h3 className="font-bold text-primary text-lg mb-2">Master Question (Q₀)</h3>
+              <p className="text-foreground">{q0Text}</p>
+            </div>
+          </div>
+        );
+      }
+    }
+
+    // Step 2: Goals + Bridge Lexicon
+    if (stepId === 2) {
+      // Handle different key formats
+      const goals = output.goals || output.Goal_Pillars || output.goal_pillars || [];
+      const bridgeLexicon = output.bridge_lexicon || output.Bridge_Lexicon || output.bridgeLexicon || {};
+      
+      return (
+        <div className="space-y-4">
+          {goals && goals.length > 0 && (
+            <div>
+              <button
+                onClick={() => toggleSection('goals')}
+                className="flex items-center gap-2 font-bold text-lg mb-3 hover:text-purple-400 text-foreground"
+              >
+                {expandedSections.has('goals') ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                Goal Pillars ({goals.length})
+              </button>
+              {expandedSections.has('goals') && goals.map(renderGoalPillar)}
+            </div>
+          )}
+          
+          {bridgeLexicon && Object.keys(bridgeLexicon).length > 0 && (
+            <div>
+              <button
+                onClick={() => toggleSection('lexicon')}
+                className="flex items-center gap-2 font-bold text-lg mb-3 hover:text-pink-400 text-foreground"
+              >
+                {expandedSections.has('lexicon') ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                Bridge Lexicon
+              </button>
+              {expandedSections.has('lexicon') && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-semibold text-pink-400 mb-2">Failure Channels ({(bridgeLexicon.failure_channels || bridgeLexicon.Failure_Channels || []).length})</h4>
+                    {(bridgeLexicon.failure_channels || bridgeLexicon.Failure_Channels || []).map((fcc: any, i: number) => (
+                      <div key={i} className="bg-pink-500/10 border border-pink-500/30 p-2 rounded mb-2 text-sm">
+                        <p className="font-semibold text-pink-400">{fcc.id || fcc.ID}: {fcc.name || fcc.Name}</p>
+                        <p className="text-foreground text-xs mt-1">{fcc.definition || fcc.Definition}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-amber-400 mb-2">System Properties ({(bridgeLexicon.system_properties || bridgeLexicon.System_Properties || []).length})</h4>
+                    {(bridgeLexicon.system_properties || bridgeLexicon.System_Properties || []).map((spv: any, i: number) => (
+                      <div key={i} className="bg-amber-500/10 border border-amber-500/30 p-2 rounded mb-2 text-sm">
+                        <p className="font-semibold text-amber-400">{spv.id || spv.ID}: {spv.name || spv.Name}</p>
+                        <p className="text-foreground text-xs mt-1">{spv.definition || spv.Definition}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Step 3: Requirement Atoms
+    if (stepId === 3) {
+      let ras: any[] = [];
+      
+      if (Array.isArray(output)) {
+        ras = output;
+      } else if (output && typeof output === 'object') {
+        // Try to extract RAs from various possible structures
+        if (output.requirement_atoms) {
+          ras = Array.isArray(output.requirement_atoms) ? output.requirement_atoms : Object.values(output.requirement_atoms).flat();
+        } else if (output.RAs) {
+          ras = Array.isArray(output.RAs) ? output.RAs : Object.values(output.RAs).flat();
+        } else {
+          // Flatten all values
+          ras = Object.values(output).flat().filter((item: any) => item && typeof item === 'object');
+        }
+      }
+      
+      return (
+        <div>
+          <h3 className="font-bold text-lg mb-3 text-foreground">Requirement Atoms ({ras.length})</h3>
+          {ras.length > 0 ? (
+            ras.map(renderRequirementAtom)
+          ) : (
+            <p className="text-sm text-muted-foreground">No requirement atoms found</p>
+          )}
+        </div>
+      );
+    }
+
+    // Step 4: Scientific Knowledge Base (3-Phase Output)
+    if (stepId === 4) {
+      let totalSNodes = 0;
+      let totalDomains = 0;
+      
+      return (
+        <div>
+          <h3 className="font-bold text-lg mb-3 text-foreground">Scientific Knowledge Base (3-Phase Collection)</h3>
+          
+          {output && typeof output === 'object' && Object.keys(output).length > 0 ? (
+            Object.entries(output).map(([goalId, goalData]: [string, any]) => {
+              const domains = goalData?.domain_mapping?.research_domains || [];
+              const sNodes = goalData?.deduplicated_s_nodes || [];
+              const integrationSummary = goalData?.integration_summary || {};
+              const synergies = goalData?.synergies || [];
+              const conflicts = goalData?.conflicts || [];
+              
+              totalSNodes += sNodes.length;
+              totalDomains += domains.length;
+              
+              return (
+                <div key={goalId} className="mb-6 border border-border/30 rounded-lg p-4">
+                  <h4 className="font-semibold text-md mb-3 text-primary">
+                    {goalId}: {goalData.target_goal_title || 'Knowledge Base'}
+                  </h4>
+                  
+                  {/* Integration Summary */}
+                  {integrationSummary.total_collected && (
+                    <div className="bg-green-500/10 p-3 rounded mb-4 text-sm border border-green-500/30">
+                      <p className="font-semibold text-green-400 mb-1">Integration Summary</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>Total Collected: <span className="font-bold">{integrationSummary.total_collected}</span></div>
+                        <div>Duplicates Removed: <span className="font-bold">{integrationSummary.duplicates_removed}</span></div>
+                        <div>Final Unique: <span className="font-bold text-green-400">{integrationSummary.final_unique_count}</span></div>
+                        <div>Domains Processed: <span className="font-bold">{integrationSummary.domains_processed}</span></div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Domains */}
+                  <div className="mb-4">
+                    <h5 className="font-semibold text-sm mb-2 text-foreground">Research Domains ({domains.length})</h5>
+                    <div className="grid grid-cols-2 gap-2">
+                      {domains.map((domain: any) => (
+                        <div key={domain.domain_id} className="bg-secondary/30 p-2 rounded text-xs border border-border/50">
+                          <div className="font-semibold text-foreground">{domain.domain_name}</div>
+                          <div className="text-muted-foreground mt-1">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                              domain.relevance_to_goal === 'HIGH' ? 'bg-green-500/20 text-green-400' :
+                              domain.relevance_to_goal === 'MED' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {domain.relevance_to_goal}
+                            </span>
+                            <span className="ml-2">{domain.expected_intervention_count} interventions</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Top S-Nodes */}
+                  <div className="mb-4">
+                    <h5 className="font-semibold text-sm mb-2 text-foreground">
+                      Top Scientific Interventions ({sNodes.length} total, showing top 10)
+                    </h5>
+                    {sNodes.slice(0, 10).map((sNode: any) => (
+                      <div key={sNode.id} className="bg-secondary/20 p-3 rounded mb-2 text-xs border border-border/40">
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="font-semibold text-foreground flex-1">
+                            #{sNode.rank || '?'} - {sNode.title}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                              sNode.readiness_level === 'RL-3' ? 'bg-green-500/20 text-green-400' :
+                              sNode.readiness_level === 'RL-2' ? 'bg-blue-500/20 text-blue-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {sNode.readiness_level}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-primary/20 text-primary font-bold">
+                              Score: {sNode.strategic_value_score || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-muted-foreground text-[11px] mb-1">{sNode.mechanism}</div>
+                        {sNode.verified_effect && (
+                          <div className="text-foreground/80 text-[11px] italic">Effect: {sNode.verified_effect}</div>
+                        )}
+                      </div>
+                    ))}
+                    {sNodes.length > 10 && (
+                      <div className="text-xs text-muted-foreground italic">
+                        ... and {sNodes.length - 10} more interventions
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Synergies */}
+                  {synergies.length > 0 && (
+                    <div className="mb-4">
+                      <h5 className="font-semibold text-sm mb-2 text-green-400">Synergies Detected ({synergies.length})</h5>
+                      {synergies.slice(0, 3).map((synergy: any, idx: number) => (
+                        <div key={idx} className="bg-green-500/10 p-2 rounded mb-2 text-xs border border-green-500/30">
+                          <div className="font-semibold text-green-400">{synergy.synergy_type}</div>
+                          <div className="text-foreground/80 text-[11px]">{synergy.rationale}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Conflicts */}
+                  {conflicts.length > 0 && (
+                    <div>
+                      <h5 className="font-semibold text-sm mb-2 text-red-400">Conflicts Detected ({conflicts.length})</h5>
+                      {conflicts.slice(0, 3).map((conflict: any, idx: number) => (
+                        <div key={idx} className="bg-red-500/10 p-2 rounded mb-2 text-xs border border-red-500/30">
+                          <div className="font-semibold text-red-400">{conflict.conflict_type} - {conflict.severity}</div>
+                          <div className="text-foreground/80 text-[11px]">{conflict.rationale}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-sm text-muted-foreground">No scientific knowledge base found</p>
+          )}
+          
+          {totalSNodes > 0 && (
+            <div className="mt-4 p-3 bg-primary/10 rounded border border-primary/30 text-sm">
+              <strong>Total:</strong> {totalSNodes} unique interventions across {totalDomains} research domains
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Step 5: Matching Edges (organized by goal)
+    if (stepId === 5) {
+      let edges: any[] = [];
+      let edgesByGoal: Record<string, any> = {};
+      let operationalMode: string | null = null;
+      
+      if (Array.isArray(output)) {
+        edges = output;
+      } else if (output && typeof output === 'object') {
+        // New format: organized by goal ID
+        Object.entries(output).forEach(([goalId, goalData]: [string, any]) => {
+          if (goalData?.edges) {
+            edgesByGoal[goalId] = goalData;
+            edges.push(...(Array.isArray(goalData.edges) ? goalData.edges : [goalData.edges]));
+            if (goalData.mode) operationalMode = goalData.mode;
+          }
+        });
+        
+        // Fallback: old format
+        if (edges.length === 0) {
+          if (output.edges) {
+            edges = Array.isArray(output.edges) ? output.edges : Object.values(output.edges).flat();
+          } else {
+            edges = Object.values(output).flat().filter((item: any) => 
+              item && typeof item === 'object' && (item.source_s_id || item.relationship)
+            );
+          }
+        }
+      }
+      
+      return (
+        <div>
+          <h3 className="font-bold text-lg mb-3 text-foreground">
+            Matching Results ({edges.length} edges)
+            {operationalMode && (
+              <span className="ml-2 text-xs px-2 py-1 rounded bg-primary/20 text-primary font-mono">
+                {operationalMode === 'goal_specific' ? 'NEW MODE: Evaluating G-S Links' : 'LEGACY MODE: Creating Links'}
+              </span>
+            )}
+          </h3>
+          
+          {Object.keys(edgesByGoal).length > 0 ? (
+            // Group by goal
+            Object.entries(edgesByGoal).map(([goalId, goalData]: [string, any]) => (
+              <div key={goalId} className="mb-6">
+                <h4 className="font-semibold text-md mb-2 text-primary">
+                  {goalId}: {goalData.target_goal_title || 'Goal Edges'}
+                </h4>
+                {goalData.audit_summary && (
+                  <div className="bg-blue-500/10 p-3 rounded mb-3 text-sm border border-blue-500/30">
+                    <p className="font-semibold text-blue-400">Audit Summary</p>
+                    <p className="text-foreground mt-1">{goalData.audit_summary}</p>
+                  </div>
+                )}
+                {goalData.edges?.map(renderMatchingEdge)}
+              </div>
+            ))
+          ) : edges.length > 0 ? (
+            // Old format: single list
+            <>
+              {output.audit_summary && (
+                <div className="bg-blue-500/10 p-3 rounded mb-4 text-sm border border-blue-500/30">
+                  <p className="font-semibold text-blue-400">Audit Summary</p>
+                  <p className="text-foreground mt-1">{output.audit_summary}</p>
+                </div>
+              )}
+              {edges.map(renderMatchingEdge)}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">No matching edges found</p>
+          )}
+        </div>
+      );
+    }
+
+    // Step 6: L3 Questions
+    if (stepId === 6) {
+      let questions: any[] = [];
+      
+      if (Array.isArray(output)) {
+        questions = output;
+      } else if (output && typeof output === 'object') {
+        if (output.l3_questions) {
+          questions = Array.isArray(output.l3_questions) ? output.l3_questions : Object.values(output.l3_questions).flat();
+        } else if (output.seed_questions) {
+          questions = Array.isArray(output.seed_questions) ? output.seed_questions : Object.values(output.seed_questions).flat();
+        } else {
+          questions = Object.values(output).flat().filter((item: any) => item && typeof item === 'object');
+        }
+      }
+      
+      return (
+        <div>
+          <h3 className="font-bold text-lg mb-3 text-foreground">L3 Seed Questions ({questions.length})</h3>
+          {questions.length > 0 ? (
+            questions.map(renderL3Question)
+          ) : (
+            <p className="text-sm text-muted-foreground">No L3 questions found</p>
+          )}
+        </div>
+      );
+    }
+
+    // Step 7: Instantiation Hypotheses
+    if (stepId === 7) {
+      let ihs: any[] = [];
+      
+      if (Array.isArray(output)) {
+        ihs = output;
+      } else if (output && typeof output === 'object') {
+        if (output.instantiation_hypotheses) {
+          ihs = Array.isArray(output.instantiation_hypotheses) ? output.instantiation_hypotheses : Object.values(output.instantiation_hypotheses).flat();
+        } else if (output.IHs) {
+          ihs = Array.isArray(output.IHs) ? output.IHs : Object.values(output.IHs).flat();
+        } else {
+          ihs = Object.values(output).flat().filter((item: any) => item && typeof item === 'object' && item.ih_id);
+        }
+      }
+      
+      return (
+        <div>
+          <h3 className="font-bold text-lg mb-3 text-foreground">Instantiation Hypotheses ({ihs.length})</h3>
+          {ihs.length > 0 ? (
+            ihs.map(renderIH)
+          ) : (
+            <p className="text-sm text-muted-foreground">No instantiation hypotheses found</p>
+          )}
+        </div>
+      );
+    }
+
+    // Step 8: L4 Questions
+    if (stepId === 8) {
+      let l4Questions: any[] = [];
+      
+      if (Array.isArray(output)) {
+        l4Questions = output;
+      } else if (output && typeof output === 'object') {
+        if (output.l4_questions) {
+          l4Questions = Array.isArray(output.l4_questions) ? output.l4_questions : Object.values(output.l4_questions).flat();
+        } else if (output.child_nodes_L4) {
+          l4Questions = Array.isArray(output.child_nodes_L4) ? output.child_nodes_L4 : Object.values(output.child_nodes_L4).flat();
+        } else {
+          l4Questions = Object.values(output).flat().filter((item: any) => item && typeof item === 'object' && item.id && item.text);
+        }
+      }
+      
+      return (
+        <div>
+          <h3 className="font-bold text-lg mb-3 text-foreground">L4 Questions ({l4Questions.length})</h3>
+          {l4Questions.length > 0 ? (
+            l4Questions.map(renderL4Question)
+          ) : (
+            <p className="text-sm text-muted-foreground">No L4 questions found</p>
+          )}
+        </div>
+      );
+    }
+
+    // Step 9: L5 Nodes and L6 Tasks
+    if (stepId === 9) {
+      let l5Nodes: any[] = [];
+      let l6Tasks: any[] = [];
+      
+      if (output && typeof output === 'object') {
+        // Extract L5 nodes
+        if (output.l5_nodes) {
+          l5Nodes = Array.isArray(output.l5_nodes) ? output.l5_nodes : [];
+        }
+        
+        // Extract L6 tasks
+        if (output.l6_tasks) {
+          l6Tasks = Array.isArray(output.l6_tasks) ? output.l6_tasks : [];
+        } else if (Array.isArray(output)) {
+          l6Tasks = output;
+        }
+      }
+      
+      return (
+        <div className="space-y-4">
+          {l5Nodes.length > 0 && (
+            <div>
+              <h3 className="font-bold text-lg mb-3 text-foreground">L5 Mechanistic Drills ({l5Nodes.length})</h3>
+              {l5Nodes.map(renderL5Node)}
+            </div>
+          )}
+          
+          {l6Tasks.length > 0 && (
+            <div>
+              <h3 className="font-bold text-lg mb-3 text-foreground">L6 Leaf Tasks ({l6Tasks.length})</h3>
+              {l6Tasks.map(renderL6Task)}
+            </div>
+          )}
+          
+          {l5Nodes.length === 0 && l6Tasks.length === 0 && (
+            <p className="text-sm text-muted-foreground">No L5 or L6 nodes found</p>
+          )}
+        </div>
+      );
+    }
+
+    // Default: show formatted JSON
+    return (
+      <pre className="text-xs overflow-auto max-h-96 bg-white p-3 rounded border select-text whitespace-pre-wrap break-words">
+        {JSON.stringify(output, null, 2)}
+      </pre>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <p className="text-sm font-medium">Output:</p>
+        <button
+          onClick={() => setShowRaw(!showRaw)}
+          className="text-xs flex items-center gap-1 text-gray-600 hover:text-gray-900"
+        >
+          <Code size={14} />
+          {showRaw ? 'Show Formatted' : 'Show Raw JSON'}
+        </button>
+      </div>
+      
+      <div className="bg-secondary/20 rounded p-4 border border-border/30 select-text">
+        {showRaw ? (
+          <pre className="text-xs overflow-auto max-h-96 bg-secondary/30 p-3 rounded border border-border/30 text-foreground select-text whitespace-pre-wrap break-words">
+            {JSON.stringify(output, null, 2)}
+          </pre>
+        ) : (
+          renderContent()
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Export helper function to render node details for graph visualization
+ * Maps node types to their appropriate rendering functions
+ */
+export const renderNodeDetails = (nodeType: string, nodeData: any) => {
+  switch (nodeType) {
+    case 'goal':
+      const goalMeterClasses = nodeData.evidence_of_state?.meter_classes || [];
+      
+      return (
+        <div className="space-y-2">
+          {nodeData.catastrophe_primary && (
+            <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-red-400">Primary Catastrophe</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.catastrophe_primary}</p>
+            </div>
+          )}
+          {nodeData.state_definition && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">State Definition</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.state_definition}</p>
+            </div>
+          )}
+          {nodeData.done_criteria && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">Done Criteria</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.done_criteria}</p>
+            </div>
+          )}
+          {nodeData.failure_mode_simulation && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Failure Mode Simulation</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.failure_mode_simulation}</p>
+            </div>
+          )}
+          {nodeData.triz_contradiction && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">TRIZ Contradiction</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.triz_contradiction}</p>
+            </div>
+          )}
+          {nodeData.evidence_of_state && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Evidence of State</p>
+              {goalMeterClasses.length > 0 && (
+                <div className="mt-1">
+                  <p className="text-[10px] text-blue-300">Meter Classes:</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {goalMeterClasses.map((mc: string, i: number) => (
+                      <span key={i} className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded">{mc}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {nodeData.evidence_of_state.meter_status && (
+                <p className="text-xs mt-1 text-foreground">Status: {nodeData.evidence_of_state.meter_status}</p>
+              )}
+            </div>
+          )}
+          {nodeData.scope_note && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">Scope Note</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.scope_note}</p>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'ra':
+      const meterClasses = Array.isArray(nodeData.meter_classes) ? nodeData.meter_classes : [];
+      const perturbationClasses = Array.isArray(nodeData.perturbation_classes) ? nodeData.perturbation_classes : [];
+      
+      return (
+        <div className="space-y-2">
+          {nodeData.requirement_statement && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-emerald-400">Requirement</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.requirement_statement}</p>
+            </div>
+          )}
+          {nodeData.done_criteria && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-emerald-400">Done Criteria</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.done_criteria}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            {nodeData.state_variable && (
+              <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+                <p className="text-xs font-semibold text-blue-400">State Variable</p>
+                <p className="text-xs mt-1 text-foreground">{nodeData.state_variable}</p>
+              </div>
+            )}
+            {nodeData.failure_shape && (
+              <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
+                <p className="text-xs font-semibold text-red-400">Failure Shape</p>
+                <p className="text-xs mt-1 text-foreground">{nodeData.failure_shape}</p>
+              </div>
+            )}
+            {nodeData.timescale && (
+              <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+                <p className="text-xs font-semibold text-purple-400">Timescale</p>
+                <p className="text-xs mt-1 text-foreground">{nodeData.timescale}</p>
+              </div>
+            )}
+          </div>
+          {perturbationClasses.length > 0 && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Perturbation Classes</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {perturbationClasses.map((pc: string, i: number) => (
+                  <span key={i} className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded">{pc}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {meterClasses.length > 0 && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-emerald-400">Meter Classes</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {meterClasses.map((mc: string, i: number) => (
+                  <span key={i} className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">{mc}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {nodeData.meter_status && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-emerald-400">Meter Status</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.meter_status}</p>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'scientific':
+      const capabilities = Array.isArray(nodeData.capabilities) ? nodeData.capabilities : [];
+      const constraints = Array.isArray(nodeData.constraints) ? nodeData.constraints : [];
+      const failureModes = Array.isArray(nodeData.known_failure_modes) ? nodeData.known_failure_modes : [];
+      const assumptions = Array.isArray(nodeData.fundamental_assumptions) ? nodeData.fundamental_assumptions : [];
+      
+      return (
+        <div className="space-y-2">
+          {/* Header Info */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {nodeData.node_type && (
+              <div className="bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded font-semibold">
+                {nodeData.node_type}
+              </div>
+            )}
+            {nodeData.front && (
+              <div className="bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded font-semibold">
+                Front: {nodeData.front}
+              </div>
+            )}
+          </div>
+
+          {/* Mechanism */}
+          {nodeData.mechanism && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Mechanism</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.mechanism}</p>
+            </div>
+          )}
+
+          {/* Verified Effect */}
+          {nodeData.verified_effect && (
+            <div className="bg-green-500/10 border border-green-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-green-400">Verified Effect</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.verified_effect}</p>
+            </div>
+          )}
+
+          {/* Readiness & Model */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {nodeData.readiness_level && (
+              <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+                <p className="font-semibold text-cyan-400">Readiness</p>
+                <p className="text-foreground">{nodeData.readiness_level}</p>
+              </div>
+            )}
+            {nodeData.best_supported_model && (
+              <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+                <p className="font-semibold text-cyan-400">Model</p>
+                <p className="text-foreground">{nodeData.best_supported_model}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Fragility & Momentum */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {nodeData.fragility_score !== undefined && (
+              <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+                <p className="font-semibold text-amber-400">Fragility Score</p>
+                <p className="text-foreground">{nodeData.fragility_score}/10</p>
+              </div>
+            )}
+            {nodeData.research_momentum && (
+              <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+                <p className="font-semibold text-cyan-400">Momentum</p>
+                <p className="text-foreground">{nodeData.research_momentum}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Human Context */}
+          {nodeData.human_context && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Human Context</p>
+              <p className="text-xs mt-1 text-foreground">
+                {nodeData.human_context.present ? '✓ Present' : '✗ Not Present'}
+                {nodeData.human_context.note && ` - ${nodeData.human_context.note}`}
+              </p>
+            </div>
+          )}
+
+          {/* Capabilities */}
+          {capabilities.length > 0 && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Capabilities</p>
+              <div className="space-y-1 mt-1">
+                {capabilities.map((cap: any, i: number) => (
+                  <div key={i} className="text-xs bg-cyan-500/20 p-2 rounded border border-cyan-500/40">
+                    <div className="font-semibold text-cyan-300">
+                      {cap.spv_id}: {cap.effect_direction}
+                    </div>
+                    {cap.rationale && (
+                      <div className="text-foreground mt-1 text-[10px]">{cap.rationale}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Constraints */}
+          {constraints.length > 0 && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Constraints</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {constraints.map((constraint: string, i: number) => (
+                  <li key={i} className="text-xs text-foreground">{constraint}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Known Failure Modes */}
+          {failureModes.length > 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-red-400">Known Failure Modes</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {failureModes.map((mode: string, i: number) => (
+                  <li key={i} className="text-xs text-foreground">{mode}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Fundamental Assumptions */}
+          {assumptions.length > 0 && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">Fundamental Assumptions</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {assumptions.map((assumption: string, i: number) => (
+                  <li key={i} className="text-xs text-foreground">{assumption}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'l3':
+      return (
+        <div className="space-y-2">
+          {nodeData.text && (
+            <div className="bg-rose-500/10 border border-rose-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-rose-400">Question</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.text}</p>
+            </div>
+          )}
+          {nodeData.rationale && (
+            <div className="bg-rose-500/10 border border-rose-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-rose-400">Rationale</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {nodeData.strategy_used && (
+              <div className="bg-rose-500/10 border border-rose-500/30 p-2 rounded">
+                <p className="font-semibold text-rose-400">Strategy</p>
+                <p className="text-foreground">{nodeData.strategy_used}</p>
+              </div>
+            )}
+            {nodeData.discriminator_target && (
+              <div className="bg-rose-500/10 border border-rose-500/30 p-2 rounded">
+                <p className="font-semibold text-rose-400">Target</p>
+                <p className="text-foreground">{nodeData.discriminator_target}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    
+    case 'ih':
+      const mapsToRaIds = Array.isArray(nodeData.maps_to_ra_ids) ? nodeData.maps_to_ra_ids : [];
+      const meterClassesIH = Array.isArray(nodeData.meter_classes) ? nodeData.meter_classes : [];
+      const distinguishesIHIds = Array.isArray(nodeData.distinguishes_ih_ids) ? nodeData.distinguishes_ih_ids : [];
+      
+      return (
+        <div className="space-y-2">
+          {nodeData.domain_category && (
+            <div className="inline-block bg-orange-500/20 text-orange-300 px-2 py-1 rounded text-xs font-semibold">
+              {nodeData.domain_category}
+            </div>
+          )}
+          {nodeData.process_hypothesis && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Process Hypothesis</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.process_hypothesis}</p>
+            </div>
+          )}
+          {nodeData.discriminating_prediction && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Discriminating Prediction</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.discriminating_prediction}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            {nodeData.target_spv && (
+              <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+                <p className="text-xs font-semibold text-blue-400">Target SPV</p>
+                <p className="text-xs mt-1 text-foreground">{nodeData.target_spv}</p>
+              </div>
+            )}
+            {nodeData.lens_origin && (
+              <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+                <p className="text-xs font-semibold text-purple-400">Lens Origin</p>
+                <p className="text-xs mt-1 text-foreground">{nodeData.lens_origin}</p>
+              </div>
+            )}
+          </div>
+          {mapsToRaIds.length > 0 && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-emerald-400">Maps to RAs</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {mapsToRaIds.map((raId: string, i: number) => (
+                  <span key={i} className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">{raId}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {meterClassesIH.length > 0 && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Meter Classes</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {meterClassesIH.map((mc: string, i: number) => (
+                  <span key={i} className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded">{mc}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {nodeData.notes && (
+            <div className="bg-secondary/30 p-2 rounded">
+              <p className="text-xs font-semibold text-muted-foreground">Notes</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.notes}</p>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'l4':
+      const distinguishesIHIdsL4 = Array.isArray(nodeData.distinguishes_ih_ids) ? nodeData.distinguishes_ih_ids : [];
+      
+      return (
+        <div className="space-y-2">
+          {nodeData.type && nodeData.lens && (
+            <div className="flex gap-2">
+              <span className="inline-block bg-lime-500/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
+                {nodeData.type}
+              </span>
+              <span className="inline-block bg-lime-500/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
+                {nodeData.lens}
+              </span>
+            </div>
+          )}
+          {nodeData.text && (
+            <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Question</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.text}</p>
+            </div>
+          )}
+          {nodeData.rationale && (
+            <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Rationale</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
+            </div>
+          )}
+          {distinguishesIHIdsL4.length > 0 && (
+            <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Distinguishes IHs</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {distinguishesIHIdsL4.map((ihId: string, i: number) => (
+                  <span key={i} className="text-xs bg-lime-500/20 text-lime-300 px-2 py-0.5 rounded">{ihId}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'l5':
+      return (
+        <div className="space-y-2">
+          {nodeData.type && (
+            <div className="flex gap-2">
+              <span className="inline-block bg-lime-400/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
+                {nodeData.type}
+              </span>
+            </div>
+          )}
+          {nodeData.text && (
+            <div className="bg-lime-400/10 border border-lime-400/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Mechanistic Drill / Requirement</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.text}</p>
+            </div>
+          )}
+          {nodeData.rationale && (
+            <div className="bg-lime-400/10 border border-lime-400/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Rationale</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
+            </div>
+          )}
+          {nodeData.parent_l4_id && (
+            <div className="bg-lime-400/10 border border-lime-400/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Parent L4</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.parent_l4_id}</p>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'l6':
+      const simtParams = nodeData.simt_parameters || {};
+      
+      return (
+        <div className="space-y-2">
+          {nodeData.type && (
+            <div className="inline-block bg-teal-500/20 text-teal-300 px-2 py-1 rounded text-xs font-semibold">
+              {nodeData.type}
+            </div>
+          )}
+          {nodeData.parent_l4_id && (
+            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-teal-400">Parent L4</p>
+              <p className="text-xs mt-1 text-foreground font-mono">{nodeData.parent_l4_id}</p>
+            </div>
+          )}
+          {nodeData.title && (
+            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-teal-400">Title</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.title}</p>
+            </div>
+          )}
+          {nodeData.description && (
+            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-teal-400">Description</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.description}</p>
+            </div>
+          )}
+          {Object.keys(simtParams).length > 0 && (
+            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-teal-400">SIMT Parameters</p>
+              <div className="grid grid-cols-2 gap-2 mt-1 text-xs">
+                {simtParams.system && (
+                  <div>
+                    <span className="font-semibold text-teal-300">System:</span> {simtParams.system}
+                  </div>
+                )}
+                {simtParams.intervention && (
+                  <div>
+                    <span className="font-semibold text-teal-300">Intervention:</span> {simtParams.intervention}
+                  </div>
+                )}
+                {simtParams.meter && (
+                  <div>
+                    <span className="font-semibold text-teal-300">Meter:</span> {simtParams.meter}
+                  </div>
+                )}
+                {simtParams.threshold_time && (
+                  <div>
+                    <span className="font-semibold text-teal-300">Time:</span> {simtParams.threshold_time}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {nodeData.expected_impact && (
+            <div className="bg-green-500/10 border border-green-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-green-400">Expected Impact</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.expected_impact}</p>
+            </div>
+          )}
+          {nodeData.spv_link && (
+            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-teal-400">SPV Link</p>
+              <p className="text-xs mt-1 text-foreground font-mono">{nodeData.spv_link}</p>
+            </div>
+          )}
+          {nodeData.readiness_assessment && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Readiness Assessment</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.readiness_assessment}</p>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'spv':
+      return (
+        <div className="space-y-2">
+          {(nodeData.id || nodeData.ID) && (
+            <div className="inline-block bg-amber-500/20 text-amber-300 px-2 py-1 rounded text-xs font-semibold">
+              {nodeData.id || nodeData.ID}
+            </div>
+          )}
+          {(nodeData.name || nodeData.Name) && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Name</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.name || nodeData.Name}</p>
+            </div>
+          )}
+          {(nodeData.definition || nodeData.Definition) && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Definition</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.definition || nodeData.Definition}</p>
+            </div>
+          )}
+        </div>
+      );
+    
+    default:
+      return (
+        <pre className="bg-secondary/30 border border-border/30 p-3 rounded text-xs overflow-auto max-h-64 text-foreground select-text">
+          {JSON.stringify(nodeData, null, 2)}
+        </pre>
+      );
+  }
+};
