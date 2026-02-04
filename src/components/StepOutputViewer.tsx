@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Code } from 'lucide-react';
+import { PipelineStep } from '@/types';
 
 interface StepOutputViewerProps {
   output: any;
   stepId: number;
+  step?: PipelineStep;
 }
 
-export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, stepId }) => {
+export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, stepId, step }) => {
   const [showRaw, setShowRaw] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['main']));
 
@@ -197,37 +199,6 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
           <div className="mt-2 bg-secondary/30 p-2 rounded">
             <p className="text-xs font-semibold text-muted-foreground">Notes:</p>
             <p className="text-xs text-foreground mt-1">{ra.notes}</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderScientificPillar = (pillar: any, index: number) => {
-    const spvEffects = Array.isArray(pillar.spv_effects) ? pillar.spv_effects : 
-                       Array.isArray(pillar.capabilities) ? pillar.capabilities : [];
-    
-    return (
-      <div key={pillar.id || index} className="border-l-4 border-cyan-500 pl-4 py-2 mb-3 bg-cyan-500/10 rounded-r">
-        <h5 className="font-bold text-cyan-400">{pillar.id || `S-${index + 1}`}: {pillar.title || 'Untitled'}</h5>
-        <p className="text-sm text-foreground mt-1">{pillar.mechanism_summary || pillar.mechanism || pillar.description || 'No description'}</p>
-        
-        <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-          {pillar.readiness_level && <div><span className="font-semibold">Readiness:</span> {pillar.readiness_level}</div>}
-          {pillar.evidence_strength && <div><span className="font-semibold">Evidence:</span> {pillar.evidence_strength}</div>}
-          {pillar.fragility_score !== undefined && <div><span className="font-semibold">Fragility:</span> {pillar.fragility_score}/10</div>}
-        </div>
-        
-        {spvEffects.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs font-semibold text-muted-foreground">SPV Effects:</p>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {spvEffects.map((effect: any, i: number) => (
-                <span key={i} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">
-                  {effect.spv_id}: {effect.direction || effect.effect_direction}
-                </span>
-              ))}
-            </div>
           </div>
         )}
       </div>
@@ -668,48 +639,31 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
       );
     }
 
-    // Step 4: Scientific Knowledge Base (3-Phase Output)
+    // Step 4: Scientific Knowledge Base (2-Phase Output)
     if (stepId === 4) {
-      let totalSNodes = 0;
-      let totalDomains = 0;
+      // Check for phase data from step4Phases
+      const phase4aData = step?.step4Phases?.phase4a_domain_mapping;
+      const phase4bData = step?.step4Phases?.phase4b_domain_scans;
       
       return (
         <div>
-          <h3 className="font-bold text-lg mb-3 text-foreground">Scientific Knowledge Base (3-Phase Collection)</h3>
+          <h3 className="font-bold text-lg mb-3 text-foreground flex items-center gap-2">
+            🔬 Scientific Knowledge Base 
+            <span className="text-sm font-normal text-muted-foreground">(2-Phase Collection)</span>
+          </h3>
           
-          {output && typeof output === 'object' && Object.keys(output).length > 0 ? (
-            Object.entries(output).map(([goalId, goalData]: [string, any]) => {
-              const domains = goalData?.domain_mapping?.research_domains || [];
-              const sNodes = goalData?.deduplicated_s_nodes || [];
-              const integrationSummary = goalData?.integration_summary || {};
-              const synergies = goalData?.synergies || [];
-              const conflicts = goalData?.conflicts || [];
-              
-              totalSNodes += sNodes.length;
-              totalDomains += domains.length;
-              
-              return (
-                <div key={goalId} className="mb-6 border border-border/30 rounded-lg p-4">
-                  <h4 className="font-semibold text-md mb-3 text-primary">
-                    {goalId}: {goalData.target_goal_title || 'Knowledge Base'}
-                  </h4>
-                  
-                  {/* Integration Summary */}
-                  {integrationSummary.total_collected && (
-                    <div className="bg-green-500/10 p-3 rounded mb-4 text-sm border border-green-500/30">
-                      <p className="font-semibold text-green-400 mb-1">Integration Summary</p>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>Total Collected: <span className="font-bold">{integrationSummary.total_collected}</span></div>
-                        <div>Duplicates Removed: <span className="font-bold">{integrationSummary.duplicates_removed}</span></div>
-                        <div>Final Unique: <span className="font-bold text-green-400">{integrationSummary.final_unique_count}</span></div>
-                        <div>Domains Processed: <span className="font-bold">{integrationSummary.domains_processed}</span></div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Domains */}
-                  <div className="mb-4">
-                    <h5 className="font-semibold text-sm mb-2 text-foreground">Research Domains ({domains.length})</h5>
+          {/* Phase 4a Results: Domain Mapping */}
+          {phase4aData && (
+            <div className="mb-6 border border-blue-500/30 rounded-lg p-4 bg-blue-500/5">
+              <h4 className="font-semibold text-md mb-3 text-blue-400 flex items-center gap-2">
+                <span className="bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">✓</span>
+                Phase 4a: Domain Mapping Results
+              </h4>
+              {Object.entries(phase4aData).map(([goalId, goalData]: [string, any]) => {
+                const domains = goalData?.research_domains || [];
+                return (
+                  <div key={goalId} className="mb-4">
+                    <h5 className="font-semibold text-sm mb-2 text-foreground">{goalId}: Research Domains ({domains.length})</h5>
                     <div className="grid grid-cols-2 gap-2">
                       {domains.map((domain: any) => (
                         <div key={domain.domain_id} className="bg-secondary/30 p-2 rounded text-xs border border-border/50">
@@ -728,79 +682,37 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
                       ))}
                     </div>
                   </div>
-                  
-                  {/* Top S-Nodes */}
-                  <div className="mb-4">
-                    <h5 className="font-semibold text-sm mb-2 text-foreground">
-                      Top Scientific Interventions ({sNodes.length} total, showing top 10)
-                    </h5>
-                    {sNodes.slice(0, 10).map((sNode: any) => (
-                      <div key={sNode.id} className="bg-secondary/20 p-3 rounded mb-2 text-xs border border-border/40">
-                        <div className="flex items-start justify-between mb-1">
-                          <div className="font-semibold text-foreground flex-1">
-                            #{sNode.rank || '?'} - {sNode.title}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${
-                              sNode.readiness_level === 'RL-3' ? 'bg-green-500/20 text-green-400' :
-                              sNode.readiness_level === 'RL-2' ? 'bg-blue-500/20 text-blue-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {sNode.readiness_level}
-                            </span>
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-primary/20 text-primary font-bold">
-                              Score: {sNode.strategic_value_score || 0}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-muted-foreground text-[11px] mb-1">{sNode.mechanism}</div>
-                        {sNode.verified_effect && (
-                          <div className="text-foreground/80 text-[11px] italic">Effect: {sNode.verified_effect}</div>
-                        )}
-                      </div>
-                    ))}
-                    {sNodes.length > 10 && (
-                      <div className="text-xs text-muted-foreground italic">
-                        ... and {sNodes.length - 10} more interventions
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Synergies */}
-                  {synergies.length > 0 && (
-                    <div className="mb-4">
-                      <h5 className="font-semibold text-sm mb-2 text-green-400">Synergies Detected ({synergies.length})</h5>
-                      {synergies.slice(0, 3).map((synergy: any, idx: number) => (
-                        <div key={idx} className="bg-green-500/10 p-2 rounded mb-2 text-xs border border-green-500/30">
-                          <div className="font-semibold text-green-400">{synergy.synergy_type}</div>
-                          <div className="text-foreground/80 text-[11px]">{synergy.rationale}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Conflicts */}
-                  {conflicts.length > 0 && (
-                    <div>
-                      <h5 className="font-semibold text-sm mb-2 text-red-400">Conflicts Detected ({conflicts.length})</h5>
-                      {conflicts.slice(0, 3).map((conflict: any, idx: number) => (
-                        <div key={idx} className="bg-red-500/10 p-2 rounded mb-2 text-xs border border-red-500/30">
-                          <div className="font-semibold text-red-400">{conflict.conflict_type} - {conflict.severity}</div>
-                          <div className="text-foreground/80 text-[11px]">{conflict.rationale}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-sm text-muted-foreground">No scientific knowledge base found</p>
+                );
+              })}
+            </div>
           )}
           
-          {totalSNodes > 0 && (
-            <div className="mt-4 p-3 bg-primary/10 rounded border border-primary/30 text-sm">
-              <strong>Total:</strong> {totalSNodes} unique interventions across {totalDomains} research domains
+          {/* Phase 4b Results: Domain Scans */}
+          {phase4bData && (
+            <div className="mb-6 border border-purple-500/30 rounded-lg p-4 bg-purple-500/5">
+              <h4 className="font-semibold text-md mb-3 text-purple-400 flex items-center gap-2">
+                <span className="bg-purple-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">✓</span>
+                Phase 4b: Domain Scan Results
+              </h4>
+              {Object.entries(phase4bData).map(([goalId, goalData]: [string, any]) => {
+                const domainScans = goalData?.domains || {};
+                const totalScans = Object.keys(domainScans).length;
+                let totalSNodesInGoal = 0;
+                Object.values(domainScans).forEach((scan: any) => {
+                  totalSNodesInGoal += scan.scientific_pillars?.length || 0;
+                });
+                
+                return (
+                  <div key={goalId} className="mb-4">
+                    <h5 className="font-semibold text-sm mb-2 text-foreground">
+                      {goalId}: {totalSNodesInGoal} S-nodes from {totalScans} domains
+                    </h5>
+                    <div className="text-xs text-green-400 font-semibold">
+                      ✓ Domain scans completed
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1043,10 +955,29 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
 };
 
 /**
+ * Helper function to lookup SPV or FCC definition from bridge lexicon
+ */
+const lookupBridgeLexiconItem = (id: string, bridgeLexicon: any) => {
+  if (!bridgeLexicon || !id) return null;
+  
+  // Check System Properties
+  const spvs = bridgeLexicon.system_properties || bridgeLexicon.System_Properties || [];
+  const spv = spvs.find((s: any) => (s.id || s.ID) === id);
+  if (spv) return { name: spv.name || spv.Name, definition: spv.definition || spv.Definition, type: 'spv' };
+  
+  // Check Failure Channels
+  const fccs = bridgeLexicon.failure_channels || bridgeLexicon.Failure_Channels || [];
+  const fcc = fccs.find((f: any) => (f.id || f.ID) === id);
+  if (fcc) return { name: fcc.name || fcc.Name, definition: fcc.definition || fcc.Definition, type: 'fcc' };
+  
+  return null;
+};
+
+/**
  * Export helper function to render node details for graph visualization
  * Maps node types to their appropriate rendering functions
  */
-export const renderNodeDetails = (nodeType: string, nodeData: any) => {
+export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon?: any) => {
   switch (nodeType) {
     case 'goal':
       const goalMeterClasses = nodeData.evidence_of_state?.meter_classes || [];
@@ -1084,20 +1015,29 @@ export const renderNodeDetails = (nodeType: string, nodeData: any) => {
             </div>
           )}
           {nodeData.evidence_of_state && (
-            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-blue-400">Evidence of State</p>
+            <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-blue-400 mb-2">Evidence of State</p>
               {goalMeterClasses.length > 0 && (
-                <div className="mt-1">
-                  <p className="text-[10px] text-blue-300">Meter Classes:</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {goalMeterClasses.map((mc: string, i: number) => (
-                      <span key={i} className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded">{mc}</span>
-                    ))}
-                  </div>
+                <div className="space-y-2">
+                  <p className="text-[10px] text-blue-300 font-semibold">Meter Classes:</p>
+                  {goalMeterClasses.map((mc: string, i: number) => {
+                    const mcInfo = lookupBridgeLexiconItem(mc, bridgeLexicon);
+                    return (
+                      <div key={i} className="bg-blue-500/10 border border-blue-500/20 rounded p-2">
+                        <p className="text-sm font-mono text-blue-300">{mc}</p>
+                        {mcInfo && (
+                          <div className="mt-1">
+                            <p className="text-xs font-semibold text-blue-200">{mcInfo.name}</p>
+                            <p className="text-xs text-foreground/70 leading-relaxed mt-0.5">{mcInfo.definition}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {nodeData.evidence_of_state.meter_status && (
-                <p className="text-xs mt-1 text-foreground">Status: {nodeData.evidence_of_state.meter_status}</p>
+                <p className="text-xs mt-2 text-foreground">Status: {nodeData.evidence_of_state.meter_status}</p>
               )}
             </div>
           )}
@@ -1114,64 +1054,112 @@ export const renderNodeDetails = (nodeType: string, nodeData: any) => {
       const meterClasses = Array.isArray(nodeData.meter_classes) ? nodeData.meter_classes : [];
       const perturbationClasses = Array.isArray(nodeData.perturbation_classes) ? nodeData.perturbation_classes : [];
       
+      // Lookup state variable definition
+      const stateVarInfo = nodeData.state_variable ? lookupBridgeLexiconItem(nodeData.state_variable, bridgeLexicon) : null;
+      
+      // Lookup failure shape definition
+      const failureShapeInfo = nodeData.failure_shape ? lookupBridgeLexiconItem(nodeData.failure_shape, bridgeLexicon) : null;
+      
       return (
         <div className="space-y-2">
           {nodeData.requirement_statement && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded">
               <p className="text-xs font-semibold text-emerald-400">Requirement</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.requirement_statement}</p>
+              <p className="text-sm mt-1 text-foreground leading-relaxed">{nodeData.requirement_statement}</p>
             </div>
           )}
           {nodeData.done_criteria && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded">
               <p className="text-xs font-semibold text-emerald-400">Done Criteria</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.done_criteria}</p>
+              <p className="text-sm mt-1 text-foreground leading-relaxed">{nodeData.done_criteria}</p>
             </div>
           )}
-          <div className="grid grid-cols-3 gap-2">
-            {nodeData.state_variable && (
-              <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
-                <p className="text-xs font-semibold text-blue-400">State Variable</p>
-                <p className="text-xs mt-1 text-foreground">{nodeData.state_variable}</p>
-              </div>
-            )}
-            {nodeData.failure_shape && (
-              <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
-                <p className="text-xs font-semibold text-red-400">Failure Shape</p>
-                <p className="text-xs mt-1 text-foreground">{nodeData.failure_shape}</p>
-              </div>
-            )}
-            {nodeData.timescale && (
-              <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
-                <p className="text-xs font-semibold text-purple-400">Timescale</p>
-                <p className="text-xs mt-1 text-foreground">{nodeData.timescale}</p>
-              </div>
-            )}
-          </div>
+          
+          {/* State Variable - Expanded */}
+          {nodeData.state_variable && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-blue-400 mb-1">State Variable</p>
+              <p className="text-sm font-mono text-blue-300 mb-2">{nodeData.state_variable}</p>
+              {stateVarInfo && (
+                <div className="mt-2 pt-2 border-t border-blue-500/20">
+                  <p className="text-xs font-semibold text-blue-300">{stateVarInfo.name}</p>
+                  <p className="text-xs mt-1 text-foreground/80 leading-relaxed">{stateVarInfo.definition}</p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Failure Shape - Expanded */}
+          {nodeData.failure_shape && (
+            <div className="bg-red-500/10 border border-red-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-red-400 mb-1">Failure Shape</p>
+              <p className="text-sm font-mono text-red-300 mb-2">{nodeData.failure_shape}</p>
+              {failureShapeInfo && (
+                <div className="mt-2 pt-2 border-t border-red-500/20">
+                  <p className="text-xs font-semibold text-red-300">{failureShapeInfo.name}</p>
+                  <p className="text-xs mt-1 text-foreground/80 leading-relaxed">{failureShapeInfo.definition}</p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {nodeData.timescale && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-purple-400">Timescale</p>
+              <p className="text-sm mt-1 text-foreground">{nodeData.timescale}</p>
+            </div>
+          )}
+          
+          {/* Perturbation Classes - Expanded with definitions */}
           {perturbationClasses.length > 0 && (
-            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-orange-400">Perturbation Classes</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {perturbationClasses.map((pc: string, i: number) => (
-                  <span key={i} className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded">{pc}</span>
-                ))}
+            <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-orange-400 mb-2">Perturbation Classes</p>
+              <div className="space-y-2">
+                {perturbationClasses.map((pc: string, i: number) => {
+                  const pcInfo = lookupBridgeLexiconItem(pc, bridgeLexicon);
+                  return (
+                    <div key={i} className="bg-orange-500/10 border border-orange-500/20 rounded p-2">
+                      <p className="text-sm font-mono text-orange-300">{pc}</p>
+                      {pcInfo && (
+                        <div className="mt-1">
+                          <p className="text-xs font-semibold text-orange-200">{pcInfo.name}</p>
+                          <p className="text-xs text-foreground/70 leading-relaxed mt-0.5">{pcInfo.definition}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
+          
+          {/* Meter Classes - Expanded with definitions */}
           {meterClasses.length > 0 && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-emerald-400">Meter Classes</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {meterClasses.map((mc: string, i: number) => (
-                  <span key={i} className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">{mc}</span>
-                ))}
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-emerald-400 mb-2">Meter Classes</p>
+              <div className="space-y-2">
+                {meterClasses.map((mc: string, i: number) => {
+                  const mcInfo = lookupBridgeLexiconItem(mc, bridgeLexicon);
+                  return (
+                    <div key={i} className="bg-emerald-500/10 border border-emerald-500/20 rounded p-2">
+                      <p className="text-sm font-mono text-emerald-300">{mc}</p>
+                      {mcInfo && (
+                        <div className="mt-1">
+                          <p className="text-xs font-semibold text-emerald-200">{mcInfo.name}</p>
+                          <p className="text-xs text-foreground/70 leading-relaxed mt-0.5">{mcInfo.definition}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
+          
           {nodeData.meter_status && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded">
               <p className="text-xs font-semibold text-emerald-400">Meter Status</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.meter_status}</p>
+              <p className="text-sm mt-1 text-foreground">{nodeData.meter_status}</p>
             </div>
           )}
         </div>
@@ -1246,6 +1234,46 @@ export const renderNodeDetails = (nodeType: string, nodeData: any) => {
               </div>
             )}
           </div>
+
+          {/* Relationship to Goal (from Step 4b) */}
+          {nodeData.relationship_to_goal && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Relationship to Goal</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                  nodeData.relationship_to_goal === 'solves' ? 'bg-green-500/20 text-green-400' :
+                  nodeData.relationship_to_goal === 'partially_solves' ? 'bg-yellow-500/20 text-yellow-400' :
+                  nodeData.relationship_to_goal === 'proxies_for' ? 'bg-orange-500/20 text-orange-400' :
+                  nodeData.relationship_to_goal === 'violates' ? 'bg-red-500/20 text-red-400' :
+                  nodeData.relationship_to_goal === 'enables_measurement_for' ? 'bg-purple-500/20 text-purple-400' :
+                  'bg-gray-500/20 text-gray-400'
+                }`}>
+                  {nodeData.relationship_to_goal}
+                </span>
+                {nodeData.relationship_confidence !== undefined && (
+                  <span className="text-xs text-foreground">
+                    Confidence: {(nodeData.relationship_confidence * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Gap Analysis */}
+          {nodeData.gap_analysis && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">Gap Analysis</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.gap_analysis}</p>
+            </div>
+          )}
+
+          {/* Violation Risk */}
+          {nodeData.violation_risk && (
+            <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-red-400">Violation Risk</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.violation_risk}</p>
+            </div>
+          )}
 
           {/* Human Context */}
           {nodeData.human_context && (
@@ -1350,8 +1378,7 @@ export const renderNodeDetails = (nodeType: string, nodeData: any) => {
     case 'ih':
       const mapsToRaIds = Array.isArray(nodeData.maps_to_ra_ids) ? nodeData.maps_to_ra_ids : [];
       const meterClassesIH = Array.isArray(nodeData.meter_classes) ? nodeData.meter_classes : [];
-      const distinguishesIHIds = Array.isArray(nodeData.distinguishes_ih_ids) ? nodeData.distinguishes_ih_ids : [];
-      
+
       return (
         <div className="space-y-2">
           {nodeData.domain_category && (
@@ -1579,6 +1606,70 @@ export const renderNodeDetails = (nodeType: string, nodeData: any) => {
             <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-amber-400">Definition</p>
               <p className="text-xs mt-1 text-foreground">{nodeData.definition || nodeData.Definition}</p>
+            </div>
+          )}
+        </div>
+      );
+    
+    case 'domain':
+    case 'domain_group':
+      return (
+        <div className="space-y-2">
+          {nodeData.domain_id && (
+            <div className="inline-block bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded text-xs font-semibold">
+              {nodeData.domain_id}
+            </div>
+          )}
+          {nodeData.s_node_count !== undefined && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Interventions in Domain</p>
+              <p className="text-xs mt-1 text-foreground font-bold">{nodeData.s_node_count}</p>
+            </div>
+          )}
+          {nodeData.domain_name && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Domain Name</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.domain_name}</p>
+            </div>
+          )}
+          {nodeData.scope_definition && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Scope Definition</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.scope_definition}</p>
+            </div>
+          )}
+          {nodeData.relevance_to_goal && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Relevance to Goal</p>
+              <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                nodeData.relevance_to_goal === 'HIGH' ? 'bg-green-500/20 text-green-400' :
+                nodeData.relevance_to_goal === 'MED' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-gray-500/20 text-gray-400'
+              }`}>
+                {nodeData.relevance_to_goal}
+              </span>
+            </div>
+          )}
+          {nodeData.expected_intervention_count && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Expected Interventions</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.expected_intervention_count}</p>
+            </div>
+          )}
+          {nodeData.key_research_fronts && nodeData.key_research_fronts.length > 0 && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Key Research Fronts</p>
+              <ul className="list-disc list-inside text-xs mt-1 text-foreground space-y-1">
+                {nodeData.key_research_fronts.map((front: string, idx: number) => (
+                  <li key={idx}>{front}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {nodeData.rationale && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Rationale</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
             </div>
           )}
         </div>

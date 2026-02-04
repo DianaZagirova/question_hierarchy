@@ -3,6 +3,7 @@ import { useAppStore } from './store/useAppStore';
 import { AgentCard } from './components/AgentCard';
 import { PipelineView } from './components/PipelineView';
 import { GraphVisualization } from './components/GraphVisualization';
+import { GraphVisualizationWrapper } from './components/GraphVisualizationWrapper';
 // SplitView component available but using custom split implementation
 import { ParticleBackground } from './components/ParticleBackground';
 import { Button } from './components/ui/Button';
@@ -20,6 +21,7 @@ function App() {
   const [selectedL3Id, setSelectedL3Id] = useState<string | null>(null); // For single-L3 pipeline
   const [selectedL4Id, setSelectedL4Id] = useState<string | null>(null); // For single-L4 pipeline
   const [globalLens, setGlobalLens] = useState<string>(''); // Global lens for all agents
+  const [useImprovedGraph, setUseImprovedGraph] = useState(true); // Toggle for improved graph visualization
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { 
     currentGoal, 
@@ -28,6 +30,7 @@ function App() {
     updateAgent, 
     steps, 
     updateStepStatus,
+    updateStep4Phase,
     skipStep,
     clearStep,
     resetToDefaults,
@@ -203,63 +206,10 @@ function App() {
         return;
       }
 
-      // STEP 5: Batch process all Goals for Scientific Pillar matching (or single goal if selected)
+      // STEP 5: DISABLED - Judge agent disabled, function integrated into Step 4b
       if (stepId === 5) {
-        const step2Output = steps[1]?.output;
-        let goals = step2Output?.goals || [];
-        const step4Output = steps[3]?.output; // Now organized by goal ID
-        const bridgeLexicon = step2Output?.bridge_lexicon || {};
-        const allSPVs = bridgeLexicon.system_properties || [];
-        
-        console.log(`[Step 5] selectedGoalId:`, selectedGoalId);
-        console.log(`[Step 5] Total goals available:`, goals.length);
-        
-        // Filter to single goal if selected
-        if (selectedGoalId) {
-          goals = goals.filter((g: any) => g.id === selectedGoalId);
-          if (goals.length === 0) {
-            updateStepStatus(stepId, 'error', null, `Selected goal ${selectedGoalId} not found`);
-            return;
-          }
-          console.log(`Step 5: Processing SINGLE goal ${selectedGoalId}`);
-        } else {
-          console.log(`Step 5: Processing ${goals.length} Goals for Scientific Pillar matching in batch (NO GOAL SELECTED)`);
-        }
-        
-        if (goals.length === 0) {
-          updateStepStatus(stepId, 'error', null, 'No Goal Pillars found from Step 2');
-          return;
-        }
-        
-        // Prepare batch items - one per goal with enriched SPV definitions
-        // Use deduplicated_s_nodes from Step 4c (Knowledge Integrator output)
-        const items = goals.map((goal: any) => {
-          const enrichedGoal = enrichGoalWithSPVs(goal, allSPVs);
-          const goalSpecificPillars = step4Output?.[goal.id]?.deduplicated_s_nodes || [];
-          
-          console.log(`[Step 5] Goal ${goal.id}: ${goalSpecificPillars.length} deduplicated S-nodes to evaluate`);
-          
-          return {
-            goal_pillar: enrichedGoal,
-            requirement_atoms: steps[2]?.output?.[goal.id] || [],
-            bridge_lexicon: bridgeLexicon,
-            scientific_toolkit: goalSpecificPillars,
-            goal: currentGoal
-          };
-        });
-
-        const batchResult = await executeStepBatch(stepId, agent, items, controller.signal, globalLens);
-        
-        // Aggregate results by goal ID
-        const matchingByGoal: Record<string, any> = selectedGoalId ? (steps[4]?.output || {}) : {};
-        batchResult.batch_results.forEach((result: any, idx: number) => {
-          if (result.success && result.data) {
-            const goalId = goals[idx].id;
-            matchingByGoal[goalId] = result.data;
-          }
-        });
-
-        updateStepStatus(stepId, 'completed', matchingByGoal);
+        console.log(`[Step 5] ⚠️  Step 5 (Judge) is DISABLED - relationship assessment integrated into Step 4b`);
+        updateStepStatus(stepId, 'skipped', null, 'Step 5 Judge disabled - relationship assessment now in Step 4b');
         return;
       }
 
@@ -270,19 +220,25 @@ function App() {
         const bridgeLexicon = step2Output?.bridge_lexicon || {};
         const allSPVs = bridgeLexicon.system_properties || [];
         
-        console.log(`[Step 6] selectedGoalId:`, selectedGoalId);
-        console.log(`[Step 6] Total goals available:`, goals.length);
+        console.log(`[Step 6] 🎯 Goal Selection Debug:`);
+        console.log(`  - selectedGoalId:`, selectedGoalId);
+        console.log(`  - Total goals available:`, goals.length);
+        console.log(`  - Goal IDs:`, goals.map((g: any) => g.id));
         
         // Filter to single goal if selected
         if (selectedGoalId) {
+          const beforeFilter = goals.length;
           goals = goals.filter((g: any) => g.id === selectedGoalId);
+          console.log(`  - ✅ FILTERING: ${beforeFilter} goals → ${goals.length} goal(s)`);
+          
           if (goals.length === 0) {
+            console.error(`  - ❌ ERROR: Selected goal ${selectedGoalId} not found in available goals`);
             updateStepStatus(stepId, 'error', null, `Selected goal ${selectedGoalId} not found`);
             return;
           }
-          console.log(`Step 6: Processing SINGLE goal ${selectedGoalId}`);
+          console.log(`  - ✅ Processing SINGLE goal: ${selectedGoalId}`);
         } else {
-          console.log(`Step 6: Processing ${goals.length} Goals for L3 questions in batch`);
+          console.log(`  - ⚠️  NO GOAL SELECTED: Processing ALL ${goals.length} goals in batch`);
         }
         
         if (goals.length === 0) {
@@ -291,28 +247,80 @@ function App() {
         }
         
         // Prepare batch items with enriched SPV definitions
+        const step2Data = steps[1]?.output;
+        const step3Data = steps[2]?.output;
+        const step4Data = steps[3]?.output;
+
+        console.log('[Step 6] Preparing batch items:');
+        console.log('  - Step 2 data:', !!step2Data);
+        console.log('  - Step 3 data:', !!step3Data);
+        console.log('  - Step 4 data:', !!step4Data);
+        console.log('  - Goals to process:', goals.length);
+
         const items = goals.map((goal: any) => {
           const enrichedGoal = enrichGoalWithSPVs(goal, allSPVs);
-          
+
           return {
             goal_pillar: enrichedGoal,
-            step3: steps[2]?.output,
-            step5: steps[4]?.output,
+            step2: step2Data,
+            step3: step3Data,
+            step4: step4Data,
+            step5: step4Data, // CRITICAL: Pass Step 4 as Step 5 since Judge is skipped (relationship data is in Step 4)
             goal: currentGoal
           };
         });
 
         const batchResult = await executeStepBatch(stepId, agent, items, controller.signal, globalLens);
-        
+
+        console.log('[Step 6] 🔍 BATCH RESULT DEBUG:');
+        console.log('  - batch_results length:', batchResult?.batch_results?.length);
+        console.log('  - successful:', batchResult?.successful);
+        console.log('  - failed:', batchResult?.failed);
+
         // Aggregate all L3 questions
         const existingL3s = selectedGoalId ? (steps[5]?.output?.l3_questions || []) : [];
         const allL3Questions: any[] = [...existingL3s];
-        batchResult.batch_results.forEach((result: any) => {
+
+        batchResult.batch_results.forEach((result: any, idx: number) => {
+          console.log(`[Step 6] Processing batch result ${idx + 1}:`, {
+            success: result.success,
+            hasData: !!result.data,
+            dataKeys: result.data ? Object.keys(result.data) : []
+          });
+
           if (result.success && result.data) {
+            console.log(`[Step 6] Result data structure:`, result.data);
+
             const l3s = result.data.l3_questions || result.data.seed_questions || [];
+            const targetGoalId = result.data.target_goal_id;
+
+            console.log(`[Step 6] Extracted data:`, {
+              l3s_length: l3s.length,
+              targetGoalId: targetGoalId,
+              l3s_sample: l3s[0]
+            });
+
+            // CRITICAL FIX: Add target_goal_id to each L3 question for graph visualization
+            l3s.forEach((l3: any) => {
+              if (targetGoalId && !l3.target_goal_id) {
+                l3.target_goal_id = targetGoalId;
+              }
+            });
+
+            console.log(`[Step 6] ✅ Extracted ${l3s.length} L3 questions for goal ${targetGoalId}`);
+            if (l3s.length > 0) {
+              console.log(`[Step 6] Sample L3 ID: ${l3s[0]?.id}`);
+              console.log(`[Step 6] Sample L3 text: ${l3s[0]?.text?.substring(0, 100)}`);
+            }
+
             allL3Questions.push(...l3s);
+          } else {
+            console.error(`[Step 6] ❌ Batch result ${idx + 1} failed or has no data:`, result.error);
           }
         });
+
+        console.log(`[Step 6] ✅ Total L3 questions collected: ${allL3Questions.length}`);
+        console.log(`[Step 6] All L3 IDs:`, allL3Questions.map(q => q?.id));
 
         const existingSummary = selectedGoalId ? (steps[5]?.output?.batch_summary || {}) : {};
         updateStepStatus(stepId, 'completed', {
@@ -549,8 +557,8 @@ function App() {
         return;
       }
 
-      // STEP 4: 3-Phase Scientific Knowledge Collection
-      // Phase 4a: Domain Mapping → Phase 4b: Domain Scans (parallel) → Phase 4c: Integration
+      // STEP 4: 2-Phase Scientific Knowledge Collection (Phase 4c REMOVED)
+      // Phase 4a: Domain Mapping → Phase 4b: Domain Scans (parallel)
       if (stepId === 4) {
         const step2Output = steps[1]?.output;
         const step3Output = steps[2]?.output;
@@ -560,9 +568,14 @@ function App() {
           system_properties: bridgeLexicon.system_properties || []
         };
         
-        console.log(`[Step 4] 3-Phase Scientific Knowledge Collection`);
-        console.log(`[Step 4] selectedGoalId:`, selectedGoalId);
+        console.log(`
+========================================`);
+        console.log(`[Step 4] 🚀 3-PHASE SCIENTIFIC KNOWLEDGE COLLECTION`);
+        console.log(`========================================`);
+        console.log(`[Step 4] Selected Goal ID:`, selectedGoalId || 'ALL GOALS (Batch Mode)');
         console.log(`[Step 4] Total goals available:`, goals.length);
+        console.log(`[Step 4] Goals to process:`, goals.map((g: any) => g.id));
+        console.log(`[Step 4] Bridge Lexicon SPVs:`, filteredBridgeLexicon.system_properties.length);
         
         // Filter to single goal if selected
         if (selectedGoalId) {
@@ -580,8 +593,13 @@ function App() {
         }
         
         // ===== PHASE 4a: DOMAIN MAPPING =====
-        console.log(`[Step 4a] Domain Mapping for ${goals.length} goal(s)...`);
+        console.log(`
+----------------------------------------`);
+        console.log(`[Step 4a] 🗺️  PHASE 1: DOMAIN MAPPING`);
+        console.log(`----------------------------------------`);
+        console.log(`[Step 4a] Processing ${goals.length} goal(s)...`);
         console.log(`[Step 4a] Available agents:`, agents.map(a => a.id));
+        console.log(`[Step 4a] Timestamp:`, new Date().toISOString());
         updateStepStatus(stepId, 'running', { phase: '4a_domain_mapping', progress: 0 });
         
         const domainMapperAgent = agents.find(a => a.id === 'agent-domain-mapper');
@@ -593,37 +611,144 @@ function App() {
         }
         console.log(`[Step 4a] Found Domain Mapper agent:`, domainMapperAgent.name);
         
-        const domainMappingItems = goals.map((goal: any) => ({
-          Q0_reference: steps[0]?.output?.Q0,
-          target_goal: goal,
-          requirement_atoms: step3Output?.[goal.id] || [],
-          bridge_lexicon: filteredBridgeLexicon,
-          goal: currentGoal
-        }));
+        const domainMappingItems = goals.map((goal: any) => {
+          const ras = step3Output?.[goal.id] || [];
+          console.log(`[Step 4a] Preparing input for Goal ${goal.id}:`);
+          console.log(`  - Goal Title: ${goal.title}`);
+          console.log(`  - RAs available: ${ras.length}`);
+          console.log(`  - SPVs in bridge lexicon: ${filteredBridgeLexicon.system_properties.length}`);
+
+          // ⚡ OPTIMIZATION: Create minimal objects with only needed fields to reduce API payload
+          const minimalGoal = {
+            id: goal.id,
+            title: goal.title,
+            catastrophe_primary: goal.catastrophe_primary,
+            bridge_tags: goal.bridge_tags
+          };
+
+          // Truncate Q0 if too long (keep first 1500 chars to reduce input tokens)
+          const q0Text = steps[0]?.output?.Q0 || '';
+          const truncatedQ0 = q0Text.length > 1500 ? q0Text.substring(0, 1500) + '...[truncated]' : q0Text;
+
+          // Minimal RAs with only essential fields
+          const minimalRAs = ras.map((ra: any) => ({
+            ra_id: ra.ra_id,
+            atom_title: ra.atom_title,
+            requirement_statement: ra.requirement_statement
+          }));
+
+          // Filter bridge_lexicon to only include SPVs referenced by this goal
+          const relevantSPVIds = (goal.bridge_tags?.system_properties_required || []).map((sp: any) => sp.spv_id);
+          const minimalBridgeLexicon = {
+            system_properties: filteredBridgeLexicon.system_properties.filter((spv: any) =>
+              relevantSPVIds.includes(spv.id || spv.ID)
+            )
+          };
+
+          // Log optimization impact
+          const originalSize = JSON.stringify({ Q0_reference: steps[0]?.output?.Q0, target_goal: goal, requirement_atoms: ras, bridge_lexicon: filteredBridgeLexicon }).length;
+          const optimizedSize = JSON.stringify({ Q0_reference: truncatedQ0, target_goal: minimalGoal, requirement_atoms: minimalRAs, bridge_lexicon: minimalBridgeLexicon }).length;
+          console.log(`  ⚡ Payload size: ${originalSize} → ${optimizedSize} bytes (${((1 - optimizedSize/originalSize) * 100).toFixed(1)}% reduction)`);
+          console.log(`  ⚡ SPVs filtered: ${filteredBridgeLexicon.system_properties.length} → ${minimalBridgeLexicon.system_properties.length}`);
+
+          return {
+            Q0_reference: truncatedQ0,
+            target_goal: minimalGoal,
+            requirement_atoms: minimalRAs,
+            bridge_lexicon: minimalBridgeLexicon,
+            goal: currentGoal
+          };
+        });
+        
+        console.log(`[Step 4a] Prepared ${domainMappingItems.length} batch items for domain mapping`);
+        
+        console.log(`[Step 4a] ⏳ Executing batch call to Domain Mapper agent...`);
+        const domainMappingStartTime = Date.now();
         
         const domainMappingResult = await executeStepBatch(
           stepId,
           domainMapperAgent,
           domainMappingItems,
           controller.signal,
-          globalLens
+          globalLens,
+          { phase: '4a' }
         );
         
+        const domainMappingDuration = ((Date.now() - domainMappingStartTime) / 1000).toFixed(2);
+        console.log(`[Step 4a] ✅ Domain mapping completed in ${domainMappingDuration}s`);
+        console.log(`[Step 4a] Batch results:`, {
+          successful: domainMappingResult.successful,
+          failed: domainMappingResult.failed,
+          total: domainMappingResult.batch_results.length
+        });
+        
         const domainsByGoal: Record<string, any> = {};
+        let totalDomainsIdentified = 0;
+        
+        console.log(`[Step 4a] Processing domain mapping results...`);
         domainMappingResult.batch_results.forEach((result: any, idx: number) => {
+          const goalId = goals[idx].id;
+          
           if (result.success && result.data) {
-            const goalId = goals[idx].id;
             domainsByGoal[goalId] = result.data;
-            console.log(`[Step 4a] Goal ${goalId}: ${result.data.research_domains?.length || 0} domains identified`);
+            const domains = result.data.research_domains || [];
+            totalDomainsIdentified += domains.length;
+            
+            console.log(`[Step 4a] ✓ Goal ${goalId}:`);
+            console.log(`  - Domains identified: ${domains.length}`);
+            console.log(`  - Domain IDs: ${domains.map((d: any) => d.domain_id).join(', ')}`);
+            console.log(`  - Relevance breakdown:`, {
+              HIGH: domains.filter((d: any) => d.relevance_to_goal === 'HIGH').length,
+              MED: domains.filter((d: any) => d.relevance_to_goal === 'MED').length,
+              LOW: domains.filter((d: any) => d.relevance_to_goal === 'LOW').length
+            });
+            
+            // Log each domain with details
+            domains.forEach((domain: any) => {
+              console.log(`    • ${domain.domain_id}: ${domain.domain_name} [${domain.relevance_to_goal}] - Expected: ${domain.expected_intervention_count} interventions`);
+            });
+          } else {
+            console.error(`[Step 4a] ✗ Goal ${goalId}: FAILED`);
+            console.error(`  - Error:`, result.error || 'Unknown error');
           }
         });
         
+        console.log(`[Step 4a] 📊 Phase 1 Summary:`);
+        console.log(`  - Total domains identified: ${totalDomainsIdentified}`);
+        console.log(`  - Goals processed: ${Object.keys(domainsByGoal).length}/${goals.length}`);
+        
+        // Save Phase 4a results immediately
+        updateStep4Phase('phase4a_domain_mapping', domainsByGoal);
+        console.log(`[Step 4a] ✅ Phase 1 results saved to store`);
+        
         // ===== PHASE 4b: DOMAIN-SPECIFIC SCANS (PARALLEL) =====
-        console.log(`[Step 4b] Domain-Specific Scans (parallel)...`);
+        console.log(`
+----------------------------------------`);
+        console.log(`[Step 4b] 🔬 PHASE 2: DOMAIN-SPECIFIC SCANS (PARALLEL)`);
+        console.log(`----------------------------------------`);
+        console.log(`[Step 4b] Timestamp:`, new Date().toISOString());
+        
+        // 🔧 FIX: Filter domainsByGoal to only selected goal if specified
+        let filteredDomainsByGoal = domainsByGoal;
+        if (selectedGoalId) {
+          filteredDomainsByGoal = {};
+          if (domainsByGoal[selectedGoalId]) {
+            filteredDomainsByGoal[selectedGoalId] = domainsByGoal[selectedGoalId];
+            console.log(`[Step 4b] ✅ Filtered to SINGLE goal: ${selectedGoalId}`);
+            console.log(`[Step 4b] Domains for ${selectedGoalId}: ${domainsByGoal[selectedGoalId].research_domains?.length || 0}`);
+          } else {
+            console.error(`[Step 4b] ✗ Selected goal ${selectedGoalId} not found in Phase 4a results`);
+            updateStepStatus(stepId, 'error', null, `Selected goal ${selectedGoalId} has no domain mapping`);
+            return;
+          }
+        } else {
+          console.log(`[Step 4b] Processing ALL goals (${Object.keys(domainsByGoal).length} goals)`);
+        }
+        
         updateStepStatus(stepId, 'running', { 
           phase: '4b_domain_scans', 
-          progress: 33,
-          domain_mapping: domainsByGoal 
+          progress: 50,
+          domain_mapping: filteredDomainsByGoal 
         });
         
         const domainSpecialistAgent = agents.find(a => a.id === 'agent-biologist');
@@ -637,42 +762,106 @@ function App() {
         
         // Collect all domain scan items (one per domain per goal)
         const allDomainScanItems: any[] = [];
-        Object.entries(domainsByGoal).forEach(([goalId, domainData]: [string, any]) => {
-          const goal = goals.find(g => g.id === goalId);
+        console.log(`[Step 4b] Preparing domain scan items...`);
+        
+        Object.entries(filteredDomainsByGoal).forEach(([goalId, domainData]: [string, any]) => {
+          const goal = goals.find((g: any) => g.id === goalId);
           const domains = domainData.research_domains || [];
           
-          domains.forEach((domain: any) => {
+          console.log(`[Step 4b] Goal ${goalId}: Preparing ${domains.length} domain scans`);
+          
+          domains.forEach((domain: any, idx: number) => {
+            const ras = step3Output?.[goalId] || [];
+            console.log(`  [${idx + 1}/${domains.length}] ${domain.domain_id}: ${domain.domain_name}`);
+            console.log(`    - Relevance: ${domain.relevance_to_goal}`);
+            console.log(`    - Expected interventions: ${domain.expected_intervention_count}`);
+            console.log(`    - RAs available: ${ras.length}`);
+
+            // ⚡ OPTIMIZATION: Create minimal objects with only needed fields
+            const minimalGoal = {
+              id: goal.id,
+              title: goal.title,
+              catastrophe_primary: goal.catastrophe_primary,
+              bridge_tags: goal.bridge_tags
+            };
+
+            // Truncate Q0 if too long
+            const q0Text = steps[0]?.output?.Q0 || '';
+            const truncatedQ0 = q0Text.length > 1500 ? q0Text.substring(0, 1500) + '...[truncated]' : q0Text;
+
+            // Minimal RAs with only essential fields
+            const minimalRAs = ras.map((ra: any) => ({
+              ra_id: ra.ra_id,
+              atom_title: ra.atom_title,
+              requirement_statement: ra.requirement_statement
+            }));
+
+            // Filter bridge_lexicon to only include SPVs referenced by this goal
+            const relevantSPVIds = (goal.bridge_tags?.system_properties_required || []).map((sp: any) => sp.spv_id);
+            const minimalBridgeLexicon = {
+              system_properties: filteredBridgeLexicon.system_properties.filter((spv: any) =>
+                relevantSPVIds.includes(spv.id || spv.ID)
+              )
+            };
+
+            // Log first item's optimization impact
+            if (allDomainScanItems.length === 0) {
+              const originalSize = JSON.stringify({ Q0_reference: steps[0]?.output?.Q0, target_goal: goal, requirement_atoms: ras, bridge_lexicon: filteredBridgeLexicon }).length;
+              const optimizedSize = JSON.stringify({ Q0_reference: truncatedQ0, target_goal: minimalGoal, requirement_atoms: minimalRAs, bridge_lexicon: minimalBridgeLexicon }).length;
+              console.log(`    ⚡ Payload size per domain: ${originalSize} → ${optimizedSize} bytes (${((1 - optimizedSize/originalSize) * 100).toFixed(1)}% reduction)`);
+              console.log(`    ⚡ SPVs filtered: ${filteredBridgeLexicon.system_properties.length} → ${minimalBridgeLexicon.system_properties.length}`);
+            }
+
             allDomainScanItems.push({
-              Q0_reference: steps[0]?.output?.Q0,
-              target_goal: goal,
-              requirement_atoms: step3Output?.[goalId] || [],
-              bridge_lexicon: filteredBridgeLexicon,
+              Q0_reference: truncatedQ0,
+              target_goal: minimalGoal,
+              requirement_atoms: minimalRAs,
+              bridge_lexicon: minimalBridgeLexicon,
               target_domain: domain,
               goal: currentGoal
             });
           });
         });
         
-        console.log(`[Step 4b] Total domain scans: ${allDomainScanItems.length}`);
+        console.log(`[Step 4b] 📦 Total domain scan items prepared: ${allDomainScanItems.length}`);
+        console.log(`[Step 4b] This will execute as ${allDomainScanItems.length} parallel API calls`);
+        
+        console.log(`[Step 4b] ⏳ Executing ${allDomainScanItems.length} parallel domain scans...`);
+        const domainScanStartTime = Date.now();
         
         const domainScanResult = await executeStepBatch(
           stepId,
           domainSpecialistAgent,
           allDomainScanItems,
           controller.signal,
-          globalLens
+          globalLens,
+          { phase: '4b' }
         );
+        
+        const domainScanDuration = ((Date.now() - domainScanStartTime) / 1000).toFixed(2);
+        console.log(`[Step 4b] ✅ Domain scans completed in ${domainScanDuration}s`);
+        console.log(`[Step 4b] Batch results:`, {
+          successful: domainScanResult.successful,
+          failed: domainScanResult.failed,
+          total: domainScanResult.batch_results.length,
+          avgTimePerScan: `${(parseFloat(domainScanDuration) / allDomainScanItems.length).toFixed(2)}s`
+        });
         
         // Organize results by goal and domain
         const domainScansByGoal: Record<string, any> = {};
         let totalSNodes = 0;
+        let successfulScans = 0;
+        let failedScans = 0;
+        
+        console.log(`[Step 4b] Processing domain scan results...`);
         
         domainScanResult.batch_results.forEach((result: any, idx: number) => {
+          const item = allDomainScanItems[idx];
+          const goalId = item.target_goal.id;
+          const domainId = item.target_domain.domain_id;
+          const domainName = item.target_domain.domain_name;
+          
           if (result.success && result.data) {
-            const item = allDomainScanItems[idx];
-            const goalId = item.target_goal.id;
-            const domainId = item.target_domain.domain_id;
-            
             if (!domainScansByGoal[goalId]) {
               domainScansByGoal[goalId] = { domains: {} };
             }
@@ -680,75 +869,98 @@ function App() {
             domainScansByGoal[goalId].domains[domainId] = result.data;
             const sNodeCount = result.data.scientific_pillars?.length || 0;
             totalSNodes += sNodeCount;
-            console.log(`[Step 4b] ${domainId}: ${sNodeCount} S-nodes collected`);
+            successfulScans++;
+            
+            console.log(`[Step 4b] ✓ ${domainId} (${domainName}):`);
+            console.log(`  - S-nodes collected: ${sNodeCount}`);
+            console.log(`  - Goal: ${goalId}`);
+            
+            // Log sample S-nodes
+            if (sNodeCount > 0) {
+              const sNodes = result.data.scientific_pillars || [];
+              console.log(`  - Sample interventions:`);
+              sNodes.slice(0, 3).forEach((sNode: any, i: number) => {
+                console.log(`    ${i + 1}. ${sNode.id}: ${sNode.title}`);
+              });
+              if (sNodeCount > 3) {
+                console.log(`    ... and ${sNodeCount - 3} more`);
+              }
+            }
+          } else {
+            failedScans++;
+            console.error(`[Step 4b] ✗ ${domainId} (${domainName}): FAILED`);
+            console.error(`  - Goal: ${goalId}`);
+            console.error(`  - Error:`, result.error || 'Unknown error');
           }
         });
         
-        console.log(`[Step 4b] Total S-nodes collected: ${totalSNodes}`);
+        console.log(`[Step 4b] 📊 Phase 2 Summary:`);
+        console.log(`  - Total S-nodes collected: ${totalSNodes}`);
+        console.log(`  - Successful scans: ${successfulScans}/${allDomainScanItems.length}`);
+        console.log(`  - Failed scans: ${failedScans}`);
+        console.log(`  - Average S-nodes per domain: ${(totalSNodes / successfulScans).toFixed(1)}`);
         
-        // ===== PHASE 4c: INTEGRATION & DEDUPLICATION =====
-        console.log(`[Step 4c] Integration & Deduplication...`);
-        updateStepStatus(stepId, 'running', {
-          phase: '4c_integration',
-          progress: 66,
-          domain_mapping: domainsByGoal,
-          domain_scans: domainScansByGoal
+        // Per-goal breakdown
+        Object.entries(domainScansByGoal).forEach(([goalId, data]: [string, any]) => {
+          const domainCount = Object.keys(data.domains).length;
+          const goalSNodes = Object.values(data.domains).reduce((sum: number, d: any) => 
+            sum + (d.scientific_pillars?.length || 0), 0);
+          console.log(`  - ${goalId}: ${goalSNodes} S-nodes from ${domainCount} domains`);
         });
         
-        const integratorAgent = agents.find(a => a.id === 'agent-knowledge-integrator');
-        if (!integratorAgent) {
-          console.error('[Step 4c] Knowledge Integrator agent not found!');
-          console.error('[Step 4c] Available agents:', agents.map(a => ({ id: a.id, name: a.name })));
-          updateStepStatus(stepId, 'error', null, 'Knowledge Integrator agent not found. Try resetting to defaults.');
-          return;
-        }
-        console.log(`[Step 4c] Found Knowledge Integrator agent:`, integratorAgent.name);
-        
-        const integrationItems = goals.map((goal: any) => {
-          const goalId = goal.id;
-          const domainScans = domainScansByGoal[goalId]?.domains || {};
-          
-          // Collect all domain results for this goal
-          const allDomainResults = Object.values(domainScans);
-          
-          return {
-            Q0_reference: steps[0]?.output?.Q0,
-            target_goal: goal,
-            all_domain_results: allDomainResults,
-            goal: currentGoal
-          };
-        });
-        
-        const integrationResult = await executeStepBatch(
-          stepId,
-          integratorAgent,
-          integrationItems,
-          controller.signal,
-          globalLens
-        );
-        
-        // Final output: deduplicated S-nodes by goal
+        // Save Phase 4b results immediately
+        updateStep4Phase('phase4b_domain_scans', domainScansByGoal);
+        console.log(`[Step 4b] ✅ Phase 2 results saved to store`);
+
+        // ===== FINALIZE OUTPUT (Phase 4c REMOVED - No Deduplication) =====
+        console.log(`
+----------------------------------------`);
+        console.log(`[Step 4] 📊 FINALIZING OUTPUT (No Deduplication)`);
+        console.log(`----------------------------------------`);
+
+        // Create final output directly from Phase 4b results (no deduplication)
         const finalOutput: Record<string, any> = {};
-        
-        integrationResult.batch_results.forEach((result: any, idx: number) => {
-          if (result.success && result.data) {
-            const goalId = goals[idx].id;
-            finalOutput[goalId] = {
-              ...result.data,
-              domain_mapping: domainsByGoal[goalId],
-              raw_domain_scans: domainScansByGoal[goalId]
-            };
-            
-            const finalCount = result.data.deduplicated_s_nodes?.length || 0;
-            const totalCollected = result.data.integration_summary?.total_collected || 0;
-            const duplicatesRemoved = result.data.integration_summary?.duplicates_removed || 0;
-            
-            console.log(`[Step 4c] Goal ${goalId}: ${finalCount} unique S-nodes (${totalCollected} collected, ${duplicatesRemoved} duplicates removed)`);
-          }
+        let totalFinalSNodes = 0;
+
+        Object.entries(domainScansByGoal).forEach(([goalId, data]: [string, any]) => {
+          const domainScans = data.domains || {};
+
+          // Collect all S-nodes from all domains for this goal
+          const allSNodes: any[] = [];
+          Object.values(domainScans).forEach((scan: any) => {
+            const pillars = scan.scientific_pillars || [];
+            allSNodes.push(...pillars);
+          });
+
+          finalOutput[goalId] = {
+            domain_mapping: domainsByGoal[goalId],
+            raw_domain_scans: data,
+            scientific_pillars: allSNodes // Direct passthrough - no deduplication
+          };
+
+          totalFinalSNodes += allSNodes.length;
+
+          console.log(`[Step 4] Goal ${goalId}:`);
+          console.log(`  - S-nodes: ${allSNodes.length}`);
+          console.log(`  - Domains: ${Object.keys(domainScans).length}`);
         });
-        
-        console.log(`[Step 4] 3-Phase Collection Complete!`);
+
+        console.log(`
+========================================`);
+        console.log(`[Step 4] 🎉 2-PHASE COLLECTION COMPLETE!`);
+        console.log(`========================================`);
+        console.log(`[Step 4] 📊 Final Summary:`);
+        console.log(`  - Total S-nodes: ${totalFinalSNodes}`);
+        console.log(`  - Goals processed: ${Object.keys(finalOutput).length}/${goals.length}`);
+        console.log(`  - Domains mapped: ${totalDomainsIdentified}`);
+        console.log(`  - Domain scans executed: ${allDomainScanItems.length}`);
+        console.log(`  - Deduplication: SKIPPED (as requested)`);
+        console.log(`========================================\n`);
+
+        // Mark as completed
         updateStepStatus(stepId, 'completed', finalOutput);
+        console.log(`[Step 4] ✅ Status updated to 'completed'`);
+        console.log(`[Step 4] ✅ Output contains ${Object.keys(finalOutput).length} goals`);
         return;
       }
 
@@ -790,6 +1002,150 @@ function App() {
   const handleAbortStep = (stepId: number) => {
     abortStep(stepId);
     updateStepStatus(stepId, 'pending');
+  };
+
+  // Run specific Step 4 phase
+  const handleRunStep4Phase = async (phase: '4a' | '4b' | '4c') => {
+    const step = steps.find(s => s.id === 4);
+    if (!step) return;
+
+    const step2Output = steps[1]?.output;
+    const step3Output = steps[2]?.output;
+    let goals = step2Output?.goals || [];
+    const bridgeLexicon = step2Output?.bridge_lexicon || {};
+    const filteredBridgeLexicon = {
+      system_properties: bridgeLexicon.system_properties || []
+    };
+
+    // Filter to single goal if selected
+    if (selectedGoalId) {
+      goals = goals.filter((g: any) => g.id === selectedGoalId);
+      if (goals.length === 0) {
+        alert(`Selected goal ${selectedGoalId} not found`);
+        return;
+      }
+    }
+
+    if (goals.length === 0) {
+      alert('No Goal Pillars found from Step 2');
+      return;
+    }
+
+    const controller = createAbortController(4);
+
+    try {
+      if (phase === '4a') {
+        // Run Phase 4a: Domain Mapping
+        console.log(`[Step 4a] 🗺️ Running Phase 1: DOMAIN MAPPING`);
+        updateStepStatus(4, 'running', { phase: '4a_domain_mapping', progress: 0 });
+
+        const domainMapperAgent = agents.find(a => a.id === 'agent-domain-mapper');
+        if (!domainMapperAgent) {
+          alert('Domain Mapper agent not found');
+          return;
+        }
+
+        const domainMappingItems = goals.map((goal: any) => ({
+          Q0_reference: steps[0]?.output?.Q0,
+          target_goal: goal,
+          requirement_atoms: step3Output?.[goal.id] || [],
+          bridge_lexicon: filteredBridgeLexicon,
+          goal: currentGoal
+        }));
+
+        const domainMappingResult = await executeStepBatch(
+          4,
+          domainMapperAgent,
+          domainMappingItems,
+          undefined,
+          globalLens,
+          { phase: '4a' }
+        );
+
+        const domainsByGoal: Record<string, any> = {};
+        domainMappingResult.batch_results.forEach((result: any, idx: number) => {
+          if (result.success && result.data) {
+            domainsByGoal[goals[idx].id] = result.data;
+          }
+        });
+
+        updateStep4Phase('phase4a_domain_mapping', domainsByGoal);
+        updateStepStatus(4, 'running', { phase: '4a_complete', progress: 50 });
+        alert(`Phase 4a completed! ${Object.keys(domainsByGoal).length} goals mapped to research domains.`);
+
+      } else if (phase === '4b') {
+        // Run Phase 4b: Domain Scans
+        const domainsByGoal = step.step4Phases?.phase4a_domain_mapping;
+        if (!domainsByGoal) {
+          alert('Phase 4a must be completed first');
+          return;
+        }
+
+        console.log(`[Step 4b] 🔬 Running Phase 2: DOMAIN-SPECIFIC SCANS`);
+        updateStepStatus(4, 'running', { phase: '4b_domain_scans', progress: 50 });
+
+        const domainSpecialistAgent = agents.find(a => a.id === 'agent-biologist');
+        if (!domainSpecialistAgent) {
+          alert('Domain Specialist agent not found');
+          return;
+        }
+
+        const allDomainScanItems: any[] = [];
+        Object.entries(domainsByGoal).forEach(([goalId, domainData]: [string, any]) => {
+          const goal = goals.find((g: any) => g.id === goalId);
+          const domains = domainData.research_domains || [];
+          
+          domains.forEach((domain: any) => {
+            allDomainScanItems.push({
+              Q0_reference: steps[0]?.output?.Q0,
+              target_goal: goal,
+              requirement_atoms: step3Output?.[goalId] || [],
+              bridge_lexicon: filteredBridgeLexicon,
+              target_domain: domain,
+              goal: currentGoal
+            });
+          });
+        });
+
+        const domainScanResult = await executeStepBatch(
+          4,
+          domainSpecialistAgent,
+          allDomainScanItems,
+          undefined,
+          globalLens,
+          { phase: '4b' }
+        );
+
+        const domainScansByGoal: Record<string, any> = {};
+        domainScanResult.batch_results.forEach((result: any, idx: number) => {
+          const item = allDomainScanItems[idx];
+          const goalId = item.target_goal.id;
+          const domainId = item.target_domain.domain_id;
+          
+          if (result.success && result.data) {
+            if (!domainScansByGoal[goalId]) {
+              domainScansByGoal[goalId] = { domains: {} };
+            }
+            domainScansByGoal[goalId].domains[domainId] = result.data;
+          }
+        });
+
+        updateStep4Phase('phase4b_domain_scans', domainScansByGoal);
+        updateStepStatus(4, 'running', { phase: '4b_complete', progress: 100 });
+        alert(`Phase 4b completed! ${domainScanResult.successful} domain scans completed.`);
+
+      }
+      // Phase 4c REMOVED - No longer needed (no deduplication)
+
+      cleanupAbortController(4);
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        updateStepStatus(4, 'running');
+      } else {
+        alert(`Error in Phase ${phase}: ${error.message}`);
+      }
+      cleanupAbortController(4);
+    }
   };
 
   // Run pipeline for a single goal only
@@ -855,32 +1211,11 @@ function App() {
         alert(`Generated RAs for goal ${goalId}`);
       }
       
-      // STEP 5: Single goal strategic matching
+      // STEP 5: DISABLED - Judge agent disabled, function integrated into Step 4b
       else if (stepId === 5) {
-        const input = {
-          goal_pillar: targetGoal,
-          step2: { bridge_lexicon: { system_properties: filteredSPVs } },
-          step3: steps[2]?.output,
-          step4: steps[3]?.output,
-          goal: currentGoal
-        };
-
-        result = await executeStep({
-          stepId,
-          agentConfig: agent,
-          input,
-          signal: controller.signal
-        });
-
-        // Merge with existing matching
-        const existingMatching = steps[4]?.output || {};
-        const updatedMatching = {
-          ...existingMatching,
-          [goalId]: result
-        };
-        
-        updateStepStatus(stepId, 'completed', updatedMatching);
-        alert(`Generated strategic matching for goal ${goalId}`);
+        console.log(`[Step 5] ⚠️  Step 5 (Judge) is DISABLED - relationship assessment integrated into Step 4b`);
+        updateStepStatus(stepId, 'skipped', null, 'Step 5 Judge disabled - relationship assessment now in Step 4b');
+        return;
       }
       
       // STEP 6: Single goal L3 generation
@@ -889,7 +1224,7 @@ function App() {
           goal_pillar: targetGoal,
           step2: { bridge_lexicon: { system_properties: filteredSPVs } },
           step3: steps[2]?.output,
-          step5: steps[4]?.output,
+          step4: steps[3]?.output, // Use Step 4 (has relationship assessments, replaces Step 5)
           goal: currentGoal
         };
 
@@ -1181,28 +1516,39 @@ function App() {
                 Start
               </Button>
               <Button
-                onClick={() => saveVersion()}
+                onClick={() => {
+                  saveVersion();
+                  alert('Version saved successfully!');
+                }}
                 disabled={!currentGoal || steps.every(s => s.status === 'pending')}
-                className="bg-gradient-to-r from-primary to-primary/80 hover:shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all"
+                className="bg-gradient-to-r from-primary to-primary/80 hover:shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                title={!currentGoal ? 'Enter a goal first' : steps.every(s => s.status === 'pending') ? 'Run at least one step first' : 'Save current state as a version'}
               >
                 <Save size={16} className="mr-2" />
                 Save
               </Button>
               <Button
                 variant="outline"
-                onClick={handleSaveToFile}
+                onClick={() => {
+                  handleSaveToFile();
+                  alert('Results saved to file successfully!');
+                }}
                 disabled={!currentGoal || steps.every(s => s.status === 'pending')}
-                className="neon-border text-primary hover:bg-primary/10 hover:shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+                className="neon-border text-primary hover:bg-primary/10 hover:shadow-[0_0_20px_rgba(34,197,94,0.3)] disabled:opacity-40 disabled:cursor-not-allowed disabled:border-muted"
+                title={!currentGoal ? 'Enter a goal first' : steps.every(s => s.status === 'pending') ? 'Run at least one step first' : 'Download all results as JSON'}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Save Results
               </Button>
               <Button
                 variant="outline"
-                onClick={handleSaveInputsOutputs}
+                onClick={() => {
+                  handleSaveInputsOutputs();
+                  alert('Input/Output check file saved successfully!');
+                }}
                 disabled={!currentGoal || steps.every(s => s.status === 'pending')}
-                className="neon-border text-accent hover:bg-accent/10 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)]"
-                title="Save inputs and outputs for verification"
+                className="neon-border text-accent hover:bg-accent/10 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-40 disabled:cursor-not-allowed disabled:border-muted"
+                title={!currentGoal ? 'Enter a goal first' : steps.every(s => s.status === 'pending') ? 'Run at least one step first' : 'Save inputs and outputs for verification'}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Check I/O
@@ -1562,6 +1908,7 @@ function App() {
                 onSkipStep={skipStep}
                 onClearStep={clearStep}
                 onAbortStep={handleAbortStep}
+                onRunStep4Phase={handleRunStep4Phase}
               />
             </div>
             
@@ -1612,9 +1959,21 @@ function App() {
               style={{ width: `${100 - splitRatio}%` }}
               className="bg-card/50 backdrop-blur-sm rounded-r-lg shadow-lg border border-border/30 select-text"
             >
-              <h2 className="text-lg font-bold p-4 gradient-text">Knowledge Graph</h2>
-              <div className="h-[calc(100%-60px)]">
-                <GraphVisualization steps={steps} />
+              <div className="flex items-center justify-between p-4 border-b border-border/30">
+                <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
+                <button
+                  onClick={() => setUseImprovedGraph(!useImprovedGraph)}
+                  className="px-3 py-1 text-xs bg-primary/20 hover:bg-primary/30 rounded transition-colors"
+                >
+                  {useImprovedGraph ? 'Legacy View' : 'Modern View'}
+                </button>
+              </div>
+              <div className="h-[calc(100%-70px)]">
+                {useImprovedGraph ? (
+                  <GraphVisualizationWrapper steps={steps} />
+                ) : (
+                  <GraphVisualization steps={steps} />
+                )}
               </div>
             </div>
           </div>
@@ -1625,6 +1984,7 @@ function App() {
             steps={steps}
             agents={agents}
             onRunStep={handleRunStep}
+            onRunStep4Phase={handleRunStep4Phase}
             onSkipStep={skipStep}
             onClearStep={clearStep}
             onAbortStep={handleAbortStep}
@@ -1632,8 +1992,23 @@ function App() {
         )}
 
         {activeTab === 'graph' && (
-          <div className="h-[800px] bg-card/50 backdrop-blur-sm rounded-lg shadow-lg border border-border/30">
-            <GraphVisualization steps={steps} />
+          <div className="h-[800px] bg-card/50 backdrop-blur-sm rounded-lg shadow-lg border border-border/30 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border/30">
+              <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
+              <button
+                onClick={() => setUseImprovedGraph(!useImprovedGraph)}
+                className="px-3 py-1 text-xs bg-primary/20 hover:bg-primary/30 rounded transition-colors"
+              >
+                {useImprovedGraph ? 'Legacy View' : 'Modern View'}
+              </button>
+            </div>
+            <div className="h-[calc(100%-60px)]">
+              {useImprovedGraph ? (
+                <GraphVisualizationWrapper steps={steps} />
+              ) : (
+                <GraphVisualization steps={steps} />
+              )}
+            </div>
           </div>
         )}
 

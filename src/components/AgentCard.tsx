@@ -39,6 +39,57 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, onUpdate }) => {
                     {agent.description}
                   </p>
                 )}
+                {/* Compact node count display - always visible */}
+                {agent.settings?.nodeCount && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400">Nodes:</span>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={agent.settings.nodeCount.min}
+                        onChange={(e) => {
+                          if (!agent.settings?.nodeCount) return;
+                          const newMin = parseInt(e.target.value) || 1;
+                          onUpdate({
+                            settings: {
+                              ...agent.settings,
+                              nodeCount: {
+                                ...agent.settings.nodeCount,
+                                min: newMin,
+                                default: Math.max(newMin, Math.min(agent.settings.nodeCount.default, agent.settings.nodeCount.max))
+                              }
+                            }
+                          });
+                        }}
+                        className="w-14 h-6 text-xs bg-purple-500/10 border-purple-500/30 text-center px-1"
+                        title="Minimum nodes"
+                      />
+                      <span className="text-muted-foreground text-xs">-</span>
+                      <Input
+                        type="number"
+                        min={agent.settings.nodeCount.min}
+                        value={agent.settings.nodeCount.max}
+                        onChange={(e) => {
+                          if (!agent.settings?.nodeCount) return;
+                          const newMax = parseInt(e.target.value) || agent.settings.nodeCount.min;
+                          onUpdate({
+                            settings: {
+                              ...agent.settings,
+                              nodeCount: {
+                                ...agent.settings.nodeCount,
+                                max: newMax,
+                                default: Math.max(agent.settings.nodeCount.min, Math.min(agent.settings.nodeCount.default, newMax))
+                              }
+                            }
+                          });
+                        }}
+                        className="w-14 h-6 text-xs bg-purple-500/10 border-purple-500/30 text-center px-1"
+                        title="Maximum nodes"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -92,6 +143,88 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, onUpdate }) => {
               />
             </div>
           </div>
+
+          {agent.settings?.nodeCount && (
+            <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+              <label className="text-xs font-semibold uppercase tracking-wider text-purple-400 mb-3 block">
+                Node Count Range
+              </label>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Minimum</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={agent.settings.nodeCount.min}
+                    onChange={(e) => {
+                      if (!agent.settings?.nodeCount) return;
+                      const newMin = parseInt(e.target.value) || 1;
+                      onUpdate({
+                        settings: {
+                          ...agent.settings,
+                          nodeCount: {
+                            ...agent.settings.nodeCount,
+                            min: newMin,
+                            default: Math.max(newMin, Math.min(agent.settings.nodeCount.default, agent.settings.nodeCount.max))
+                          }
+                        }
+                      });
+                    }}
+                    className="bg-secondary/30 border-border/50 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Default</label>
+                  <Input
+                    type="number"
+                    min={agent.settings.nodeCount.min}
+                    max={agent.settings.nodeCount.max}
+                    value={agent.settings.nodeCount.default}
+                    onChange={(e) => {
+                      if (!agent.settings?.nodeCount) return;
+                      const newDefault = parseInt(e.target.value) || agent.settings.nodeCount.min;
+                      onUpdate({
+                        settings: {
+                          ...agent.settings,
+                          nodeCount: {
+                            ...agent.settings.nodeCount,
+                            default: Math.max(agent.settings.nodeCount.min, Math.min(newDefault, agent.settings.nodeCount.max))
+                          }
+                        }
+                      });
+                    }}
+                    className="bg-secondary/30 border-border/50 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Maximum</label>
+                  <Input
+                    type="number"
+                    min={agent.settings.nodeCount.min}
+                    value={agent.settings.nodeCount.max}
+                    onChange={(e) => {
+                      if (!agent.settings?.nodeCount) return;
+                      const newMax = parseInt(e.target.value) || agent.settings.nodeCount.min;
+                      onUpdate({
+                        settings: {
+                          ...agent.settings,
+                          nodeCount: {
+                            ...agent.settings.nodeCount,
+                            max: newMax,
+                            default: Math.max(agent.settings.nodeCount.min, Math.min(agent.settings.nodeCount.default, newMax))
+                          }
+                        }
+                      });
+                    }}
+                    className="bg-secondary/30 border-border/50 text-sm"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground/70 mt-2 italic">
+                Controls how many nodes this agent generates (e.g., goals, domains, pillars, questions)
+              </p>
+            </div>
+          )}
 
           {agent.lens && (
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">

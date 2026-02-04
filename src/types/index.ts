@@ -28,6 +28,12 @@ export interface AgentConfig {
 // Pipeline Step Types
 export type StepStatus = 'pending' | 'running' | 'completed' | 'error' | 'skipped';
 
+export interface Step4PhaseData {
+  phase4a_domain_mapping?: any;  // Results from Phase 4a
+  phase4b_domain_scans?: any;    // Results from Phase 4b
+  phase4c_integration?: any;     // Results from Phase 4c (final)
+}
+
 export interface PipelineStep {
   id: number;
   name: string;
@@ -37,6 +43,7 @@ export interface PipelineStep {
   output: any;
   error?: string;
   timestamp?: Date;
+  step4Phases?: Step4PhaseData;  // Track Step 4 phase results separately
 }
 
 // Data Structure Types

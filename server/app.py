@@ -85,8 +85,40 @@ def execute_single_item(step_id, agent_config, input_data):
     """Execute a single item (helper function for batch processing)"""
     start_time = time.time()
     
+    # Enhanced logging for Step 4
+    if step_id == 4:
+        # Determine if this is Phase 4a or 4b based on input structure
+        if 'target_domain' in input_data:
+            phase = "4b (Domain Scan)"
+            domain_id = input_data.get('target_domain', {}).get('domain_id', 'unknown')
+            domain_name = input_data.get('target_domain', {}).get('domain_name', 'unknown')
+            goal_id = input_data.get('target_goal', {}).get('id', 'unknown')
+            print(f"\n{'='*60}")
+            print(f"[Step 4b] 🔬 DOMAIN SCAN STARTING")
+            print(f"{'='*60}")
+            print(f"  Goal: {goal_id}")
+            print(f"  Domain: {domain_id}")
+            print(f"  Domain Name: {domain_name}")
+            print(f"  Agent: {agent_config.get('name', 'Unknown')}")
+            print(f"  Model: {agent_config.get('model', 'Unknown')}")
+            print(f"  Temperature: {agent_config.get('temperature', 'Unknown')}")
+        else:
+            phase = "4a (Domain Mapping)"
+            goal_id = input_data.get('target_goal', {}).get('id', 'unknown')
+            print(f"\n{'='*60}")
+            print(f"[Step 4a] 🗺️  DOMAIN MAPPING STARTING")
+            print(f"{'='*60}")
+            print(f"  Goal: {goal_id}")
+            print(f"  Agent: {agent_config.get('name', 'Unknown')}")
+            print(f"  Model: {agent_config.get('model', 'Unknown')}")
+            print(f"  Temperature: {agent_config.get('temperature', 'Unknown')}")
+    
     # Prepare the prompt based on step
     user_prompt = prepare_user_prompt(step_id, input_data)
+    
+    # Log prompt size
+    if step_id == 4:
+        print(f"  Input size: {len(user_prompt)} characters")
 
     # Prepare system prompt with interpolated values
     system_prompt = interpolate_prompt(agent_config)
@@ -95,9 +127,25 @@ def execute_single_item(step_id, agent_config, input_data):
     if "JSON" not in system_prompt and "json" not in system_prompt:
         system_prompt += "\n\nIMPORTANT: You must respond with valid JSON only."
 
-    print(f"[Step {step_id}] Calling OpenAI API with model: {agent_config['model']}")
+    # Step-specific timeout settings (Step 4 needs more time for domain scans)
+    if step_id == 4:
+        timeout_seconds = 300  # 5 minutes for Step 4 (domain specialist)
+        max_tokens = 32000  # Allow larger responses for Step 4
+        print(f"  Timeout: {timeout_seconds}s")
+        print(f"  Max tokens: {max_tokens}")
+    elif step_id in [6, 7, 8, 9]:  # L3, IH, L4, L5 steps
+        timeout_seconds = 240  # 4 minutes
+        max_tokens = 28000
+    else:
+        timeout_seconds = 180  # 3 minutes for other steps
+        max_tokens = 24000
+
+    if step_id == 4:
+        print(f"  ⏳ Sending request to OpenAI...")
+    else:
+        print(f"[Step {step_id}] Calling OpenAI API with model: {agent_config['model']} (timeout: {timeout_seconds}s)")
     
-    # Call OpenAI API with performance optimizations
+    # Call OpenAI API with step-specific optimizations
     api_start = time.time()
     completion = client.chat.completions.create(
         model=agent_config['model'],
@@ -107,8 +155,8 @@ def execute_single_item(step_id, agent_config, input_data):
         ],
         temperature=agent_config['temperature'],
         response_format={"type": "json_object"},
-        max_tokens=24000,  # Limit response length for faster generation
-        timeout=120  # 2 minute timeout to prevent hanging
+        max_tokens=max_tokens,
+        timeout=timeout_seconds
     )
 
     api_duration = time.time() - api_start
@@ -116,17 +164,56 @@ def execute_single_item(step_id, agent_config, input_data):
     
     # Log token usage and timing
     usage = completion.usage
-    print(f"[Step {step_id}] API call completed in {api_duration:.2f}s")
-    print(f"[Step {step_id}] Tokens - Prompt: {usage.prompt_tokens}, Completion: {usage.completion_tokens}, Total: {usage.total_tokens}")
+    
+    if step_id == 4:
+        print(f"  ✅ API call completed in {api_duration:.2f}s")
+        print(f"  📊 Tokens - Prompt: {usage.prompt_tokens}, Completion: {usage.completion_tokens}, Total: {usage.total_tokens}")
+        print(f"  💰 Estimated cost: ${(usage.prompt_tokens * 0.00001 + usage.completion_tokens * 0.00003):.4f}")
+    else:
+        print(f"[Step {step_id}] API call completed in {api_duration:.2f}s")
+        print(f"[Step {step_id}] Tokens - Prompt: {usage.prompt_tokens}, Completion: {usage.completion_tokens}, Total: {usage.total_tokens}")
 
     # Parse JSON response
     try:
         result = json.loads(response_text)
         total_duration = time.time() - start_time
-        print(f"[Step {step_id}] Total execution time: {total_duration:.2f}s")
+        
+        if step_id == 4:
+            # Enhanced logging for Step 4 results
+            if 'target_domain' in input_data:
+                # Phase 4b - Domain Scan
+                pillars = result.get('scientific_pillars', [])
+                print(f"  📦 Generated {len(pillars)} scientific pillars")
+                if pillars:
+                    # Show sample pillars
+                    print(f"  📋 Sample interventions:")
+                    for i, pillar in enumerate(pillars[:3]):
+                        print(f"     {i+1}. {pillar.get('id', 'N/A')}: {pillar.get('title', 'N/A')[:60]}...")
+                    if len(pillars) > 3:
+                        print(f"     ... and {len(pillars) - 3} more")
+                print(f"  ⏱️  Total execution time: {total_duration:.2f}s")
+                print(f"{'='*60}\n")
+            else:
+                # Phase 4a - Domain Mapping
+                domains = result.get('research_domains', [])
+                print(f"  🗺️  Identified {len(domains)} research domains")
+                if domains:
+                    print(f"  📋 Domains:")
+                    for i, domain in enumerate(domains):
+                        print(f"     {i+1}. {domain.get('domain_id', 'N/A')}: {domain.get('domain_name', 'N/A')} [{domain.get('relevance_to_goal', 'N/A')}]")
+                print(f"  ⏱️  Total execution time: {total_duration:.2f}s")
+                print(f"{'='*60}\n")
+        else:
+            print(f"[Step {step_id}] Total execution time: {total_duration:.2f}s")
+        
         return result
     except json.JSONDecodeError as parse_error:
-        print(f'[Step {step_id}] Failed to parse JSON response: {parse_error}')
+        if step_id == 4:
+            print(f"  ❌ Failed to parse JSON response: {parse_error}")
+            print(f"  📄 Response preview: {response_text[:200]}...")
+            print(f"{'='*60}\n")
+        else:
+            print(f'[Step {step_id}] Failed to parse JSON response: {parse_error}')
         return {'raw_response': response_text, 'parse_error': str(parse_error)}
 
 @app.route('/api/execute-step', methods=['POST'])
@@ -167,22 +254,44 @@ def execute_step():
 
 @app.route('/api/execute-step-batch', methods=['POST'])
 def execute_step_batch():
-    """Execute a step multiple times with different inputs"""
+    """
+    Execute a step multiple times with different inputs in parallel.
+    
+    NOTE: Flask's development server doesn't detect client disconnections,
+    so if the frontend aborts, the backend will continue processing until
+    all tasks complete. This is expected behavior for the dev server.
+    For production, use Gunicorn which handles disconnects properly.
+    """
     try:
         data = request.json
         step_id = data.get('stepId')
         agent_config = data.get('agentConfig')
         items = data.get('items', [])
+        phase_info = data.get('phase_info', {})  # Get phase information for Step 4
         
-        print(f'\n=== Executing Step {step_id} in BATCH mode ===')
-        print(f'Agent: {agent_config.get("name")}')
-        print(f'Items to process: {len(items)}')
-        print(f'Processing in PARALLEL with max 10 workers...')
+        print(f'\n{"#"*70}')
+        print(f'### BATCH EXECUTION: Step {step_id} - {agent_config.get("name")}')
+        print(f'{"#"*70}')
+        print(f'📦 Total items to process: {len(items)}')
+        
+        # Adjust max workers based on step complexity to avoid rate limiting
+        # Step 4 (domain scans) - increased to 5 workers for faster execution
+        if step_id == 4:
+            max_workers = 5  # Increased from 3 to 5 for faster domain scanning
+            print(f'⚡ Processing in PARALLEL with max {max_workers} workers (optimized for Step 4)...')
+            if phase_info.get('phase') == '4b':
+                print(f'⏱️  Note: Step 4 Phase 2 (Domain Scans) may take up to 10 minutes per goal')
+        elif step_id in [6, 7, 8, 9]:  # L3, IH, L4, L5
+            max_workers = 5
+            print(f'Processing in PARALLEL with max {max_workers} workers...')
+        else:
+            max_workers = 8
+            print(f'Processing in PARALLEL with max {max_workers} workers...')
         
         results = [None] * len(items)  # Pre-allocate results list
         
         # Process items in parallel using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             future_to_idx = {
                 executor.submit(execute_single_item, step_id, agent_config, item): idx 
@@ -191,33 +300,94 @@ def execute_step_batch():
             
             # Process completed tasks as they finish
             completed = 0
+            batch_start_time = time.time()
+            
             for future in as_completed(future_to_idx):
                 idx = future_to_idx[future]
                 completed += 1
+                
+                # Calculate progress
+                # For Step 4, adjust progress to reflect actual phase weights:
+                # Phase 4a (domain mapping) = ~10% of total work
+                # Phase 4b (domain scans) = ~90% of total work
+                if step_id == 4 and phase_info.get('phase') == '4b':
+                    # Phase 4b: Map 0-100% of items to 10-100% overall progress
+                    phase_progress = (completed / len(items)) * 90  # 90% of total
+                    overall_progress = 10 + phase_progress  # Add 10% from Phase 4a
+                    progress_pct = overall_progress
+                    phase_label = f"Phase 2 (Domain Scans): {completed}/{len(items)}"
+                elif step_id == 4 and phase_info.get('phase') == '4a':
+                    # Phase 4a: Map 0-100% of items to 0-10% overall progress
+                    phase_progress = (completed / len(items)) * 10
+                    progress_pct = phase_progress
+                    phase_label = f"Phase 1 (Domain Mapping): {completed}/{len(items)}"
+                else:
+                    progress_pct = (completed / len(items)) * 100
+                    phase_label = f"{completed}/{len(items)}"
+                
+                elapsed = time.time() - batch_start_time
+                avg_time_per_item = elapsed / completed if completed > 0 else 0
+                remaining_items = len(items) - completed
+                eta_seconds = avg_time_per_item * remaining_items
+                eta_minutes = eta_seconds / 60
+                
                 try:
-                    result = future.result()
+                    result = future.result()  # Wait for completion
                     results[idx] = {
                         'success': True,
                         'data': result,
                         'item_index': idx
                     }
-                    print(f"✓ Item {idx + 1}/{len(items)} completed ({completed}/{len(items)} total)")
+                    
+                    if step_id == 4:
+                        print(f"\n{'─'*60}")
+                        print(f"✅ PROGRESS: {phase_label} ({progress_pct:.1f}% overall)")
+                        print(f"⏱️  Elapsed: {elapsed/60:.1f} min | Avg: {avg_time_per_item:.1f}s/item")
+                        if remaining_items > 0:
+                            print(f"⏳ ETA: {eta_minutes:.1f} min ({remaining_items} items remaining)")
+                        print(f"{'─'*60}")
+                    else:
+                        print(f"✓ Item {idx + 1}/{len(items)} completed ({completed}/{len(items)} total)")
+                        
                 except Exception as item_error:
-                    print(f"✗ Item {idx + 1}/{len(items)} failed: {item_error}")
+                    if step_id == 4:
+                        print(f"\n{'─'*60}")
+                        print(f"❌ FAILED: Item {idx + 1}/{len(items)}")
+                        print(f"Error: {item_error}")
+                        print(f"Progress: {phase_label} ({progress_pct:.1f}% overall)")
+                        print(f"{'─'*60}")
+                    else:
+                        print(f"✗ Item {idx + 1}/{len(items)} failed: {item_error}")
+                    
                     results[idx] = {
                         'success': False,
                         'error': str(item_error),
                         'item_index': idx
                     }
         
-        successful_count = sum(1 for r in results if r['success'])
-        print(f"\n=== Batch Complete: {successful_count}/{len(items)} successful ===")
+        # Filter out None results (should all be filled)
+        completed_results = [r for r in results if r is not None]
+        successful_count = sum(1 for r in completed_results if r.get('success'))
+        failed_count = len(completed_results) - successful_count
+        total_batch_time = time.time() - batch_start_time
+        
+        if step_id == 4:
+            print(f"\n{'#'*70}")
+            print(f"### BATCH COMPLETE: Step {step_id}")
+            print(f"{'#'*70}")
+            print(f"✅ Successful: {successful_count}/{len(items)}")
+            print(f"❌ Failed: {failed_count}/{len(items)}")
+            print(f"⏱️  Total time: {total_batch_time/60:.1f} minutes")
+            print(f"📊 Average: {total_batch_time/len(items):.1f}s per item")
+            print(f"{'#'*70}\n")
+        else:
+            print(f"\n=== Batch Complete: {successful_count}/{len(items)} successful ===")
         
         return jsonify({
-            'batch_results': results,
-            'total_processed': len(items),
+            'batch_results': completed_results,
+            'total_processed': len(completed_results),
             'successful': successful_count,
-            'failed': len(items) - successful_count
+            'failed': len(completed_results) - successful_count
         })
     
     except Exception as error:
@@ -380,27 +550,46 @@ Perform strategic evaluation and classification of the G-S links."""
         step2_data = input_data.get('step2', {}) if isinstance(input_data, dict) else {}
         step4_data = input_data.get('step4', {}) if isinstance(input_data, dict) else {}
         step5_data = input_data.get('step5', {}) if isinstance(input_data, dict) else {}
-        
+
         # Get the specific goal pillar for this batch item
         goal = input_data.get('goal_pillar', {})
-        
+
         if not goal:
             # Fallback to old behavior
             goals = step2_data.get('goals', [])
             goal = goals[0] if goals else {}
-        
+
         goal_id = goal.get('id', '')
         bridge_lexicon = step2_data.get('bridge_lexicon', {})
-        scientific_pillars = step4_data.get('scientific_pillars', [])
-        
-        # Get matching edges for this specific goal
-        if goal_id in step5_data:
-            matching_edges = step5_data[goal_id].get('edges', [])
+
+        # UPDATED: Step 5 is skipped, get scientific pillars from Step 4 (which includes relationship data)
+        # Step 4 output structure: { goal_id: { scientific_pillars: [...], domain_mapping: {...}, ... } }
+        scientific_pillars = []
+        if goal_id in step4_data:
+            # New structure: Step 4 output is keyed by goal_id
+            goal_data = step4_data.get(goal_id, {})
+            scientific_pillars = goal_data.get('scientific_pillars', [])
         else:
-            matching_edges = step5_data.get('edges', [])
-        
-        print(f"\nStep 6 Debug: Processing Goal {goal_id} with {len(matching_edges)} matching edges")
-        
+            # Legacy fallback
+            scientific_pillars = step4_data.get('scientific_pillars', [])
+
+        # UPDATED: Extract relationship summary from scientific pillars (Step 5 function integrated into Step 4)
+        # Each pillar now has relationship_to_goal, relationship_confidence, gap_analysis fields
+        relationship_summary = []
+        for pillar in scientific_pillars[:20]:  # Sample first 20 for context
+            if isinstance(pillar, dict):
+                relationship_summary.append({
+                    'pillar_id': pillar.get('id', 'N/A'),
+                    'title': pillar.get('title', 'N/A'),
+                    'relationship': pillar.get('relationship_to_goal', 'unknown'),
+                    'confidence': pillar.get('relationship_confidence', 0.0),
+                    'gap': pillar.get('gap_analysis', '')
+                })
+
+        print(f"\nStep 6 Debug: Processing Goal {goal_id}")
+        print(f"  - Scientific pillars: {len(scientific_pillars)}")
+        print(f"  - Relationship summary: {len(relationship_summary)} samples")
+
         return f"""CRITICAL: You are generating L3 questions for Goal ID: {goal_id}
 
 ALL L3 question IDs MUST use this exact format: Q_L3_{goal_id}_N
@@ -419,13 +608,20 @@ Goal Definition:
 Bridge Lexicon:
 {json.dumps(bridge_lexicon, indent=2)}
 
-Matching Results (Goal-to-Science edges):
-{json.dumps(matching_edges, indent=2)}
+Scientific Reality (Interventions with Relationship Assessment):
+{json.dumps(relationship_summary, indent=2)}
 
-Selected Scientific Pillars:
-{json.dumps(scientific_pillars[:5], indent=2)}
+Context: The above interventions were identified for this goal and assessed for their relationship to the goal:
+- "solves": Directly satisfies requirements with RL-3 evidence
+- "partially_solves": Moves SPVs correctly but has gaps (magnitude/execution/timescale/knowledge)
+- "proxies_for": Changes biomarkers but doesn't control underlying SPVs
+- "enables_measurement_for": Provides required meters
 
-Generate L3 Seed Questions that target the gaps and deltas revealed in the matching.
+Generate L3 Seed Questions that target the strategic gaps revealed by analyzing:
+1. What capabilities are missing (no interventions found)
+2. What partial solutions need strengthening (partially_solves with gaps)
+3. What unknowns need resolution (proxies without mechanism understanding)
+
 Remember: Use {goal_id} in ALL L3 question IDs!"""
     
     # STEP 7: INPUT: 1 L3 question + context | OUTPUT: Instantiation Hypotheses

@@ -34,13 +34,15 @@ export const executeStepBatch = async (
   agentConfig: AgentConfig, 
   items: any[], 
   signal?: AbortSignal,
-  globalLens?: string
+  globalLens?: string,
+  phaseInfo?: { phase: '4a' | '4b' }
 ): Promise<any> => {
   const response = await api.post('/api/execute-step-batch', {
     stepId,
     agentConfig,
     items,
     globalLens,
+    phase_info: phaseInfo,
   }, {
     signal,
   });

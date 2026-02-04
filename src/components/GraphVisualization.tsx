@@ -26,13 +26,21 @@ const NODE_COLORS = {
   fcc: '#ec4899',          // Pink - Failure Channels
   spv: '#f59e0b',          // Amber - System Properties
   ra: '#10b981',           // Green - Requirement Atoms
+  ra_group: '#10b981',     // Green - RA Group
+  domain_group: '#06b6d4', // Cyan - Research Domains
   scientific: '#06b6d4',   // Cyan - Scientific Pillars
+  s_group: '#06b6d4',      // Cyan - S Group
   edge: '#6366f1',         // Indigo - Matching Edges
   l3: '#ef4444',           // Red - L3 Questions
+  l3_group: '#ef4444',     // Red - L3 Group
   ih: '#f97316',           // Orange - Instantiation Hypotheses
+  ih_group: '#f97316',     // Orange - IH Group
   l4: '#84cc16',           // Lime - L4 Questions
+  l4_group: '#84cc16',     // Lime - L4 Group
   l5: '#a3e635',           // Light Lime - L5 Mechanistic Drills
+  l5_group: '#a3e635',     // Light Lime - L5 Group
   l6: '#14b8a6',           // Teal - L6 Tasks
+  l6_group: '#14b8a6',     // Teal - L6 Group
 };
 
 export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, highlightedNodeId, onNodeHighlight }) => {
@@ -40,6 +48,11 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [highlightedNodeIdState, setHighlightedNodeIdState] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  
+  // Extract bridge lexicon from Step 2 for node detail lookups
+  const step2 = steps.find(s => s.id === 2);
+  const bridgeLexicon = step2?.output?.bridge_lexicon || step2?.output?.Bridge_Lexicon || step2?.output?.bridgeLexicon || {};
 
   const buildGraph = useMemo(() => {
     const newNodes: Node[] = [];
@@ -189,197 +202,244 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
       yOffset += ySpacing;
     }
 
-    // Step 3: Requirement Atoms (organized by parent goal) - all at same Y level
+    // Step 3: Requirement Atoms with common collapsible node per goal
     const step3 = steps.find(s => s.id === 3);
     if (step3?.output && typeof step3.output === 'object') {
       const rasByGoal = step3.output;
-      const raY = yOffset; // All RAs at same level
-      let totalRaCount = 0;
-      
+      const raY = yOffset;
+
       // Process each goal's RAs
       Object.keys(rasByGoal).forEach((goalId) => {
         const ras = Array.isArray(rasByGoal[goalId]) ? rasByGoal[goalId] : [];
         const parentGoalNode = `goal-${goalId}`;
-        
-        // Find parent goal position to align RAs below it
         const parentNode = newNodes.find(n => n.id === parentGoalNode);
-        const baseX = parentNode ? parentNode.position.x : 100 + (totalRaCount * 200);
-        
-        // Limit to 3 RAs per goal for clarity
-        ras.slice(0, 3).forEach((ra: any, raIdx: number) => {
-          if (!ra || typeof ra !== 'object') return;
-          
-          const nodeId = `ra-${ra.ra_id || `${goalId}-${raIdx}`}`;
-          const xPos = baseX + (raIdx - 1) * 320; // Increased spacing to prevent overlap
-          
-          newNodes.push({
-            id: nodeId,
-            type: 'default',
-            position: { x: xPos, y: raY },
-            data: { 
-              label: `${ra.ra_id || 'RA'}: ${(ra.atom_title || ra.title || 'Untitled').substring(0, 80)}${(ra.atom_title || ra.title || '').length > 80 ? '...' : ''}`,
-              fullData: ra,
-              type: 'ra',
-              parentGoalId: goalId
-            },
-            style: {
-              background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(34,197,94,0.2))',
-              color: 'hsl(var(--foreground))',
-              border: '2px solid rgba(16,185,129,0.6)',
-              borderRadius: '10px',
-              padding: '10px',
-              fontSize: '11px',
-              fontWeight: '600',
-              width: 280,
-              boxShadow: '0 0 18px rgba(16,185,129,0.4)',
-            },
+
+        if (!parentNode || ras.length === 0) return;
+
+        const baseX = parentNode.position.x;
+        const raGroupId = `ra-group-${goalId}`;
+
+        // Create common RA collapsible node
+        newNodes.push({
+          id: raGroupId,
+          type: 'default',
+          position: { x: baseX, y: raY },
+          data: {
+            label: `RA (${ras.length})`,
+            fullData: { ras, goalId },
+            type: 'ra_group'
+          },
+          style: {
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(34,197,94,0.15))',
+            color: 'hsl(var(--foreground))',
+            border: '2px solid rgba(16,185,129,0.6)',
+            borderRadius: '12px',
+            padding: '12px',
+            fontSize: '11px',
+            fontWeight: '700',
+            width: 120,
+            minHeight: 60,
+            boxShadow: '0 0 18px rgba(16,185,129,0.3)',
+            cursor: 'pointer',
+            textAlign: 'center'
+          }
+        });
+
+        // Edge from Goal to RA group
+        newEdges.push({
+          id: `${parentGoalNode}-${raGroupId}`,
+          source: parentGoalNode,
+          target: raGroupId,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: NODE_COLORS.ra, strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.ra },
+        });
+
+        // Create individual RA nodes when expanded
+        if (!collapsedGroups.has(raGroupId)) {
+          ras.slice(0, 6).forEach((ra: any, raIdx: number) => {
+            if (!ra || typeof ra !== 'object') return;
+
+            const nodeId = `ra-${ra.ra_id || `${goalId}-${raIdx}`}`;
+            const col = raIdx % 3;
+            const row = Math.floor(raIdx / 3);
+            const xPos = baseX - 320 + col * 320;
+            const yPos = raY + 150 + row * 140;
+
+            newNodes.push({
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${ra.ra_id || 'RA'}: ${(ra.atom_title || ra.title || 'Untitled').substring(0, 70)}${(ra.atom_title || ra.title || '').length > 70 ? '...' : ''}`,
+                fullData: ra,
+                type: 'ra',
+                parentGoalId: goalId,
+                parentGroup: raGroupId
+              },
+              style: {
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(34,197,94,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '2px solid rgba(16,185,129,0.6)',
+                borderRadius: '10px',
+                padding: '10px',
+                fontSize: '10px',
+                fontWeight: '600',
+                width: 280,
+                boxShadow: '0 0 18px rgba(16,185,129,0.4)',
+              },
             });
 
-          // Connect to parent goal
-          if (parentNode) {
+            // Edge from RA group to individual RA
             newEdges.push({
-              id: `${parentGoalNode}-${nodeId}`,
-              source: parentGoalNode,
+              id: `${raGroupId}-${nodeId}`,
+              source: raGroupId,
               target: nodeId,
               type: 'smoothstep',
               animated: true,
-              style: { stroke: NODE_COLORS.ra, strokeWidth: 1.5, strokeDasharray: '5,5' },
+              style: { stroke: NODE_COLORS.ra, strokeWidth: 1, strokeDasharray: '2,2' },
               markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.ra },
             });
-          }
-          
-          // Connect SPVs to RAs instead of Goals if RAs exist
-          const spvNodes = newNodes.filter(n => n.data.type === 'spv');
-          spvNodes.forEach(spvNode => {
-            // Remove SPV->Goal edge if it exists
-            const oldEdgeId = `${spvNode.id}-${parentGoalNode}`;
-            const edgeIndex = newEdges.findIndex(e => e.id === oldEdgeId);
-            if (edgeIndex !== -1) {
-              newEdges.splice(edgeIndex, 1);
-              
-              // Add SPV->RA edge instead
-              newEdges.push({
-                id: `${spvNode.id}-${nodeId}`,
-                source: spvNode.id,
-                target: nodeId,
-                type: 'smoothstep',
-                animated: true,
-                style: { stroke: NODE_COLORS.spv, strokeWidth: 1, strokeDasharray: '5,5' },
-                markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.spv },
-              });
-            }
+
+            // Connect SPVs to individual RAs
+            const spvNodes = newNodes.filter(n => n.data.type === 'spv');
+            spvNodes.forEach(spvNode => {
+              const oldEdgeId = `${spvNode.id}-${parentGoalNode}`;
+              const edgeIndex = newEdges.findIndex(e => e.id === oldEdgeId);
+              if (edgeIndex !== -1) {
+                newEdges.splice(edgeIndex, 1);
+                newEdges.push({
+                  id: `${spvNode.id}-${nodeId}`,
+                  source: spvNode.id,
+                  target: nodeId,
+                  type: 'smoothstep',
+                  animated: true,
+                  style: { stroke: NODE_COLORS.spv, strokeWidth: 1, strokeDasharray: '5,5', opacity: 0.5 },
+                  markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.spv },
+                });
+              }
+            });
           });
-        });
-        
-        totalRaCount += Math.min(ras.length, 3);
+        }
       });
-      
-      yOffset += ySpacing;
+
+      // Adjust yOffset based on expansion state
+      const hasExpandedRAs = Object.keys(rasByGoal).some(goalId => !collapsedGroups.has(`ra-group-${goalId}`));
+      if (hasExpandedRAs) {
+        const maxRows = Math.max(...Object.values(rasByGoal).map((ras: any) => Math.ceil(Math.min(ras.length, 6) / 3)), 1);
+        yOffset += ySpacing + 150 + (maxRows * 140);
+      } else {
+        yOffset += ySpacing;
+      }
     }
 
-    // Step 4: Domain-Based Scientific Knowledge (3-Phase Output)
+    // Step 4: Scientific Pillars with common collapsible node per goal
     const step4 = steps.find(s => s.id === 4);
     if (step4?.output) {
       const sciY = yOffset;
-      
+
       Object.entries(step4.output).forEach(([goalId, goalData]: [string, any]) => {
-        const domains = goalData?.domain_mapping?.research_domains || [];
-        const sNodes = goalData?.deduplicated_s_nodes || [];
-        
-        // Group S-nodes by domain
-        const sNodesByDomain: Record<string, any[]> = {};
-        sNodes.forEach((sNode: any) => {
-          const domainId = sNode.domain_id || 'unknown';
-          if (!sNodesByDomain[domainId]) {
-            sNodesByDomain[domainId] = [];
+        const sNodes = goalData?.scientific_pillars || [];
+        const parentGoalNode = `goal-${goalId}`;
+        const parentNode = newNodes.find(n => n.id === parentGoalNode);
+
+        if (!parentNode || sNodes.length === 0) return;
+
+        const baseX = parentNode.position.x;
+        const sGroupId = `s-group-${goalId}`;
+
+        // Create common S collapsible node
+        newNodes.push({
+          id: sGroupId,
+          type: 'default',
+          position: { x: baseX, y: sciY },
+          data: {
+            label: `S (${sNodes.length})`,
+            fullData: { sNodes, goalId },
+            type: 's_group'
+          },
+          style: {
+            background: 'linear-gradient(135deg, rgba(6,182,212,0.15), rgba(8,145,178,0.15))',
+            color: 'hsl(var(--foreground))',
+            border: '2px solid rgba(6,182,212,0.6)',
+            borderRadius: '12px',
+            padding: '12px',
+            fontSize: '11px',
+            fontWeight: '700',
+            width: 120,
+            minHeight: 60,
+            boxShadow: '0 0 18px rgba(6,182,212,0.3)',
+            cursor: 'pointer',
+            textAlign: 'center'
           }
-          sNodesByDomain[domainId].push(sNode);
         });
-        
-        // Create domain group nodes (collapsible)
-        domains.forEach((domain: any, domainIdx: number) => {
-          const domainSNodes = sNodesByDomain[domain.domain_id] || [];
-          const topNodes = domainSNodes
-            .sort((a, b) => (b.strategic_value_score || 0) - (a.strategic_value_score || 0))
-            .slice(0, 5);
-          
-          const xPos = 100 + domainIdx * 450;
-          
-          // Create collapsible domain group node
-          newNodes.push({
-            id: `domain-${domain.domain_id}`,
-            type: 'default',
-            position: { x: xPos, y: sciY },
-            data: {
-              label: `${domain.domain_name}\n(${domainSNodes.length} interventions)`,
-              fullData: {
-                ...domain,
-                s_node_count: domainSNodes.length,
-                top_nodes: topNodes,
-                all_nodes: domainSNodes,
-                relevance: domain.relevance_to_goal
+
+        // Edge from Goal to S group
+        newEdges.push({
+          id: `${parentGoalNode}-${sGroupId}`,
+          source: parentGoalNode,
+          target: sGroupId,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: NODE_COLORS.scientific, strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.scientific },
+        });
+
+        // Create individual S nodes when expanded (show top 15 by strategic value)
+        if (!collapsedGroups.has(sGroupId)) {
+          const topSNodes = sNodes
+            .sort((a: any, b: any) => (b.strategic_value_score || 0) - (a.strategic_value_score || 0))
+            .slice(0, 15);
+
+          topSNodes.forEach((sNode: any, idx: number) => {
+            const nodeId = `s-${sNode.id || idx}`;
+            const col = idx % 3;
+            const row = Math.floor(idx / 3);
+            const xPos = baseX - 320 + col * 320;
+            const yPos = sciY + 150 + row * 130;
+
+            newNodes.push({
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${sNode.title?.substring(0, 60)}${sNode.title && sNode.title.length > 60 ? '...' : ''}`,
+                fullData: sNode,
+                type: 'scientific',
+                parentGroup: sGroupId
               },
-              type: 'domain_group'
-            },
-            style: {
-              background: domain.relevance_to_goal === 'HIGH' 
-                ? 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(22,163,74,0.15))'
-                : domain.relevance_to_goal === 'MED'
-                ? 'linear-gradient(135deg, rgba(251,191,36,0.15), rgba(245,158,11,0.15))'
-                : 'linear-gradient(135deg, rgba(148,163,184,0.15), rgba(100,116,139,0.15))',
-              color: 'hsl(var(--foreground))',
-              border: domain.relevance_to_goal === 'HIGH'
-                ? '2px solid rgba(34,197,94,0.6)'
-                : domain.relevance_to_goal === 'MED'
-                ? '2px solid rgba(251,191,36,0.6)'
-                : '2px solid rgba(148,163,184,0.6)',
-              borderRadius: '12px',
-              padding: '16px',
-              fontSize: '11px',
-              fontWeight: '600',
-              width: 350,
-              minHeight: 120,
-              boxShadow: '0 0 20px rgba(6,182,212,0.3)',
-              cursor: 'pointer'
-            }
-          });
-          
-          // Create edge from Goal to Domain Group
-          newEdges.push({
-            id: `g-domain-${goalId}-${domain.domain_id}`,
-            source: `goal-${goalId}`,
-            target: `domain-${domain.domain_id}`,
-            type: 'smoothstep',
-            animated: false,
-            label: `${domain.relevance_to_goal}`,
-            style: {
-              stroke: domain.relevance_to_goal === 'HIGH' ? '#22c55e' : domain.relevance_to_goal === 'MED' ? '#fbbf24' : '#94a3b8',
-              strokeWidth: domain.relevance_to_goal === 'HIGH' ? 3 : 2,
-              strokeDasharray: domain.relevance_to_goal === 'LOW' ? '5,5' : '0'
-            },
-            markerEnd: { 
-              type: MarkerType.ArrowClosed, 
-              color: domain.relevance_to_goal === 'HIGH' ? '#22c55e' : domain.relevance_to_goal === 'MED' ? '#fbbf24' : '#94a3b8'
-            },
-            data: {
-              type: 'goal_domain_edge',
-              relevance: domain.relevance_to_goal
-            }
-          });
-          
-          // Create individual S-node connections (hidden by default, shown on expand)
-          domainSNodes.forEach((sNode: any, sIdx: number) => {
-            const sNodeId = `s-${sNode.id}`;
-            
-            // Store S-node data but don't render as separate node (part of domain group)
-            // Create edge from domain to Goal (will be classified by Step 5)
+              style: {
+                background: 'linear-gradient(135deg, rgba(6,182,212,0.2), rgba(8,145,178,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '1.5px solid rgba(6,182,212,0.6)',
+                borderRadius: '10px',
+                padding: '8px',
+                fontSize: '10px',
+                fontWeight: '600',
+                width: 280,
+                boxShadow: '0 0 15px rgba(6,182,212,0.4)',
+              },
+            });
+
+            // Edge from S group to individual S
+            newEdges.push({
+              id: `${sGroupId}-${nodeId}`,
+              source: sGroupId,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: NODE_COLORS.scientific, strokeWidth: 1, strokeDasharray: '2,2' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.scientific },
+            });
+
+            // Create edge from S to Goal for Step 5 classification
             newEdges.push({
               id: `gs-${goalId}-${sNode.id}`,
-              source: `domain-${domain.domain_id}`,
-              target: `goal-${goalId}`,
+              source: nodeId,
+              target: parentGoalNode,
               type: 'smoothstep',
               animated: false,
-              label: '',
               style: {
                 stroke: '#64748b',
                 strokeWidth: 1,
@@ -392,14 +452,22 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
                 s_node_id: sNode.id,
                 classified: false,
                 source_step: 4,
-                hidden: true // Hidden until Step 5 classifies
+                hidden: true
               }
             });
           });
-        });
+        }
       });
-      
-      yOffset += ySpacing;
+
+      // Adjust yOffset based on expansion state
+      const hasExpandedS = Object.keys(step4.output).some((goalId: string) => !collapsedGroups.has(`s-group-${goalId}`));
+      if (hasExpandedS) {
+        const maxSNodes = Math.max(...Object.values(step4.output).map((goalData: any) => (goalData?.scientific_pillars || []).length), 0);
+        const maxRows = Math.ceil(Math.min(maxSNodes, 15) / 3);
+        yOffset += ySpacing + 150 + (maxRows * 130);
+      } else {
+        yOffset += ySpacing;
+      }
     }
 
     // Step 5: Update G-S edges with relationship classifications
@@ -554,143 +622,279 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
       });
     }
 
-    // Step 6: L3 Questions - Hierarchical clustering under Goals
+    // Step 6: L3 Questions - Create collapsible group nodes under Goals
     const step6 = steps.find(s => s.id === 6);
+
+    console.log('[GraphViz] === STEP 6 DEBUG ===');
+    console.log('[GraphViz] All steps:', steps.map(s => ({ id: s.id, name: s.name, status: s.status, hasOutput: !!s.output })));
+    console.log('[GraphViz] Step 6 found:', !!step6);
+    console.log('[GraphViz] Step 6 status:', step6?.status);
+    console.log('[GraphViz] Step 6 has output:', !!step6?.output);
+
     if (step6?.output) {
       let l3Questions: any[] = [];
-      
+
+      console.log('[GraphViz] Step 6 output structure:', step6.output);
+      console.log('[GraphViz] Step 6 output keys:', Object.keys(step6.output || {}));
+
       if (Array.isArray(step6.output)) {
         l3Questions = step6.output;
+        console.log('[GraphViz] Step 6 output is array, length:', l3Questions.length);
       } else if (step6.output && typeof step6.output === 'object') {
         if (step6.output.l3_questions) {
           l3Questions = Array.isArray(step6.output.l3_questions) ? step6.output.l3_questions : [];
+          console.log('[GraphViz] Found l3_questions, length:', l3Questions.length);
         } else if (step6.output.seed_questions) {
           l3Questions = Array.isArray(step6.output.seed_questions) ? step6.output.seed_questions : [];
+          console.log('[GraphViz] Found seed_questions, length:', l3Questions.length);
         } else {
           l3Questions = Object.values(step6.output).filter(val => Array.isArray(val)).flat();
+          console.log('[GraphViz] Extracted arrays from object, length:', l3Questions.length);
         }
       }
-      
-      // Group L3s by their parent Goal
-      const l3sByGoal: Record<string, any[]> = {};
-      
-      l3Questions.forEach((q: any) => {
-        if (!q || typeof q !== 'object') return;
-        const l3Id = q.id || '';
-        let parentGoalId = null;
-        
-        // Try new format first: Q_L3_M_G1_1, Q_L3_M_G2_1
-        const newFormatMatch = l3Id.match(/Q_L3_(M_G\d+)_/);
-        if (newFormatMatch) {
-          parentGoalId = newFormatMatch[1];
-        }
-        // Legacy format fallbacks
-        else if (l3Id.includes('_FRAG_')) parentGoalId = 'M_G1';
-        else if (l3Id.match(/_MG(\d+)_/)) {
-          const match = l3Id.match(/_MG(\d+)_/);
-          if (match) parentGoalId = `M_G${match[1]}`;
-        } else if (l3Id.match(/Q_L3_003_/)) parentGoalId = 'M_G3';
-        else if (l3Id.match(/Q_L3_001_/)) parentGoalId = 'M_G4';
-        else if (l3Id.match(/Q_L3_007_/)) parentGoalId = 'M_G5';
-        else if (l3Id.match(/Q_L3_006_/)) parentGoalId = 'M_G6';
-        
-        if (parentGoalId) {
-          if (!l3sByGoal[parentGoalId]) l3sByGoal[parentGoalId] = [];
-          l3sByGoal[parentGoalId].push(q);
-        }
-      });
-      
-      const l3Y = yOffset;
-      
-      // For each Goal, place its L3s in a cluster below it
-      Object.keys(l3sByGoal).forEach((goalId) => {
+
+      console.log('[GraphViz] Total L3 questions extracted:', l3Questions.length);
+      if (l3Questions.length > 0) {
+        console.log('[GraphViz] Sample L3 question:', l3Questions[0]);
+        console.log('[GraphViz] L3 IDs:', l3Questions.map(q => q?.id).slice(0, 5));
+        console.log('[GraphViz] L3 texts:', l3Questions.map(q => q?.text?.substring(0, 30)).slice(0, 5));
+      } else {
+        console.error('[GraphViz] ❌ NO L3 QUESTIONS FOUND!');
+        console.error('[GraphViz] Step 6 output is empty or has unexpected structure');
+        console.error('[GraphViz] Skipping L3 processing');
+        // Don't process L3s, but continue with the rest of the graph
+        yOffset += ySpacing;
+      }
+
+      if (l3Questions.length > 0) {
+        // Group L3s by their parent Goal
+        const l3sByGoal: Record<string, any[]> = {};
+
+        l3Questions.forEach((q: any) => {
+          if (!q || typeof q !== 'object') {
+            console.warn('[GraphViz] Skipping invalid L3 question:', q);
+            return;
+          }
+          const l3Id = q.id || '';
+          let parentGoalId = null;
+
+          // Method 1: Try new format first: Q_L3_M_G1_1, Q_L3_M_G2_1
+          const newFormatMatch = l3Id.match(/Q_L3_(M_G\d+)_/);
+          if (newFormatMatch) {
+            parentGoalId = newFormatMatch[1];
+            console.log(`[GraphViz] L3 ${l3Id} matched new format -> parent goal: ${parentGoalId}`);
+          }
+          // Method 2: Check if question has explicit target_goal_id field
+          else if (q.target_goal_id) {
+            parentGoalId = q.target_goal_id;
+            console.log(`[GraphViz] L3 ${l3Id} using target_goal_id field -> parent goal: ${parentGoalId}`);
+          }
+          // Legacy format fallbacks
+          else if (l3Id.includes('_FRAG_')) parentGoalId = 'M_G1';
+          else if (l3Id.match(/_MG(\d+)_/)) {
+            const match = l3Id.match(/_MG(\d+)_/);
+            if (match) parentGoalId = `M_G${match[1]}`;
+          } else if (l3Id.match(/Q_L3_003_/)) parentGoalId = 'M_G3';
+          else if (l3Id.match(/Q_L3_001_/)) parentGoalId = 'M_G4';
+          else if (l3Id.match(/Q_L3_007_/)) parentGoalId = 'M_G5';
+          else if (l3Id.match(/Q_L3_006_/)) parentGoalId = 'M_G6';
+
+          if (parentGoalId) {
+            if (!l3sByGoal[parentGoalId]) l3sByGoal[parentGoalId] = [];
+            l3sByGoal[parentGoalId].push(q);
+          } else {
+            console.warn(`[GraphViz] Could not determine parent goal for L3 question: ${l3Id}`, q);
+          }
+        });
+
+        console.log('[GraphViz] L3s grouped by goal:', Object.keys(l3sByGoal).map(k => `${k}: ${l3sByGoal[k].length}`));
+
+        const l3Y = yOffset;
+
+        // For each Goal, create a collapsible L3 group node
+        Object.keys(l3sByGoal).forEach((goalId) => {
         const goalL3s = l3sByGoal[goalId];
         const parentGoalNode = newNodes.find(n => n.id === `goal-${goalId}`);
-        
-        if (!parentGoalNode) return;
-        
-        // Position L3s in a compact cluster under the parent Goal
+
+        console.log(`[GraphViz] Processing L3s for goal ${goalId}: ${goalL3s.length} questions`);
+        console.log(`[GraphViz] L3 questions data:`, goalL3s.map(q => ({ id: q?.id, text: q?.text?.substring(0, 50) })));
+        console.log(`[GraphViz] Looking for parent node: goal-${goalId}`);
+        console.log(`[GraphViz] Parent node found:`, !!parentGoalNode);
+
+        if (!parentGoalNode) {
+          console.warn(`[GraphViz] ⚠️ SKIPPING L3 questions for ${goalId} - parent goal node not found!`);
+          console.warn(`[GraphViz] Available goal nodes:`, newNodes.filter(n => n.id.startsWith('goal-')).map(n => n.id));
+          return;
+        }
+
+        if (goalL3s.length === 0) {
+          console.warn(`[GraphViz] ⚠️ SKIPPING goal ${goalId} - no L3 questions in this group`);
+          return;
+        }
+
         const baseX = parentGoalNode.position.x;
-        const l3sPerRow = 3; // 3 L3s per row for compact clustering
-        
-        goalL3s.slice(0, 5).forEach((q: any, idx: number) => {
-          const nodeId = `l3-${q.id || idx}`;
-          
-          // Arrange in compact grid under parent
-          const row = Math.floor(idx / l3sPerRow);
-          const col = idx % l3sPerRow;
-          const xPos = baseX - 200 + col * 360; // More breathing room
-          const yPos = l3Y + row * 150; // More vertical space
-        
+        const l3GroupId = `l3-group-${goalId}`;
+
+        // Create collapsible L3 group node
+        console.log(`[GraphViz] Creating L3 group node: ${l3GroupId}`);
+        console.log(`[GraphViz]   - Position: (${baseX}, ${l3Y})`);
+        console.log(`[GraphViz]   - L3 questions in this group:`, goalL3s.length);
+        console.log(`[GraphViz]   - Is collapsed:`, collapsedGroups.has(l3GroupId));
+
         newNodes.push({
-          id: nodeId,
+          id: l3GroupId,
           type: 'default',
-          position: { x: xPos, y: yPos },
-          data: { 
-            label: `L3: ${q.text?.substring(0, 100)}${q.text && q.text.length > 100 ? '...' : ''}`,
-            fullData: q,
-            type: 'l3'
+          position: { x: baseX, y: l3Y },
+          data: {
+            label: `L3 (${goalL3s.length})`,
+            fullData: {
+              questions: goalL3s,
+              goalId: goalId
+            },
+            type: 'l3_group'
           },
           style: {
-            background: 'linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.2))',
+            background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(220,38,38,0.15))',
             color: 'hsl(var(--foreground))',
             border: '2px solid rgba(239,68,68,0.6)',
             borderRadius: '12px',
-            padding: '12px',
+            padding: '16px',
             fontSize: '11px',
             fontWeight: '600',
-            width: 320,
-            boxShadow: '0 0 20px rgba(239,68,68,0.4)',
-          },
+            width: 280,
+            minHeight: 100,
+            boxShadow: '0 0 20px rgba(239,68,68,0.3)',
+            cursor: 'pointer'
+          }
         });
-        
-        // Create edge to parent Goal
+
+        // Create edge from Goal to L3 Group
         newEdges.push({
-          id: `goal-${goalId}-${nodeId}`,
+          id: `goal-${goalId}-${l3GroupId}`,
           source: `goal-${goalId}`,
-          target: nodeId,
+          target: l3GroupId,
           type: 'smoothstep',
           animated: true,
-          style: { stroke: NODE_COLORS.l3, strokeWidth: 1.5, strokeDasharray: '3,3' },
+          style: { stroke: NODE_COLORS.l3, strokeWidth: 2 },
           markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l3 },
         });
-        });
+
+        console.log(`[GraphViz] ✅ Created L3 group node: ${l3GroupId} with ${goalL3s.length} questions`);
+
+        // Create individual L3 nodes (shown when expanded)
+        console.log(`[GraphViz] Checking if L3 group should be expanded...`);
+        console.log(`[GraphViz]   - Group ID: ${l3GroupId}`);
+        console.log(`[GraphViz]   - Is in collapsedGroups:`, collapsedGroups.has(l3GroupId));
+        console.log(`[GraphViz]   - Should create individual nodes:`, !collapsedGroups.has(l3GroupId));
+
+        if (!collapsedGroups.has(l3GroupId)) {
+          console.log(`[GraphViz] ✅ Creating ${goalL3s.length} individual L3 nodes for ${l3GroupId}`);
+          const l3sPerRow = 2;
+          goalL3s.forEach((q: any, idx: number) => {
+            console.log(`[GraphViz]   Creating L3 node ${idx + 1}/${goalL3s.length}: ${q?.id}`);
+            const nodeId = `l3-${q.id || idx}`;
+            const row = Math.floor(idx / l3sPerRow);
+            const col = idx % l3sPerRow;
+            const xPos = baseX - 150 + col * 320;
+            const yPos = l3Y + 180 + row * 140;
+            console.log(`[GraphViz]     - Node ID: ${nodeId}, Position: (${xPos}, ${yPos})`);
+
+            const l3Node = {
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${q.text?.substring(0, 100)}${q.text && q.text.length > 100 ? '...' : ''}`,
+                fullData: q,
+                type: 'l3',
+                parentGroup: l3GroupId
+              },
+              style: {
+                background: 'linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '2px solid rgba(239,68,68,0.6)',
+                borderRadius: '10px',
+                padding: '10px',
+                fontSize: '10px',
+                fontWeight: '600',
+                width: 280,
+                boxShadow: '0 0 18px rgba(239,68,68,0.4)',
+              },
+            };
+            newNodes.push(l3Node);
+            console.log(`[GraphViz]     ✅ Added L3 node to graph`);
+
+            // Create edge from L3 Group to individual L3
+            const l3Edge = {
+              id: `${l3GroupId}-${nodeId}`,
+              source: l3GroupId,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: NODE_COLORS.l3, strokeWidth: 1, strokeDasharray: '2,2' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l3 },
+            };
+            newEdges.push(l3Edge);
+            console.log(`[GraphViz]     ✅ Added edge from group to L3 node`);
+          });
+          console.log(`[GraphViz] ✅ Finished creating ${goalL3s.length} individual L3 nodes`);
+        } else {
+          console.log(`[GraphViz] ⚠️ L3 group ${l3GroupId} is COLLAPSED - not creating individual nodes`);
+        }
       });
-      
-      // Adjust yOffset with extra cluster spacing
-      const maxL3Rows = Math.max(...Object.values(l3sByGoal).map(l3s => Math.ceil(l3s.length / 3)), 1);
-      yOffset += ySpacing + (maxL3Rows - 1) * 120 + clusterSpacing;
+
+      // Adjust yOffset based on whether groups are expanded
+      const hasExpandedGroups = Object.keys(l3sByGoal).some(goalId => !collapsedGroups.has(`l3-group-${goalId}`));
+      if (hasExpandedGroups) {
+        const maxL3Rows = Math.max(...Object.values(l3sByGoal).map(l3s => Math.ceil(l3s.length / 2)), 1);
+        yOffset += ySpacing + 180 + (maxL3Rows * 140) + clusterSpacing;
+      } else {
+        yOffset += ySpacing;
+      }
+
+      // Final check: how many L3 nodes were created?
+      const l3GroupNodes = newNodes.filter(n => n.data?.type === 'l3_group');
+      const l3IndividualNodes = newNodes.filter(n => n.data?.type === 'l3');
+      const l3NodesCreated = l3GroupNodes.length + l3IndividualNodes.length;
+
+      console.log(`[GraphViz] ✅ Step 6 complete: Created ${l3NodesCreated} L3-related nodes`);
+      console.log(`[GraphViz]   - L3 group nodes: ${l3GroupNodes.length}`);
+      console.log(`[GraphViz]   - L3 individual nodes: ${l3IndividualNodes.length}`);
+      console.log(`[GraphViz]   - L3 groups:`, l3GroupNodes.map(n => n.id));
+      console.log(`[GraphViz]   - L3 nodes:`, l3IndividualNodes.map(n => n.id));
+
+        if (l3GroupNodes.length > 0 && l3IndividualNodes.length === 0) {
+          console.warn(`[GraphViz] ⚠️ WARNING: L3 groups created but NO individual L3 nodes!`);
+          console.warn(`[GraphViz]   This means groups are either empty or collapsed`);
+          console.warn(`[GraphViz]   collapsedGroups state:`, Array.from(collapsedGroups));
+        }
+      } // End of if (l3Questions.length > 0)
     }
 
-    // Step 7: Instantiation Hypotheses - Hierarchical clustering under L3s
+    // Step 7: Instantiation Hypotheses - Create collapsible group nodes under L3s
     const step7 = steps.find(s => s.id === 7);
     if (step7?.output) {
       let ihs: any[] = [];
-      
+
       if (Array.isArray(step7.output)) {
-        ihs = step7.output; // Legacy format (plain array)
+        ihs = step7.output;
       } else if (step7.output && typeof step7.output === 'object') {
-        // New format with instantiation_hypotheses key
         if (step7.output.instantiation_hypotheses) {
           ihs = Array.isArray(step7.output.instantiation_hypotheses) ? step7.output.instantiation_hypotheses : [];
         } else {
-          // Fallback: try to find arrays in the object
           ihs = Object.values(step7.output).filter(val => Array.isArray(val)).flat();
         }
       }
-      
+
       console.log(`[Graph] Found ${ihs.length} IH nodes in Step 7 output`);
-      if (ihs.length > 0) {
-        console.log(`[Graph] IH IDs:`, ihs.map(ih => ih.ih_id));
-      }
-      
+
       // Group IHs by their parent L3 question
       const ihsByL3: Record<string, any[]> = {};
-      
+
       ihs.forEach((ih: any) => {
         if (!ih || typeof ih !== 'object') return;
         const ihId = ih.ih_id || '';
-        
+
         // Extract L3 ID from IH ID format: IH_Q_L3_M_G1_1_01 -> Q_L3_M_G1_1
         const l3Match = ihId.match(/IH_(Q_L3_[^_]+_[^_]+_\d+)/);
         if (l3Match) {
@@ -699,78 +903,123 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           ihsByL3[parentL3Id].push(ih);
         }
       });
-      
+
       const ihY = yOffset;
-      
-      // For each L3, place its IHs in a cluster below it
+
+      // For each L3, create a collapsible IH group node
       Object.keys(ihsByL3).forEach((l3Id) => {
         const l3IHs = ihsByL3[l3Id];
         const parentL3Node = newNodes.find(n => n.id === `l3-${l3Id}`);
-        
+
         if (!parentL3Node) {
           console.warn(`Parent L3 node not found for IHs: ${l3Id}. Skipping ${l3IHs.length} IH nodes.`);
-          console.warn(`Available L3 nodes:`, newNodes.filter(n => n.id.startsWith('l3-')).map(n => n.id));
           return;
         }
-        
-        // Position IHs in a cluster under the parent L3
+
         const baseX = parentL3Node.position.x;
-        const ihsPerRow = 2; // 2 IHs per row
-        
-        l3IHs.forEach((ih: any, idx: number) => {
-          const nodeId = `ih-${ih.ih_id || idx}`;
-          
-          // Arrange in grid under parent with more spacing
-          const row = Math.floor(idx / ihsPerRow);
-          const col = idx % ihsPerRow;
-          const xPos = baseX - 140 + col * 320; // Increased horizontal spacing
-          const yPos = ihY + row * 160; // Increased vertical spacing
-          
-          newNodes.push({
-            id: nodeId,
-            type: 'default',
-            position: { x: xPos, y: yPos },
-            data: { 
-              label: `IH: ${ih.process_hypothesis?.substring(0, 80)}${ih.process_hypothesis && ih.process_hypothesis.length > 80 ? '...' : ''}`,
-              fullData: ih,
-              type: 'ih'
+        const ihGroupId = `ih-group-${l3Id}`;
+
+        // Create collapsible IH group node
+        newNodes.push({
+          id: ihGroupId,
+          type: 'default',
+          position: { x: baseX, y: ihY },
+          data: {
+            label: `IH (${l3IHs.length})`,
+            fullData: {
+              hypotheses: l3IHs,
+              l3Id: l3Id
             },
-            style: {
-              background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(245,158,11,0.2))',
-              color: 'hsl(var(--foreground))',
-              border: '1.5px solid rgba(249,115,22,0.6)',
-              borderRadius: '10px',
-              padding: '8px',
-              fontSize: '10px',
-              fontWeight: '600',
-              width: 240,
-              boxShadow: '0 0 15px rgba(249,115,22,0.4)',
-            },
-            });
-          
-          // Create edge to parent L3
-          newEdges.push({
-            id: `l3-${l3Id}-${nodeId}`,
-            source: `l3-${l3Id}`,
-            target: nodeId,
-            type: 'smoothstep',
-            animated: true,
-            style: { stroke: NODE_COLORS.ih, strokeWidth: 1, strokeDasharray: '2,2' },
-            markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.ih },
-          });
+            type: 'ih_group'
+          },
+          style: {
+            background: 'linear-gradient(135deg, rgba(249,115,22,0.15), rgba(245,158,11,0.15))',
+            color: 'hsl(var(--foreground))',
+            border: '2px solid rgba(249,115,22,0.6)',
+            borderRadius: '12px',
+            padding: '16px',
+            fontSize: '11px',
+            fontWeight: '600',
+            width: 260,
+            minHeight: 90,
+            boxShadow: '0 0 18px rgba(249,115,22,0.3)',
+            cursor: 'pointer'
+          }
         });
+
+        // Create edge from L3 to IH Group
+        newEdges.push({
+          id: `l3-${l3Id}-${ihGroupId}`,
+          source: `l3-${l3Id}`,
+          target: ihGroupId,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: NODE_COLORS.ih, strokeWidth: 1.5 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.ih },
+        });
+
+        // Create individual IH nodes (shown when expanded)
+        if (!collapsedGroups.has(ihGroupId)) {
+          const ihsPerRow = 2;
+          l3IHs.forEach((ih: any, idx: number) => {
+            const nodeId = `ih-${ih.ih_id || idx}`;
+            const row = Math.floor(idx / ihsPerRow);
+            const col = idx % ihsPerRow;
+            const xPos = baseX - 130 + col * 280;
+            const yPos = ihY + 150 + row * 130;
+
+            newNodes.push({
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${ih.process_hypothesis?.substring(0, 70)}${ih.process_hypothesis && ih.process_hypothesis.length > 70 ? '...' : ''}`,
+                fullData: ih,
+                type: 'ih',
+                parentGroup: ihGroupId
+              },
+              style: {
+                background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(245,158,11,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '1.5px solid rgba(249,115,22,0.6)',
+                borderRadius: '10px',
+                padding: '8px',
+                fontSize: '10px',
+                fontWeight: '600',
+                width: 240,
+                boxShadow: '0 0 15px rgba(249,115,22,0.4)',
+              },
+            });
+
+            // Create edge from IH Group to individual IH
+            newEdges.push({
+              id: `${ihGroupId}-${nodeId}`,
+              source: ihGroupId,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: NODE_COLORS.ih, strokeWidth: 1, strokeDasharray: '2,2' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.ih },
+            });
+          });
+        }
       });
-      
-      // Adjust yOffset with extra cluster spacing
-      const maxIHRows = Math.max(...Object.values(ihsByL3).map(ihs => Math.ceil(ihs.length / 2)), 1);
-      yOffset += ySpacing + (maxIHRows - 1) * 160 + clusterSpacing; // Updated to match new IH spacing
+
+      // Adjust yOffset based on whether groups are expanded
+      const hasExpandedGroups = Object.keys(ihsByL3).some(l3Id => !collapsedGroups.has(`ih-group-${l3Id}`));
+      if (hasExpandedGroups) {
+        const maxIHRows = Math.max(...Object.values(ihsByL3).map(ihs => Math.ceil(ihs.length / 2)), 1);
+        yOffset += ySpacing + 150 + (maxIHRows * 130) + clusterSpacing;
+      } else {
+        yOffset += ySpacing;
+      }
     }
 
-    // Step 8: L4 Questions - Hierarchical clustering under IH nodes
+    // Step 8: L4 Questions - Create collapsible group nodes under IH or L3 nodes
     const step8 = steps.find(s => s.id === 8);
     if (step8?.output) {
       let l4Questions: any[] = [];
-      
+
       if (Array.isArray(step8.output)) {
         l4Questions = step8.output;
       } else if (step8.output && typeof step8.output === 'object') {
@@ -780,180 +1029,268 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           l4Questions = Object.values(step8.output).filter(val => Array.isArray(val)).flat();
         }
       }
-      
+
       // Group L4s by their parent (IH if exists, otherwise L3)
       const l4sByIH: Record<string, any[]> = {};
-      const l4sByL3: Record<string, any[]> = {}; // L4s linked directly to L3
-      
+      const l4sByL3: Record<string, any[]> = {};
+
       l4Questions.forEach((q: any) => {
         if (!q || typeof q !== 'object') return;
-        
-        // Try to link to IH first (if distinguishes_ih_ids exists)
+
+        // Try to link to IH first
         const parentIHIds = q.distinguishes_ih_ids || [];
         if (parentIHIds.length > 0) {
           const parentIHId = parentIHIds[0];
-          // Check if parent IH exists in the graph
           const parentExists = newNodes.some(n => n.id === `ih-${parentIHId}`);
           if (parentExists) {
             if (!l4sByIH[parentIHId]) l4sByIH[parentIHId] = [];
             l4sByIH[parentIHId].push(q);
-            return; // Successfully linked to IH
+            return;
           }
         }
-        
-        // If no IH link, try to extract parent L3 from L4 ID
-        // Format: Q_L4_M_G2_1_01 -> parent L3 is Q_L3_M_G2_1
+
+        // Try to extract parent L3 from L4 ID
         const l4Id = q.id || '';
         const l3Match = l4Id.match(/Q_L4_(M_G\d+_\d+)_/);
         if (l3Match) {
           const parentL3Id = `Q_L3_${l3Match[1]}`;
-          // Check if parent L3 exists
           const parentL3Exists = newNodes.some(n => n.id === `l3-${parentL3Id}`);
           if (parentL3Exists) {
             if (!l4sByL3[parentL3Id]) l4sByL3[parentL3Id] = [];
             l4sByL3[parentL3Id].push(q);
-            return; // Successfully linked to L3
+            return;
           }
         }
-        
-        // If we get here, couldn't link to anything - will be handled as orphan
+
         console.warn(`L4 question ${q.id} has no valid parent (IH or L3)`);
       });
-      
+
       const l4Y = yOffset;
-      
-      // For each IH, place its L4s in a cluster below it
+
+      // Create collapsible L4 group nodes for IH parents
       Object.keys(l4sByIH).forEach((ihId) => {
         const ihL4s = l4sByIH[ihId];
         const parentIHNode = newNodes.find(n => n.id === `ih-${ihId}`);
-        
+
         if (!parentIHNode) return;
-        
-        // Position L4s in a cluster under the parent IH
+
         const baseX = parentIHNode.position.x;
-        const l4sPerRow = 2;
-        
-        ihL4s.forEach((q: any, idx: number) => {
-          const nodeId = `l4-${q.id || idx}`;
-          
-          const row = Math.floor(idx / l4sPerRow);
-          const col = idx % l4sPerRow;
-          const xPos = baseX - 300 + col * 650; // Dramatically wider horizontal spacing
-          const yPos = l4Y + row * 130; // Reduced vertical spacing within layer
-          
-          newNodes.push({
-            id: nodeId,
-            type: 'default',
-            position: { x: xPos, y: yPos },
-            data: { 
-              label: `L4: ${q.text?.substring(0, 60)}${q.text && q.text.length > 60 ? '...' : ''}`,
-              fullData: q,
-              type: 'l4'
+        const l4GroupId = `l4-group-ih-${ihId}`;
+
+        // Create collapsible L4 group node
+        newNodes.push({
+          id: l4GroupId,
+          type: 'default',
+          position: { x: baseX, y: l4Y },
+          data: {
+            label: `L4 (${ihL4s.length})`,
+            fullData: {
+              questions: ihL4s,
+              ihId: ihId
             },
-            style: {
-              background: 'linear-gradient(135deg, rgba(132,204,22,0.2), rgba(34,197,94,0.2))',
-              color: 'hsl(var(--foreground))',
-              border: '1.5px solid rgba(132,204,22,0.6)',
-              borderRadius: '10px',
-              padding: '7px',
-              fontSize: '9px',
-              fontWeight: '600',
-              width: 200,
-              boxShadow: '0 0 15px rgba(132,204,22,0.4)',
-            },
-            });
-          
-          // Create edge to parent IH
-          newEdges.push({
-            id: `ih-${ihId}-${nodeId}`,
-            source: `ih-${ihId}`,
-            target: nodeId,
-            type: 'smoothstep',
-            animated: true,
-            style: { stroke: NODE_COLORS.l4, strokeWidth: 0.5, strokeDasharray: '1,1' },
-            markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l4 },
-          });
+            type: 'l4_group'
+          },
+          style: {
+            background: 'linear-gradient(135deg, rgba(132,204,22,0.15), rgba(34,197,94,0.15))',
+            color: 'hsl(var(--foreground))',
+            border: '2px solid rgba(132,204,22,0.6)',
+            borderRadius: '12px',
+            padding: '14px',
+            fontSize: '10px',
+            fontWeight: '600',
+            width: 220,
+            minHeight: 80,
+            boxShadow: '0 0 15px rgba(132,204,22,0.3)',
+            cursor: 'pointer'
+          }
         });
+
+        // Create edge from IH to L4 Group
+        newEdges.push({
+          id: `ih-${ihId}-${l4GroupId}`,
+          source: `ih-${ihId}`,
+          target: l4GroupId,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: NODE_COLORS.l4, strokeWidth: 1.5 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l4 },
+        });
+
+        // Create individual L4 nodes (shown when expanded)
+        if (!collapsedGroups.has(l4GroupId)) {
+          const l4sPerRow = 2;
+          ihL4s.forEach((q: any, idx: number) => {
+            const nodeId = `l4-${q.id || idx}`;
+            const row = Math.floor(idx / l4sPerRow);
+            const col = idx % l4sPerRow;
+            const xPos = baseX - 110 + col * 240;
+            const yPos = l4Y + 130 + row * 110;
+
+            newNodes.push({
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${q.text?.substring(0, 55)}${q.text && q.text.length > 55 ? '...' : ''}`,
+                fullData: q,
+                type: 'l4',
+                parentGroup: l4GroupId
+              },
+              style: {
+                background: 'linear-gradient(135deg, rgba(132,204,22,0.2), rgba(34,197,94,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '1.5px solid rgba(132,204,22,0.6)',
+                borderRadius: '10px',
+                padding: '7px',
+                fontSize: '9px',
+                fontWeight: '600',
+                width: 200,
+                boxShadow: '0 0 15px rgba(132,204,22,0.4)',
+              },
+            });
+
+            // Create edge from L4 Group to individual L4
+            newEdges.push({
+              id: `${l4GroupId}-${nodeId}`,
+              source: l4GroupId,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: NODE_COLORS.l4, strokeWidth: 0.5, strokeDasharray: '1,1' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l4 },
+            });
+          });
+        }
       });
-      
-      // For each L3, place L4s that link directly to it (no IH parent)
+
+      // Create collapsible L4 group nodes for L3 parents
       Object.keys(l4sByL3).forEach((l3Id) => {
         const l3L4s = l4sByL3[l3Id];
         const parentL3Node = newNodes.find(n => n.id === `l3-${l3Id}`);
-        
+
         if (!parentL3Node) return;
-        
-        // Position L4s in a cluster under the parent L3
+
         const baseX = parentL3Node.position.x;
-        const l4sPerRow = 2;
-        
-        l3L4s.forEach((q: any, idx: number) => {
-          const nodeId = `l4-${q.id || idx}`;
-          
-          const row = Math.floor(idx / l4sPerRow);
-          const col = idx % l4sPerRow;
-          const xPos = baseX - 300 + col * 650; // Dramatically wider horizontal spacing
-          const yPos = l4Y + row * 130; // Reduced vertical spacing within layer
-          
-          newNodes.push({
-            id: nodeId,
-            type: 'default',
-            position: { x: xPos, y: yPos },
-            data: { 
-              label: `L4: ${q.text?.substring(0, 60)}${q.text && q.text.length > 60 ? '...' : ''}`,
-              fullData: q,
-              type: 'l4'
+        const l4GroupId = `l4-group-l3-${l3Id}`;
+
+        // Create collapsible L4 group node
+        newNodes.push({
+          id: l4GroupId,
+          type: 'default',
+          position: { x: baseX, y: l4Y },
+          data: {
+            label: `L4 (${l3L4s.length})`,
+            fullData: {
+              questions: l3L4s,
+              l3Id: l3Id
             },
-            style: {
-              background: 'linear-gradient(135deg, rgba(132,204,22,0.2), rgba(34,197,94,0.2))',
-              color: 'hsl(var(--foreground))',
-              border: '1.5px solid rgba(132,204,22,0.6)',
-              borderRadius: '10px',
-              padding: '7px',
-              fontSize: '9px',
-              fontWeight: '600',
-              width: 200,
-              boxShadow: '0 0 15px rgba(132,204,22,0.4)',
-            },
-          });
-          
-          // Create edge to parent L3 (dashed to indicate direct link, skipping IH)
-          newEdges.push({
-            id: `l3-${l3Id}-${nodeId}`,
-            source: `l3-${l3Id}`,
-            target: nodeId,
-            type: 'smoothstep',
-            animated: true,
-            style: { stroke: NODE_COLORS.l4, strokeWidth: 0.5, strokeDasharray: '3,3' },
-            markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l4 },
-          });
+            type: 'l4_group'
+          },
+          style: {
+            background: 'linear-gradient(135deg, rgba(132,204,22,0.15), rgba(34,197,94,0.15))',
+            color: 'hsl(var(--foreground))',
+            border: '2px solid rgba(132,204,22,0.6)',
+            borderRadius: '12px',
+            padding: '14px',
+            fontSize: '10px',
+            fontWeight: '600',
+            width: 220,
+            minHeight: 80,
+            boxShadow: '0 0 15px rgba(132,204,22,0.3)',
+            cursor: 'pointer'
+          }
         });
+
+        // Create edge from L3 to L4 Group
+        newEdges.push({
+          id: `l3-${l3Id}-${l4GroupId}`,
+          source: `l3-${l3Id}`,
+          target: l4GroupId,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: NODE_COLORS.l4, strokeWidth: 1.5, strokeDasharray: '3,3' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l4 },
+        });
+
+        // Create individual L4 nodes (shown when expanded)
+        if (!collapsedGroups.has(l4GroupId)) {
+          const l4sPerRow = 2;
+          l3L4s.forEach((q: any, idx: number) => {
+            const nodeId = `l4-${q.id || idx}`;
+            const row = Math.floor(idx / l4sPerRow);
+            const col = idx % l4sPerRow;
+            const xPos = baseX - 110 + col * 240;
+            const yPos = l4Y + 130 + row * 110;
+
+            newNodes.push({
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${q.text?.substring(0, 55)}${q.text && q.text.length > 55 ? '...' : ''}`,
+                fullData: q,
+                type: 'l4',
+                parentGroup: l4GroupId
+              },
+              style: {
+                background: 'linear-gradient(135deg, rgba(132,204,22,0.2), rgba(34,197,94,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '1.5px solid rgba(132,204,22,0.6)',
+                borderRadius: '10px',
+                padding: '7px',
+                fontSize: '9px',
+                fontWeight: '600',
+                width: 200,
+                boxShadow: '0 0 15px rgba(132,204,22,0.4)',
+              },
+            });
+
+            // Create edge from L4 Group to individual L4
+            newEdges.push({
+              id: `${l4GroupId}-${nodeId}`,
+              source: l4GroupId,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: NODE_COLORS.l4, strokeWidth: 0.5, strokeDasharray: '1,1' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l4 },
+            });
+          });
+        }
       });
-      
-      // Adjust yOffset with extra cluster spacing
-      const allL4Rows = Math.max(
-        ...Object.values(l4sByIH).map(l4s => Math.ceil(l4s.length / 2)),
-        ...Object.values(l4sByL3).map(l4s => Math.ceil(l4s.length / 2)),
-        1
-      );
-      yOffset += ySpacing + (allL4Rows - 1) * 130 + clusterSpacing; // Reduced vertical spacing within layer
+
+      // Adjust yOffset based on whether groups are expanded
+      const hasExpandedGroups =
+        Object.keys(l4sByIH).some(ihId => !collapsedGroups.has(`l4-group-ih-${ihId}`)) ||
+        Object.keys(l4sByL3).some(l3Id => !collapsedGroups.has(`l4-group-l3-${l3Id}`));
+
+      if (hasExpandedGroups) {
+        const allL4Rows = Math.max(
+          ...Object.values(l4sByIH).map(l4s => Math.ceil(l4s.length / 2)),
+          ...Object.values(l4sByL3).map(l4s => Math.ceil(l4s.length / 2)),
+          1
+        );
+        yOffset += ySpacing + 130 + (allL4Rows * 110) + clusterSpacing;
+      } else {
+        yOffset += ySpacing;
+      }
     }
 
-    // Step 9 Part 1: L5 Mechanistic Drills - Hierarchical clustering under L4 nodes
+    // Step 9 Part 1: L5 Mechanistic Drills - Create collapsible group nodes under L4 nodes
     const step9 = steps.find(s => s.id === 9);
     if (step9?.output) {
       let l5Nodes: any[] = [];
-      
+
       if (step9.output && typeof step9.output === 'object' && step9.output.l5_nodes) {
         l5Nodes = Array.isArray(step9.output.l5_nodes) ? step9.output.l5_nodes : [];
       }
-      
+
       if (l5Nodes.length > 0) {
         console.log(`[Graph] Found ${l5Nodes.length} L5 nodes in Step 9 output`);
-        
+
         // Group L5s by their parent L4
         const l5sByL4: Record<string, any[]> = {};
-        
+
         l5Nodes.forEach((l5: any) => {
           if (!l5 || typeof l5 !== 'object') return;
           const parentL4Id = l5.parent_l4_id;
@@ -962,76 +1299,123 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
             l5sByL4[parentL4Id].push(l5);
           }
         });
-        
+
         const l5Y = yOffset;
-        
-        // For each L4, place its L5s in a cluster below it
+
+        // For each L4, create a collapsible L5 group node
         Object.keys(l5sByL4).forEach((l4Id) => {
           const l4L5s = l5sByL4[l4Id];
           const parentL4Node = newNodes.find(n => n.id === `l4-${l4Id}`);
-          
+
           if (!parentL4Node) {
             console.warn(`Parent L4 node not found for L5 nodes: ${l4Id}`);
             return;
           }
-          
-          // Position L5s in a cluster under the parent L4
+
           const baseX = parentL4Node.position.x;
-          const l5sPerRow = 2;
-          
-          l4L5s.forEach((l5: any, idx: number) => {
-            const nodeId = `l5-${l5.id || idx}`;
-            
-            const row = Math.floor(idx / l5sPerRow);
-            const col = idx % l5sPerRow;
-            const xPos = baseX - 290 + col * 620; // Dramatically wider horizontal spacing
-            const yPos = l5Y + row * 125; // Reduced vertical spacing within layer
-            
-            newNodes.push({
-              id: nodeId,
-              type: 'default',
-              position: { x: xPos, y: yPos },
-              data: { 
-                label: `L5: ${l5.text?.substring(0, 55)}${l5.text && l5.text.length > 55 ? '...' : ''}`,
-                fullData: l5,
-                type: 'l5'
+          const l5GroupId = `l5-group-${l4Id}`;
+
+          // Create collapsible L5 group node
+          newNodes.push({
+            id: l5GroupId,
+            type: 'default',
+            position: { x: baseX, y: l5Y },
+            data: {
+              label: `L5 (${l4L5s.length})`,
+              fullData: {
+                drills: l4L5s,
+                l4Id: l4Id
               },
-              style: {
-                background: 'linear-gradient(135deg, rgba(163,230,53,0.2), rgba(132,204,22,0.2))',
-                color: 'hsl(var(--foreground))',
-                border: '1.5px solid rgba(163,230,53,0.6)',
-                borderRadius: '10px',
-                padding: '7px',
-                fontSize: '9px',
-                fontWeight: '600',
-                width: 210,
-                boxShadow: '0 0 15px rgba(163,230,53,0.4)',
-              },
-            });
-            
-            // Create edge to parent L4
-            newEdges.push({
-              id: `l4-${l4Id}-${nodeId}`,
-              source: `l4-${l4Id}`,
-              target: nodeId,
-              type: 'smoothstep',
-              animated: true,
-              style: { stroke: NODE_COLORS.l5, strokeWidth: 0.5, strokeDasharray: '1,1' },
-              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l5 },
-            });
+              type: 'l5_group'
+            },
+            style: {
+              background: 'linear-gradient(135deg, rgba(163,230,53,0.15), rgba(132,204,22,0.15))',
+              color: 'hsl(var(--foreground))',
+              border: '2px solid rgba(163,230,53,0.6)',
+              borderRadius: '12px',
+              padding: '12px',
+              fontSize: '10px',
+              fontWeight: '600',
+              width: 200,
+              minHeight: 70,
+              boxShadow: '0 0 15px rgba(163,230,53,0.3)',
+              cursor: 'pointer'
+            }
           });
+
+          // Create edge from L4 to L5 Group
+          newEdges.push({
+            id: `l4-${l4Id}-${l5GroupId}`,
+            source: `l4-${l4Id}`,
+            target: l5GroupId,
+            type: 'smoothstep',
+            animated: true,
+            style: { stroke: NODE_COLORS.l5, strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l5 },
+          });
+
+          // Create individual L5 nodes (shown when expanded)
+          if (!collapsedGroups.has(l5GroupId)) {
+            const l5sPerRow = 2;
+            l4L5s.forEach((l5: any, idx: number) => {
+              const nodeId = `l5-${l5.id || idx}`;
+              const row = Math.floor(idx / l5sPerRow);
+              const col = idx % l5sPerRow;
+              const xPos = baseX - 105 + col * 220;
+              const yPos = l5Y + 120 + row * 100;
+
+              newNodes.push({
+                id: nodeId,
+                type: 'default',
+                position: { x: xPos, y: yPos },
+                data: {
+                  label: `${l5.text?.substring(0, 50)}${l5.text && l5.text.length > 50 ? '...' : ''}`,
+                  fullData: l5,
+                  type: 'l5',
+                  parentGroup: l5GroupId
+                },
+                style: {
+                  background: 'linear-gradient(135deg, rgba(163,230,53,0.2), rgba(132,204,22,0.2))',
+                  color: 'hsl(var(--foreground))',
+                  border: '1.5px solid rgba(163,230,53,0.6)',
+                  borderRadius: '10px',
+                  padding: '7px',
+                  fontSize: '9px',
+                  fontWeight: '600',
+                  width: 190,
+                  boxShadow: '0 0 15px rgba(163,230,53,0.4)',
+                },
+              });
+
+              // Create edge from L5 Group to individual L5
+              newEdges.push({
+                id: `${l5GroupId}-${nodeId}`,
+                source: l5GroupId,
+                target: nodeId,
+                type: 'smoothstep',
+                animated: true,
+                style: { stroke: NODE_COLORS.l5, strokeWidth: 0.5, strokeDasharray: '1,1' },
+                markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l5 },
+              });
+            });
+          }
         });
-        
-        // Adjust yOffset
-        const maxL5Rows = Math.max(...Object.values(l5sByL4).map(l5s => Math.ceil(l5s.length / 2)), 1);
-        yOffset += ySpacing + (maxL5Rows - 1) * 125 + clusterSpacing; // Reduced vertical spacing within layer
+
+        // Adjust yOffset based on whether groups are expanded
+        const hasExpandedGroups = Object.keys(l5sByL4).some(l4Id => !collapsedGroups.has(`l5-group-${l4Id}`));
+        if (hasExpandedGroups) {
+          const maxL5Rows = Math.max(...Object.values(l5sByL4).map(l5s => Math.ceil(l5s.length / 2)), 1);
+          yOffset += ySpacing + 120 + (maxL5Rows * 100) + clusterSpacing;
+        } else {
+          yOffset += ySpacing;
+        }
       }
     }
 
-    // Step 9 Part 2: L6 Tasks - Hierarchical clustering under L5 or L4 nodes
+    // Step 9 Part 2: L6 Tasks - Create collapsible group nodes under L5 or L4 nodes
     if (step9?.output) {
       let l6Tasks: any[] = [];
-      
+
       if (Array.isArray(step9.output)) {
         l6Tasks = step9.output;
       } else if (step9.output && typeof step9.output === 'object') {
@@ -1041,14 +1425,14 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           l6Tasks = Object.values(step9.output).filter(val => Array.isArray(val)).flat();
         }
       }
-      
+
       // Group L6s by their parent (L5 if exists, otherwise L4)
       const l6sByL5: Record<string, any[]> = {};
       const l6sByL4: Record<string, any[]> = {};
-      
+
       l6Tasks.forEach((task: any) => {
         if (!task || typeof task !== 'object') return;
-        
+
         // Try to link to L5 first
         if (task.parent_l5_id) {
           const parentL5Id = task.parent_l5_id;
@@ -1056,12 +1440,11 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           l6sByL5[parentL5Id].push(task);
           return;
         }
-        
+
         // Otherwise link to L4
         let parentL4Id = task.parent_l4_id || task.l4_id;
-        
+
         // If no explicit parent, extract from L6 ID format
-        // Format: T_L6_M_G2_1_01_01 -> parent L4 is Q_L4_M_G2_1_01
         if (!parentL4Id && task.id) {
           const l6Id = task.id;
           const match = l6Id.match(/T_L6_(M_G\d+_\d+_\d+)_/);
@@ -1069,7 +1452,7 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
             parentL4Id = `Q_L4_${match[1]}`;
           }
         }
-        
+
         if (parentL4Id) {
           if (!l6sByL4[parentL4Id]) l6sByL4[parentL4Id] = [];
           l6sByL4[parentL4Id].push(task);
@@ -1077,139 +1460,228 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           console.warn(`L6 task ${task.id} has no valid parent (L5 or L4)`);
         }
       });
-      
+
       console.log(`[Graph] Found ${l6Tasks.length} L6 tasks in Step 9 output`);
-      console.log(`[Graph] L6 tasks grouped by L5:`, Object.keys(l6sByL5).map(l5Id => `${l5Id} (${l6sByL5[l5Id].length} tasks)`));
-      console.log(`[Graph] L6 tasks grouped by L4:`, Object.keys(l6sByL4).map(l4Id => `${l4Id} (${l6sByL4[l4Id].length} tasks)`));
-      
+
       const l6Y = yOffset;
-      
-      // For each L5, place its L6s in a cluster below it
+
+      // Create collapsible L6 group nodes for L5 parents
       Object.keys(l6sByL5).forEach((l5Id) => {
         const l5L6s = l6sByL5[l5Id];
         const parentL5Node = newNodes.find(n => n.id === `l5-${l5Id}`);
-        
+
         if (!parentL5Node) {
           console.warn(`Parent L5 node not found for L6 tasks: ${l5Id}`);
           return;
         }
-        
-        // Position L6s in a cluster under the parent L5
+
         const baseX = parentL5Node.position.x;
-        const l6sPerRow = 2;
-        
-        l5L6s.forEach((task: any, idx: number) => {
-          const nodeId = `l6-${task.id || idx}`;
-          
-          const row = Math.floor(idx / l6sPerRow);
-          const col = idx % l6sPerRow;
-          const xPos = baseX - 280 + col * 600; // Dramatically wider horizontal spacing
-          const yPos = l6Y + row * 120; // Reduced vertical spacing within layer
-        
-          newNodes.push({
-            id: nodeId,
-            type: 'default',
-            position: { x: xPos, y: yPos },
-            data: { 
-              label: `L6: ${task.title?.substring(0, 50)}${task.title && task.title.length > 50 ? '...' : ''}`,
-              fullData: task,
-              type: 'l6'
+        const l6GroupId = `l6-group-l5-${l5Id}`;
+
+        // Create collapsible L6 group node
+        newNodes.push({
+          id: l6GroupId,
+          type: 'default',
+          position: { x: baseX, y: l6Y },
+          data: {
+            label: `L6 (${l5L6s.length})`,
+            fullData: {
+              tasks: l5L6s,
+              l5Id: l5Id
             },
-            style: {
-              background: 'linear-gradient(135deg, rgba(20,184,166,0.2), rgba(6,182,212,0.2))',
-              color: 'hsl(var(--foreground))',
-              border: '1.5px solid rgba(20,184,166,0.6)',
-              borderRadius: '10px',
-              padding: '6px',
-              fontSize: '8px',
-              fontWeight: '600',
-              width: 190,
-              boxShadow: '0 0 15px rgba(20,184,166,0.4)',
-            },
-          });
-          
-          // Create edge to parent L5
-          newEdges.push({
-            id: `l5-${l5Id}-${nodeId}`,
-            source: `l5-${l5Id}`,
-            target: nodeId,
-            type: 'smoothstep',
-            animated: true,
-            style: { stroke: NODE_COLORS.l6, strokeWidth: 0.5, strokeDasharray: '1,1' },
-            markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l6 },
-          });
+            type: 'l6_group'
+          },
+          style: {
+            background: 'linear-gradient(135deg, rgba(20,184,166,0.15), rgba(6,182,212,0.15))',
+            color: 'hsl(var(--foreground))',
+            border: '2px solid rgba(20,184,166,0.6)',
+            borderRadius: '12px',
+            padding: '10px',
+            fontSize: '9px',
+            fontWeight: '600',
+            width: 180,
+            minHeight: 60,
+            boxShadow: '0 0 15px rgba(20,184,166,0.3)',
+            cursor: 'pointer'
+          }
         });
+
+        // Create edge from L5 to L6 Group
+        newEdges.push({
+          id: `l5-${l5Id}-${l6GroupId}`,
+          source: `l5-${l5Id}`,
+          target: l6GroupId,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: NODE_COLORS.l6, strokeWidth: 1.5 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l6 },
+        });
+
+        // Create individual L6 nodes (shown when expanded)
+        if (!collapsedGroups.has(l6GroupId)) {
+          const l6sPerRow = 2;
+          l5L6s.forEach((task: any, idx: number) => {
+            const nodeId = `l6-${task.id || idx}`;
+            const row = Math.floor(idx / l6sPerRow);
+            const col = idx % l6sPerRow;
+            const xPos = baseX - 95 + col * 200;
+            const yPos = l6Y + 110 + row * 90;
+
+            newNodes.push({
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${task.title?.substring(0, 45)}${task.title && task.title.length > 45 ? '...' : ''}`,
+                fullData: task,
+                type: 'l6',
+                parentGroup: l6GroupId
+              },
+              style: {
+                background: 'linear-gradient(135deg, rgba(20,184,166,0.2), rgba(6,182,212,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '1.5px solid rgba(20,184,166,0.6)',
+                borderRadius: '10px',
+                padding: '6px',
+                fontSize: '8px',
+                fontWeight: '600',
+                width: 170,
+                boxShadow: '0 0 15px rgba(20,184,166,0.4)',
+              },
+            });
+
+            // Create edge from L6 Group to individual L6
+            newEdges.push({
+              id: `${l6GroupId}-${nodeId}`,
+              source: l6GroupId,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: NODE_COLORS.l6, strokeWidth: 0.5, strokeDasharray: '1,1' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l6 },
+            });
+          });
+        }
       });
-      
-      // For each L4, place its L6s in a cluster below it (when no L5 parent)
+
+      // Create collapsible L6 group nodes for L4 parents
       Object.keys(l6sByL4).forEach((l4Id) => {
         const l4L6s = l6sByL4[l4Id];
         const parentL4Node = newNodes.find(n => n.id === `l4-${l4Id}`);
-        
+
         if (!parentL4Node) {
           console.warn(`Parent L4 node not found for L6 tasks: ${l4Id}. Skipping ${l4L6s.length} L6 tasks.`);
-          console.warn(`Available L4 nodes:`, newNodes.filter(n => n.id.startsWith('l4-')).map(n => n.id));
           return;
         }
-        
-        // Position L6s in a cluster under the parent L4
+
         const baseX = parentL4Node.position.x;
-        const l6sPerRow = 2;
-        
-        l4L6s.forEach((task: any, idx: number) => {
-          const nodeId = `l6-${task.id || idx}`;
-          
-          const row = Math.floor(idx / l6sPerRow);
-          const col = idx % l6sPerRow;
-          const xPos = baseX - 280 + col * 600; // Dramatically wider horizontal spacing
-          const yPos = l6Y + row * 120; // Reduced vertical spacing within layer
-        
-          newNodes.push({
-            id: nodeId,
-            type: 'default',
-            position: { x: xPos, y: yPos },
-            data: { 
-              label: `L6: ${task.title?.substring(0, 50)}${task.title && task.title.length > 50 ? '...' : ''}`,
-              fullData: task,
-              type: 'l6'
+        const l6GroupId = `l6-group-l4-${l4Id}`;
+
+        // Create collapsible L6 group node
+        newNodes.push({
+          id: l6GroupId,
+          type: 'default',
+          position: { x: baseX, y: l6Y },
+          data: {
+            label: `L6 (${l4L6s.length})`,
+            fullData: {
+              tasks: l4L6s,
+              l4Id: l4Id
             },
-            style: {
-              background: 'linear-gradient(135deg, rgba(20,184,166,0.2), rgba(6,182,212,0.2))',
-              color: 'hsl(var(--foreground))',
-              border: '1.5px solid rgba(20,184,166,0.6)',
-              borderRadius: '10px',
-              padding: '6px',
-              fontSize: '9px',
-              fontWeight: '600',
-              width: 190,
-              boxShadow: '0 0 15px rgba(20,184,166,0.4)',
-            },
-            });
-          
-          // Create edge to parent L4
-          newEdges.push({
-            id: `l4-${l4Id}-${nodeId}`,
-            source: `l4-${l4Id}`,
-            target: nodeId,
-            type: 'smoothstep',
-            animated: true,
-            style: { stroke: NODE_COLORS.l6, strokeWidth: 0.5, strokeDasharray: '1,1' },
-            markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l6 },
-          });
+            type: 'l6_group'
+          },
+          style: {
+            background: 'linear-gradient(135deg, rgba(20,184,166,0.15), rgba(6,182,212,0.15))',
+            color: 'hsl(var(--foreground))',
+            border: '2px solid rgba(20,184,166,0.6)',
+            borderRadius: '12px',
+            padding: '10px',
+            fontSize: '9px',
+            fontWeight: '600',
+            width: 180,
+            minHeight: 60,
+            boxShadow: '0 0 15px rgba(20,184,166,0.3)',
+            cursor: 'pointer'
+          }
         });
+
+        // Create edge from L4 to L6 Group
+        newEdges.push({
+          id: `l4-${l4Id}-${l6GroupId}`,
+          source: `l4-${l4Id}`,
+          target: l6GroupId,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: NODE_COLORS.l6, strokeWidth: 1.5 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l6 },
+        });
+
+        // Create individual L6 nodes (shown when expanded)
+        if (!collapsedGroups.has(l6GroupId)) {
+          const l6sPerRow = 2;
+          l4L6s.forEach((task: any, idx: number) => {
+            const nodeId = `l6-${task.id || idx}`;
+            const row = Math.floor(idx / l6sPerRow);
+            const col = idx % l6sPerRow;
+            const xPos = baseX - 95 + col * 200;
+            const yPos = l6Y + 110 + row * 90;
+
+            newNodes.push({
+              id: nodeId,
+              type: 'default',
+              position: { x: xPos, y: yPos },
+              data: {
+                label: `${task.title?.substring(0, 45)}${task.title && task.title.length > 45 ? '...' : ''}`,
+                fullData: task,
+                type: 'l6',
+                parentGroup: l6GroupId
+              },
+              style: {
+                background: 'linear-gradient(135deg, rgba(20,184,166,0.2), rgba(6,182,212,0.2))',
+                color: 'hsl(var(--foreground))',
+                border: '1.5px solid rgba(20,184,166,0.6)',
+                borderRadius: '10px',
+                padding: '6px',
+                fontSize: '8px',
+                fontWeight: '600',
+                width: 170,
+                boxShadow: '0 0 15px rgba(20,184,166,0.4)',
+              },
+            });
+
+            // Create edge from L6 Group to individual L6
+            newEdges.push({
+              id: `${l6GroupId}-${nodeId}`,
+              source: l6GroupId,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: NODE_COLORS.l6, strokeWidth: 0.5, strokeDasharray: '1,1' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: NODE_COLORS.l6 },
+            });
+          });
+        }
       });
-      
-      // Adjust yOffset with extra cluster spacing
-      const maxL6Rows = Math.max(
-        ...Object.values(l6sByL5).map(l6s => Math.ceil(l6s.length / 2)),
-        ...Object.values(l6sByL4).map(l6s => Math.ceil(l6s.length / 2)),
-        1
-      );
-      yOffset += ySpacing + (maxL6Rows - 1) * 120 + clusterSpacing; // Reduced vertical spacing within layer
+
+      // Adjust yOffset based on whether groups are expanded
+      const hasExpandedGroups =
+        Object.keys(l6sByL5).some(l5Id => !collapsedGroups.has(`l6-group-l5-${l5Id}`)) ||
+        Object.keys(l6sByL4).some(l4Id => !collapsedGroups.has(`l6-group-l4-${l4Id}`));
+
+      if (hasExpandedGroups) {
+        const maxL6Rows = Math.max(
+          ...Object.values(l6sByL5).map(l6s => Math.ceil(l6s.length / 2)),
+          ...Object.values(l6sByL4).map(l6s => Math.ceil(l6s.length / 2)),
+          1
+        );
+        yOffset += ySpacing + 110 + (maxL6Rows * 90) + clusterSpacing;
+      } else {
+        yOffset += ySpacing;
+      }
     }
 
     return { nodes: newNodes, edges: newEdges };
-  }, [steps]);
+  }, [steps, collapsedGroups]);
 
   useEffect(() => {
     setNodes(buildGraph.nodes);
@@ -1227,19 +1699,33 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
   }, [highlightedNodeId, setNodes]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    // Handle group node collapse/expand
+    if (node.data.type.endsWith('_group')) {
+      setCollapsedGroups(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(node.id)) {
+          newSet.delete(node.id);
+        } else {
+          newSet.add(node.id);
+        }
+        return newSet;
+      });
+      return;
+    }
+
     setSelectedNode(node.data);
     if (onNodeHighlight) {
       onNodeHighlight(node.id, node.data.type);
     }
-    
+
     // Toggle: if clicking the same node, clear highlighting
     if (highlightedNodeIdState === node.id) {
       setHighlightedNodeIdState(null);
-      
+
       // Reset to original graph state
       setNodes(buildGraph.nodes);
       setEdges(buildGraph.edges);
-      
+
       return;
     }
     
@@ -1410,7 +1896,7 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
             )}
             {selectedNode.type !== 'q0' && selectedNode.fullData && (
               <div className="max-h-[500px] overflow-auto">
-                {renderNodeDetails(selectedNode.type, selectedNode.fullData)}
+                {renderNodeDetails(selectedNode.type, selectedNode.fullData, bridgeLexicon)}
               </div>
             )}
           </div>

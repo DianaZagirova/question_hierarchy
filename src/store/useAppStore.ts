@@ -8,6 +8,7 @@ interface AppStore extends AppState {
   setGoal: (goal: string) => void;
   updateAgent: (agentId: string, updates: Partial<AgentConfig>) => void;
   updateStepStatus: (stepId: number, status: PipelineStep['status'], output?: any, error?: string) => void;
+  updateStep4Phase: (phase: 'phase4a_domain_mapping' | 'phase4b_domain_scans' | 'phase4c_integration', data: any) => void;
   resetPipeline: () => void;
   resetToDefaults: () => void;
   saveVersion: () => void;
@@ -25,14 +26,14 @@ const initialSteps: PipelineStep[] = [
   { id: 2, name: 'Goal Pillars Synthesis', agentId: 'agent-immortalist', status: 'pending', input: null, output: null },
   { id: 3, name: 'Requirement Atomization', agentId: 'agent-requirement-engineer', status: 'pending', input: null, output: null },
   { id: 4, name: 'Reality Mapping', agentId: 'agent-biologist', status: 'pending', input: null, output: null },
-  { id: 5, name: 'Strategic Matching', agentId: 'agent-judge', status: 'pending', input: null, output: null },
+  { id: 5, name: 'Strategic Matching', agentId: 'agent-judge', status: 'skipped', input: null, output: null }, // SKIPPED: Judge disabled, function integrated into Step 4b
   { id: 6, name: 'Frontier Question Generation', agentId: 'agent-l3-explorer', status: 'pending', input: null, output: null },
   { id: 7, name: 'Divergent Hypothesis Instantiation', agentId: 'agent-instantiator', status: 'pending', input: null, output: null },
   { id: 8, name: 'Tactical Decomposition', agentId: 'agent-explorer', status: 'pending', input: null, output: null },
   { id: 9, name: 'Execution Drilldown', agentId: 'agent-tactical-engineer', status: 'pending', input: null, output: null },
 ];
 
-const STORAGE_VERSION = 2; // Increment this when agents schema changes
+const STORAGE_VERSION = 4; // v4: Force Step 5 (Judge) to skipped status permanently
 
 export const useAppStore = create<AppStore>()(
   persist(
@@ -66,6 +67,19 @@ export const useAppStore = create<AppStore>()(
       },
 
       updateStepStatus: (stepId: number, status: PipelineStep['status'], output?: any, error?: string) => {
+        console.log(`[Store] updateStepStatus called: Step ${stepId} -> ${status}`);
+        if (output && typeof output === 'object') {
+          console.log(`[Store] Output keys:`, Object.keys(output).slice(0, 5));
+          if ('phase' in output) console.log(`[Store] ⚠️  Output contains 'phase' property:`, output.phase);
+          if ('progress' in output) console.log(`[Store] ⚠️  Output contains 'progress' property:`, output.progress);
+        }
+
+        // ⚠️ SAFEGUARD: Step 5 (Judge) must always remain 'skipped' (agent disabled)
+        if (stepId === 5 && status !== 'skipped') {
+          console.log(`[Store] ⚠️  Blocked attempt to change Step 5 status to '${status}' - keeping as 'skipped' (Judge disabled)`);
+          return;
+        }
+
         set((state) => ({
           steps: state.steps.map((step) =>
             step.id === stepId
@@ -75,7 +89,29 @@ export const useAppStore = create<AppStore>()(
         }));
       },
 
+      updateStep4Phase: (phase: 'phase4a_domain_mapping' | 'phase4b_domain_scans' | 'phase4c_integration', data: any) => {
+        set((state) => ({
+          steps: state.steps.map((step) =>
+            step.id === 4
+              ? {
+                  ...step,
+                  step4Phases: {
+                    ...step.step4Phases,
+                    [phase]: data
+                  },
+                  timestamp: new Date()
+                }
+              : step
+          ),
+        }));
+      },
+
       skipStep: (stepId: number) => {
+        // Step 5 is already permanently skipped, no need to change
+        if (stepId === 5) {
+          console.log(`[Store] Step 5 is permanently skipped (Judge disabled)`);
+          return;
+        }
         set((state) => ({
           steps: state.steps.map((step) =>
             step.id === stepId ? { ...step, status: 'skipped' } : step
@@ -84,6 +120,11 @@ export const useAppStore = create<AppStore>()(
       },
 
       clearStep: (stepId: number) => {
+        // Step 5 cannot be cleared - it's permanently skipped (Judge disabled)
+        if (stepId === 5) {
+          console.log(`[Store] Cannot clear Step 5 - permanently skipped (Judge disabled)`);
+          return;
+        }
         set((state) => ({
           steps: state.steps.map((step) =>
             step.id === stepId ? { ...step, status: 'pending', output: null, error: undefined, timestamp: undefined } : step
@@ -175,10 +216,19 @@ export const useAppStore = create<AppStore>()(
         // If stored version is older than current, reset agents to defaults
         if (version < STORAGE_VERSION) {
           console.log(`[Storage Migration] Upgrading from v${version} to v${STORAGE_VERSION}`);
-          console.log('[Storage Migration] Resetting agents to include new Domain Mapper, Domain Specialist, and Knowledge Integrator');
+          
+          // Force Step 5 (Judge) to skipped status
+          const migratedSteps = persistedState.steps?.map((step: any) => 
+            step.id === 5 ? { ...step, status: 'skipped', output: null, error: undefined } : step
+          ) || initialSteps;
+          
+          console.log('[Storage Migration] Step 5 (Judge) forced to skipped status');
+          console.log('[Storage Migration] Resetting agents to defaults');
+          
           return {
             ...persistedState,
             agents: DEFAULT_AGENTS,
+            steps: migratedSteps,
             storageVersion: STORAGE_VERSION,
           };
         }
