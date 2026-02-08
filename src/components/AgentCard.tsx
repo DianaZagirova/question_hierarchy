@@ -11,12 +11,17 @@ interface AgentCardProps {
   onUpdate: (updates: Partial<AgentConfig>) => void;
 }
 
+const DEPRECATED_AGENTS = new Set(['agent-judge']);
+
 export const AgentCard: React.FC<AgentCardProps> = ({ agent, onUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const isDeprecated = DEPRECATED_AGENTS.has(agent.id);
 
   return (
-    <Card className="bg-card/50 border-border/30 hover:border-primary/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] transition-all group">
+    <Card className={`bg-card/50 border-border/30 transition-all group ${
+      isDeprecated ? 'opacity-50 pointer-events-auto' : 'hover:border-primary/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)]'
+    }`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex-1">
@@ -27,11 +32,15 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, onUpdate }) => {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-lg gradient-text">{agent.name}</CardTitle>
-                  {agent.enabled && (
+                  {isDeprecated ? (
+                    <span className="px-2 py-0.5 text-[10px] font-mono bg-red-500/20 text-red-400 border border-red-500/30 rounded">
+                      DEPRECATED
+                    </span>
+                  ) : agent.enabled ? (
                     <span className="px-2 py-0.5 text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
                       ACTIVE
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <CardDescription className="text-muted-foreground text-sm font-semibold">{agent.role}</CardDescription>
                 {agent.description && (
@@ -99,7 +108,8 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, onUpdate }) => {
                 <input
                   type="checkbox"
                   checked={agent.enabled}
-                  onChange={(e) => onUpdate({ enabled: e.target.checked })}
+                  onChange={(e) => !isDeprecated && onUpdate({ enabled: e.target.checked })}
+                  disabled={isDeprecated}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-secondary border-2 border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary peer-checked:after:bg-primary-foreground"></div>

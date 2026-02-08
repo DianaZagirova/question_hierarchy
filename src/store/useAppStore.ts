@@ -60,6 +60,11 @@ export const useAppStore = create<AppStore>()(
       },
 
       updateAgent: (agentId: string, updates: Partial<AgentConfig>) => {
+        // agent-judge is deprecated — never allow enabling it
+        if (agentId === 'agent-judge' && updates.enabled) {
+          console.log('[Store] Blocked attempt to enable deprecated agent-judge');
+          return;
+        }
         set((state) => ({
           agents: state.agents.map((agent) =>
             agent.id === agentId ? { ...agent, ...updates } : agent
@@ -240,6 +245,28 @@ export const useAppStore = create<AppStore>()(
           };
         }
         return persistedState;
+      },
+      onRehydrateStorage: () => {
+        return (state) => {
+          if (!state) return;
+          // Reset any steps stuck in 'running' back to 'pending' —
+          // this happens on page reload / session switch when no step is actually executing.
+          const hasStale = state.steps.some((s) => s.status === 'running');
+          if (hasStale) {
+            console.log('[Rehydrate] Resetting stale "running" steps to "pending"');
+            state.steps = state.steps.map((s) =>
+              s.status === 'running' ? { ...s, status: 'pending' as const, error: undefined } : s
+            );
+          }
+          // Force deprecated agent-judge to disabled
+          const judge = state.agents.find((a) => a.id === 'agent-judge');
+          if (judge && judge.enabled) {
+            console.log('[Rehydrate] Forcing deprecated agent-judge to disabled');
+            state.agents = state.agents.map((a) =>
+              a.id === 'agent-judge' ? { ...a, enabled: false } : a
+            );
+          }
+        };
       },
     }
   )

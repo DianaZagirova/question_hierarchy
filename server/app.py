@@ -12,7 +12,15 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+# In production, serve the built frontend from ../dist
+DIST_DIR = os.path.join(os.path.dirname(__file__), '..', 'dist')
+IS_PRODUCTION = os.getenv('NODE_ENV', 'development') == 'production'
+
+if IS_PRODUCTION and os.path.isdir(DIST_DIR):
+    app = Flask(__name__, static_folder=DIST_DIR, static_url_path='')
+else:
+    app = Flask(__name__)
+
 CORS(app)
 
 def interpolate_prompt(agent_config):
@@ -850,12 +858,29 @@ Be brutally critical — do NOT force unification if the tasks are fundamentally
     else:
         return json.dumps(input_data)
 
+# SPA catch-all: serve index.html for any non-API route (production only)
+if IS_PRODUCTION and os.path.isdir(DIST_DIR):
+    from flask import send_from_directory as _send
+
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_spa(path):
+        # If the path matches a real file in dist/, serve it
+        full = os.path.join(DIST_DIR, path)
+        if path and os.path.isfile(full):
+            return _send(DIST_DIR, path)
+        # Otherwise serve index.html (client-side routing)
+        return _send(DIST_DIR, 'index.html')
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 3001))
     
     print(f"\n🚀 OMEGA-POINT Server running on port {port}")
     print(f"📡 API endpoint: http://localhost:{port}/api")
     print(f"🔌 API Provider: {API_PROVIDER}")
+    print(f"🌍 Mode: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
+    if IS_PRODUCTION:
+        print(f"📁 Serving frontend from: {os.path.abspath(DIST_DIR)}")
     if API_PROVIDER == 'openrouter':
         key_status = '✓ Configured' if os.getenv('OPENROUTER_API_KEY') else '✗ Missing'
         print(f"🔑 OpenRouter API Key: {key_status}")
@@ -863,4 +888,4 @@ if __name__ == '__main__':
         key_status = '✓ Configured' if os.getenv('OPENAI_API_KEY') else '✗ Missing'
         print(f"🔑 OpenAI API Key: {key_status}")
     
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=not IS_PRODUCTION)

@@ -10,6 +10,34 @@ const api = axios.create({
   },
 });
 
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
+
+/**
+ * Wrap an async fn with up to MAX_RETRIES retries.
+ * Aborted requests are never retried.
+ */
+async function withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      // Never retry user-initiated aborts
+      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED' || signal?.aborted) {
+        throw error;
+      }
+      lastError = error;
+      if (attempt < MAX_RETRIES) {
+        const delay = RETRY_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`[API] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`, error.message);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
 export interface ExecuteStepParams {
   stepId: number;
   agentConfig: AgentConfig;
@@ -23,10 +51,12 @@ export interface ExecuteStepParams {
 const abortControllers = new Map<number, AbortController>();
 
 export const executeStep = async (params: ExecuteStepParams): Promise<any> => {
-  const response = await api.post('/api/execute-step', params, {
-    signal: params.signal,
-  });
-  return response.data;
+  return withRetry(async () => {
+    const response = await api.post('/api/execute-step', params, {
+      signal: params.signal,
+    });
+    return response.data;
+  }, params.signal);
 };
 
 export const executeStepBatch = async (
@@ -37,16 +67,18 @@ export const executeStepBatch = async (
   globalLens?: string,
   phaseInfo?: { phase: '4a' | '4b' }
 ): Promise<any> => {
-  const response = await api.post('/api/execute-step-batch', {
-    stepId,
-    agentConfig,
-    items,
-    globalLens,
-    phase_info: phaseInfo,
-  }, {
-    signal,
-  });
-  return response.data;
+  return withRetry(async () => {
+    const response = await api.post('/api/execute-step-batch', {
+      stepId,
+      agentConfig,
+      items,
+      globalLens,
+      phase_info: phaseInfo,
+    }, {
+      signal,
+    });
+    return response.data;
+  }, signal);
 };
 
 export const createAbortController = (stepId: number): AbortController => {

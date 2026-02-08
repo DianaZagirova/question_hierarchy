@@ -15,16 +15,16 @@ interface GraphControlsProps {
 }
 
 const LAYERS = [
-  { id: 'q0', label: 'Q₀', color: 'bg-blue-500' },
-  { id: 'goals', label: 'Goals', color: 'bg-purple-500' },
-  { id: 'spvs', label: 'SPVs', color: 'bg-amber-500' },
-  { id: 'ras', label: 'RAs', color: 'bg-emerald-500' },
-  { id: 'domains', label: 'Domains', color: 'bg-cyan-500' },
-  { id: 'l3', label: 'L3', color: 'bg-red-500' },
-  { id: 'ih', label: 'IH', color: 'bg-orange-500' },
-  { id: 'l4', label: 'L4', color: 'bg-lime-500' },
-  { id: 'l5', label: 'L5', color: 'bg-green-400' },
-  { id: 'l6', label: 'L6', color: 'bg-teal-500' },
+  { id: 'q0', label: 'Q₀', color: 'bg-blue-500', description: 'Root question — the primary research objective' },
+  { id: 'goals', label: 'Goals', color: 'bg-purple-500', description: 'Goal Pillars — high-level teleological requirements decomposed from Q₀' },
+  { id: 'spvs', label: 'SPVs', color: 'bg-amber-500', description: 'System Property Variables — measurable properties that bridge goals and science' },
+  { id: 'ras', label: 'RAs', color: 'bg-emerald-500', description: 'Requirement Atoms — atomic functional specifications for each goal' },
+  { id: 'domains', label: 'Domains', color: 'bg-cyan-500', description: 'Research Domains — scientific fields mapped to each goal for knowledge collection' },
+  { id: 'l3', label: 'L3', color: 'bg-red-500', description: 'L3 Frontier Questions — strategic science questions that probe knowledge gaps' },
+  { id: 'ih', label: 'IH', color: 'bg-orange-500', description: 'Instantiation Hypotheses — divergent hypotheses generated from L3 questions' },
+  { id: 'l4', label: 'L4', color: 'bg-lime-500', description: 'L4 Tactical Questions — concrete experimental questions derived from L3s' },
+  { id: 'l5', label: 'L5', color: 'bg-green-400', description: 'L5 Drill Branches — execution sub-problems that decompose each L4' },
+  { id: 'l6', label: 'L6', color: 'bg-teal-500', description: 'L6 Leaf Specs — actionable experiment tasks with parameters and protocols' },
 ];
 
 export const GraphControls: React.FC<GraphControlsProps> = ({
@@ -64,6 +64,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
             <button
               key={layer.id}
               onClick={() => onLayerToggle(layer.id)}
+              title={layer.description}
               className={`
                 px-2 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1.5
                 ${visibleLayers.has(layer.id)

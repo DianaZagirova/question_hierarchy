@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "cd server && python3 app.py",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start": "./start-production.sh",
     "server": "cd server && python app.py"
   },
   "dependencies": {
