@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from openai import OpenAI
 import os
@@ -981,6 +981,95 @@ Be brutally critical — do NOT force unification if the tasks are fundamentally
     
     else:
         return json.dumps(input_data)
+
+# ============================================================
+# NODE CHAT: Chat with LLM about selected graph nodes
+# ============================================================
+@app.route('/api/node-chat', methods=['POST'])
+def node_chat():
+    """Stream a chat response about selected graph nodes.
+    
+    Always includes Q0, goal, and lens in the system context.
+    Accepts conversation history for multi-turn chat.
+    """
+    data = request.json
+    selected_nodes = data.get('selectedNodes', [])
+    messages_history = data.get('messages', [])
+    q0 = data.get('q0', '')
+    goal = data.get('goal', '')
+    lens = data.get('lens', '')
+    model = data.get('model', 'gpt-4.1')
+
+    # Build system prompt with permanent context
+    system_prompt = f"""You are an expert scientific research advisor for the Omega Point project. You help the user analyze, question, and reason about nodes in a hierarchical knowledge graph that decomposes a master research question into actionable experiments.
+
+MASTER QUESTION (Q0):
+{q0}
+
+CURRENT GOAL:
+{goal}
+
+EPISTEMIC LENS:
+{lens if lens else 'None specified'}
+
+SELECTED NODES ({len(selected_nodes)} node(s)):
+{json.dumps(selected_nodes, indent=2)}
+
+INSTRUCTIONS:
+- Answer questions about the selected nodes, their relationships, scientific validity, and implications.
+- You can suggest improvements, identify gaps, propose alternatives, or explain mechanisms.
+- Be concise but thorough. Use scientific terminology appropriate to the domain.
+- Reference specific node IDs when discussing them.
+- If the user asks about connections between nodes, reason about causal chains and dependencies.
+- You may use markdown formatting in your responses."""
+
+    # Build messages for the API call
+    api_messages = [{"role": "system", "content": system_prompt}]
+    
+    # Add conversation history
+    for msg in messages_history:
+        api_messages.append({
+            "role": msg.get("role", "user"),
+            "content": msg.get("content", "")
+        })
+
+    print(f"\n[Node Chat] Model: {model}, Nodes: {len(selected_nodes)}, History: {len(messages_history)} messages")
+
+    def generate():
+        try:
+            resolved = resolve_model(model)
+            api_kwargs = dict(
+                model=resolved,
+                messages=api_messages,
+                temperature=0.7,
+                max_tokens=4096,
+                stream=True,
+            )
+            if API_PROVIDER == 'openrouter':
+                api_kwargs['extra_headers'] = {
+                    'HTTP-Referer': 'https://omega-point.local',
+                    'X-Title': 'Omega Point Node Chat',
+                }
+
+            stream = client.chat.completions.create(**api_kwargs)
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    yield f"data: {json.dumps({'token': token})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as e:
+            print(f"[Node Chat] Error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
 
 # SPA catch-all: serve index.html for any non-API route (production only)
 if IS_PRODUCTION and os.path.isdir(DIST_DIR):

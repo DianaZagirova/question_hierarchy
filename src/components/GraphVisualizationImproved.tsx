@@ -16,6 +16,8 @@ import { StandardNode, ClusterNode, CompactNode, MasterNode, NODE_COLORS } from 
 import { buildGraphFromSteps, ClusterState } from './graph/graphBuilder';
 import { getHierarchicalLayout, getRadialLayout, getForceLayout } from './graph/layoutUtils';
 import { renderNodeDetails } from './StepOutputViewer';
+import { NodeChat } from './NodeChat';
+import { MessageSquare } from 'lucide-react';
 
 interface GraphVisualizationImprovedProps {
   steps: PipelineStep[];
@@ -38,6 +40,8 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatNodes, setChatNodes] = useState<Array<{ id: string; type: string; label: string; fullData?: any }>>([]); 
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
     new Set(['q0', 'goals', 'spvs', 'ras', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6'])
   );
@@ -147,24 +151,47 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 100);
   }, [layoutMode, fitView]);
 
-  // Node click handler
+  // Node click handler — Ctrl/Cmd+click to add to chat selection
   const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      setSelectedNode(node.data);
+    (event: React.MouseEvent, node: Node) => {
+      const isMultiSelect = event.ctrlKey || event.metaKey;
+
+      if (isMultiSelect || chatOpen) {
+        // Add/remove from chat nodes
+        setChatNodes(prev => {
+          const exists = prev.find(n => n.id === node.id);
+          if (exists) return prev.filter(n => n.id !== node.id);
+          return [...prev, {
+            id: node.id,
+            type: node.data.type,
+            label: node.data.fullText || node.data.label || node.id,
+            fullData: node.data.fullData,
+          }];
+        });
+        if (!chatOpen) setChatOpen(true);
+      } else {
+        setSelectedNode(node.data);
+      }
+
       if (onNodeHighlight) {
         onNodeHighlight(node.id, node.data.type);
       }
     },
-    [onNodeHighlight]
+    [onNodeHighlight, chatOpen]
   );
 
-  // Pane click handler (deselect)
+  // Pane click handler (deselect) — only deselect detail panel, not chat nodes
   const onPaneClick = useCallback(() => {
     setSelectedNode(null);
     if (onNodeHighlight) {
       onNodeHighlight(null, null);
     }
   }, [onNodeHighlight]);
+
+  // Extract Q0, goal, and lens from pipeline steps for chat context
+  const q0Text = steps.find(s => s.id === 1)?.output?.text || steps.find(s => s.id === 1)?.input || '';
+  const goalText = steps.find(s => s.id === 2)?.output?.goals?.[0]?.title || '';
+  const lensText = steps.find(s => s.id === 2)?.output?.lens || '';
 
   // Layer toggle handler
   const handleLayerToggle = useCallback((layerId: string) => {
@@ -385,6 +412,40 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
           </div>
         </div>
       </div>
+
+      {/* Chat Toggle Button */}
+      <button
+        onClick={() => setChatOpen(!chatOpen)}
+        className={`
+          absolute bottom-4 right-4 z-20 flex items-center gap-2 px-4 py-2.5 rounded-xl
+          font-semibold text-sm shadow-lg transition-all duration-200
+          ${chatOpen
+            ? 'bg-primary/30 border-primary/60 text-primary hover:bg-primary/40'
+            : 'bg-card/95 border-border/50 text-foreground hover:bg-card hover:border-primary/40'
+          }
+          border backdrop-blur-sm
+        `}
+      >
+        <MessageSquare className="w-4 h-4" />
+        <span>Node Chat</span>
+        {chatNodes.length > 0 && (
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/30 text-primary text-[10px] font-bold">
+            {chatNodes.length}
+          </span>
+        )}
+      </button>
+
+      {/* Node Chat Panel */}
+      <NodeChat
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        selectedNodes={chatNodes}
+        onRemoveNode={(nodeId) => setChatNodes(prev => prev.filter(n => n.id !== nodeId))}
+        onClearNodes={() => setChatNodes([])}
+        q0={q0Text}
+        goal={goalText}
+        lens={lensText}
+      />
     </div>
   );
 };

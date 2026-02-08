@@ -156,6 +156,80 @@ export const subscribeBatchProgress = (
   };
 };
 
+// ─── Node Chat: Stream LLM chat about selected graph nodes ─────────
+export interface NodeChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface NodeChatParams {
+  selectedNodes: any[];
+  messages: NodeChatMessage[];
+  q0: string;
+  goal: string;
+  lens: string;
+  model?: string;
+}
+
+/**
+ * Stream a chat response about selected graph nodes.
+ * Calls onToken for each streamed token, onDone when complete.
+ * Returns an abort function.
+ */
+export const streamNodeChat = (
+  params: NodeChatParams,
+  onToken: (token: string) => void,
+  onDone: () => void,
+  onError?: (error: string) => void,
+): (() => void) => {
+  const controller = new AbortController();
+
+  fetch(`${API_URL}/api/node-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+    signal: controller.signal,
+  })
+    .then(async (response) => {
+      if (!response.ok || !response.body) {
+        onError?.(`HTTP ${response.status}`);
+        onDone();
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.token) onToken(data.token);
+            if (data.error) onError?.(data.error);
+            if (data.done) { onDone(); return; }
+          } catch { /* skip malformed */ }
+        }
+      }
+      onDone();
+    })
+    .catch((err) => {
+      if (err.name !== 'AbortError') {
+        onError?.(err.message);
+      }
+      onDone();
+    });
+
+  return () => controller.abort();
+};
+
 export const testConnection = async (): Promise<boolean> => {
   try {
     const response = await api.get('/api/health');
