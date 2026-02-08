@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from './store/useAppStore';
+import { useSessionStore } from './store/useSessionStore';
+import { SessionSwitcher } from './components/SessionSwitcher';
 import { AgentCard } from './components/AgentCard';
 import { PipelineView } from './components/PipelineView';
 import { GraphVisualization } from './components/GraphVisualization';
@@ -1528,6 +1530,37 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Session management
+  const { initialize: initSessions, updateActiveSessionMeta, saveCurrentToSession } = useSessionStore();
+
+  useEffect(() => {
+    initSessions();
+  }, []);
+
+  // Auto-save session meta when goal changes
+  useEffect(() => {
+    if (currentGoal) {
+      updateActiveSessionMeta(currentGoal);
+    }
+  }, [currentGoal]);
+
+  // Auto-save session data periodically and on unload
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveCurrentToSession();
+    }, 30000); // every 30 seconds
+
+    const handleBeforeUnload = () => {
+      saveCurrentToSession();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [saveCurrentToSession]);
+
   const enabledAgents = agents.filter(agent => agent.enabled);
   const teamPower = enabledAgents.reduce((sum) => sum + 100, 0);
 
@@ -1558,6 +1591,7 @@ function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            <SessionSwitcher />
             <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/30 neon-border">
               <Zap className="w-4 h-4 text-primary" />
               <span className="text-sm font-mono neon-text">{teamPower}</span>

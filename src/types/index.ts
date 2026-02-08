@@ -208,6 +208,14 @@ export interface ProjectVersion {
   };
 }
 
+export interface Session {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  goalPreview: string; // First ~80 chars of the goal for display
+}
+
 export interface AppState {
   currentGoal: string;
   agents: AgentConfig[];
