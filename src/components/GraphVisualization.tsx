@@ -12,6 +12,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { PipelineStep } from '@/types';
 import { renderNodeDetails } from './StepOutputViewer';
+import { buildL3Hierarchy } from './graph/hierarchicalBuilder';
+import { DEFAULT_LAYOUT_CONFIG } from './graph/hierarchicalLayout';
 
 interface GraphVisualizationProps {
   steps: PipelineStep[];
@@ -49,35 +51,67 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [highlightedNodeIdState, setHighlightedNodeIdState] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  
+
   // Extract bridge lexicon from Step 2 for node detail lookups
   const step2 = steps.find(s => s.id === 2);
   const bridgeLexicon = step2?.output?.bridge_lexicon || step2?.output?.Bridge_Lexicon || step2?.output?.bridgeLexicon || {};
+
+  // Helper: Check if a node or any of its ancestors are collapsed
+  const isNodeOrAncestorCollapsed = (nodeId: string, allNodes: Node[]): boolean => {
+    const node = allNodes.find(n => n.id === nodeId);
+    if (!node) return false;
+
+    // Check if this node's parent group is collapsed
+    const parentGroup = node.data?.parentGroup;
+    if (parentGroup && collapsedGroups.has(parentGroup)) {
+      return true;
+    }
+
+    // Recursively check parent's ancestors
+    if (parentGroup) {
+      return isNodeOrAncestorCollapsed(parentGroup, allNodes);
+    }
+
+    return false;
+  };
+
+  // Helper: Calculate vertical position for child items in a grid (moved to hierarchicalLayout.ts)
+  // Keeping this commented for reference
+  /* const calculateChildPosition = (...) => { ... } */
 
   const buildGraph = useMemo(() => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
     let yOffset = 0;
-    const xSpacing = 500; // Increased horizontal spacing to prevent overlap
-    const ySpacing = 400; // Increased vertical spacing between major levels
-    const clusterSpacing = 200; // Extra space between clusters
 
-    // Step 1: Q0 (Master Question)
+    // NEW LAYOUT: Vertical-first with smart spacing
+    const verticalSpacing = {
+      betweenLevels: 300,      // Space between major levels (Q0 -> Goals -> L3 -> IH/L4)
+      withinLevel: 150,         // Space between items in same level
+      groupToChildren: 200,     // Space from group node to its children
+      childRows: 120            // Space between rows of children
+    };
+
+    // LEGACY: Keep old spacing variables for old code sections (temporary)
+    const xSpacing = 500;
+    const ySpacing = 400;
+    const clusterSpacing = 200;
+
+    // Step 1: Q0 (Master Question) - Centered at top
     const step1 = steps.find(s => s.id === 1);
     if (step1?.output) {
-      // Parse Q0 text from output
       let q0Text = 'Master Question';
       if (typeof step1.output === 'object') {
         q0Text = step1.output.Q0 || step1.output.q0 || step1.output.question || 'Master Question';
       } else if (typeof step1.output === 'string') {
         q0Text = step1.output;
       }
-      
+
       newNodes.push({
         id: 'q0',
         type: 'default',
-        position: { x: 400, y: yOffset },
-        data: { 
+        position: { x: 0, y: yOffset }, // Centered
+        data: {
           label: `Q₀: ${q0Text.substring(0, 120)}${q0Text.length > 120 ? '...' : ''}`,
           fullData: { Q0: q0Text, raw: step1.output },
           type: 'q0'
@@ -94,7 +128,7 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           boxShadow: '0 0 20px rgba(59, 130, 246, 0.4)',
         },
       });
-      yOffset += ySpacing;
+      yOffset += verticalSpacing.betweenLevels;
     }
 
     // Step 2: Goal Pillars and Bridge Lexicon
@@ -1679,6 +1713,130 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
         yOffset += ySpacing;
       }
     }
+
+    // ====================================================================
+    // NEW HIERARCHICAL SYSTEM: L3 -> IH/L4 -> L5 -> L6
+    // ====================================================================
+
+    // Collect all downstream data (using "New" suffix to avoid conflicts with old code)
+    const step6New = steps.find(s => s.id === 6);
+    const step7New = steps.find(s => s.id === 7);
+    const step8New = steps.find(s => s.id === 8);
+    const step9New = steps.find(s => s.id === 9);
+
+    // Extract all L3 questions
+    let allL3Questions: any[] = [];
+    if (step6New?.output) {
+      if (Array.isArray(step6New.output)) {
+        allL3Questions = step6New.output;
+      } else if (step6New.output.l3_questions) {
+        allL3Questions = Array.isArray(step6New.output.l3_questions) ? step6New.output.l3_questions : [];
+      } else if (step6New.output.seed_questions) {
+        allL3Questions = Array.isArray(step6New.output.seed_questions) ? step6New.output.seed_questions : [];
+      }
+    }
+
+    // Extract all IH
+    let allIHs: any[] = [];
+    if (step7New?.output) {
+      if (Array.isArray(step7New.output)) {
+        allIHs = step7New.output;
+      } else if (step7New.output.instantiation_hypotheses) {
+        allIHs = Array.isArray(step7New.output.instantiation_hypotheses) ? step7New.output.instantiation_hypotheses : [];
+      }
+    }
+
+    // Extract all L4
+    let allL4s: any[] = [];
+    if (step8New?.output) {
+      if (Array.isArray(step8New.output)) {
+        allL4s = step8New.output;
+      } else if (step8New.output.l4_questions) {
+        allL4s = Array.isArray(step8New.output.l4_questions) ? step8New.output.l4_questions : [];
+      } else if (step8New.output.child_nodes_L4) {
+        allL4s = Array.isArray(step8New.output.child_nodes_L4) ? step8New.output.child_nodes_L4 : [];
+      }
+    }
+
+    // Extract all L5
+    let allL5s: any[] = [];
+    if (step9New?.output?.l5_nodes) {
+      allL5s = Array.isArray(step9New.output.l5_nodes) ? step9New.output.l5_nodes : [];
+    }
+
+    // Extract all L6
+    let allL6s: any[] = [];
+    if (step9New?.output) {
+      if (Array.isArray(step9New.output)) {
+        allL6s = step9New.output;
+      } else if (step9New.output.l6_tasks) {
+        allL6s = Array.isArray(step9New.output.l6_tasks) ? step9New.output.l6_tasks : [];
+      }
+    }
+
+    console.log('[GraphViz] NEW HIERARCHY - Data collected:', {
+      l3: allL3Questions.length,
+      ih: allIHs.length,
+      l4: allL4s.length,
+      l5: allL5s.length,
+      l6: allL6s.length,
+    });
+
+    // Group L3 by goals
+    const l3sByGoal: Record<string, any[]> = {};
+    allL3Questions.forEach(l3 => {
+      if (!l3 || typeof l3 !== 'object') return;
+
+      let parentGoalId = l3.target_goal_id;
+
+      // Fallback to ID parsing if no explicit target_goal_id
+      if (!parentGoalId) {
+        const l3Id = l3.id || '';
+        const match = l3Id.match(/Q_L3_(M_G\d+)_/);
+        if (match) parentGoalId = match[1];
+      }
+
+      if (parentGoalId) {
+        if (!l3sByGoal[parentGoalId]) l3sByGoal[parentGoalId] = [];
+        l3sByGoal[parentGoalId].push(l3);
+      }
+    });
+
+    // Build L3 hierarchy for each goal
+    Object.keys(l3sByGoal).forEach(goalId => {
+      const goalNode = newNodes.find(n => n.id === `goal-${goalId}`);
+      if (!goalNode) {
+        console.warn(`[GraphViz] Goal node not found for ${goalId}, skipping L3 hierarchy`);
+        return;
+      }
+
+      const goalL3s = l3sByGoal[goalId];
+      const goalX = goalNode.position.x;
+
+      console.log(`[GraphViz] Building L3 hierarchy for goal ${goalId} at (${goalX}, ${yOffset})`);
+
+      const finalY = buildL3Hierarchy(
+        goalId,
+        goalX,
+        yOffset,
+        goalL3s,
+        allIHs,
+        allL4s,
+        allL5s,
+        allL6s,
+        {
+          nodes: newNodes,
+          edges: newEdges,
+          collapsedGroups,
+          config: DEFAULT_LAYOUT_CONFIG,
+        }
+      );
+
+      // Update yOffset to be below this goal's hierarchy
+      yOffset = Math.max(yOffset, finalY);
+    });
+
+    console.log(`[GraphViz] Final graph: ${newNodes.length} nodes, ${newEdges.length} edges`);
 
     return { nodes: newNodes, edges: newEdges };
   }, [steps, collapsedGroups]);

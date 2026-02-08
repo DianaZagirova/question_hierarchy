@@ -1031,7 +1031,7 @@ function App() {
       return;
     }
 
-    const controller = createAbortController(4);
+    const _controller = createAbortController(4); // Created but not used in current phase logic
 
     try {
       if (phase === '4a') {

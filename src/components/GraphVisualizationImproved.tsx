@@ -63,8 +63,8 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
       case 'hierarchical':
         layoutedNodes = getHierarchicalLayout(graphData.nodes, graphData.edges, {
           direction: 'TB',
-          rankSep: 200,  // Increased from 150 to prevent Q₀/Goals overlap
-          nodeSep: 120,  // Increased from 100 for better horizontal spacing
+          rankSep: 250,  // Generous vertical spacing between hierarchy levels
+          nodeSep: 80,   // Tighter horizontal spacing to reduce width
         });
         break;
       case 'radial':
@@ -174,13 +174,27 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   }, []);
 
   // Expand/collapse all clusters
+  // Must iteratively discover all cluster IDs since cascading collapse
+  // hides downstream clusters until their parents are expanded
   const handleExpandAll = useCallback(() => {
-    const newState: ClusterState = {};
-    nodes.filter(n => n.type === 'cluster').forEach(n => {
-      newState[n.id] = true;
-    });
-    setClusterState(newState);
-  }, [nodes]);
+    let currentState: ClusterState = { ...clusterState };
+    // Iteratively expand: each pass may reveal new clusters
+    for (let i = 0; i < 10; i++) {
+      // Mark all currently known clusters as expanded
+      const data = buildGraphFromSteps(steps, currentState);
+      const newState: ClusterState = { ...currentState };
+      let foundNew = false;
+      data.nodes.filter(n => n.type === 'cluster').forEach(n => {
+        if (!newState[n.id]) {
+          newState[n.id] = true;
+          foundNew = true;
+        }
+      });
+      currentState = newState;
+      if (!foundNew) break; // All clusters discovered
+    }
+    setClusterState(currentState);
+  }, [steps, clusterState]);
 
   const handleCollapseAll = useCallback(() => {
     setClusterState({});
@@ -358,6 +372,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
 };
 
 // Helper function to map node types to layer IDs
+// Cluster nodes use the same type as their children (e.g., 'l3' for L3 clusters)
 const getLayerIdFromNodeType = (nodeType: string): string => {
   switch (nodeType) {
     case 'q0':
@@ -366,26 +381,31 @@ const getLayerIdFromNodeType = (nodeType: string): string => {
     case 'goal':
       return 'goals';
     case 'spv':
-      return 'spvs'; // SPVs are now in clusters, but still use 'spv' type
+      return 'spvs';
     case 'ra':
-      return 'ras'; // RAs are in clusters, using 'ra' type
+      return 'ras';
     case 'domain':
     case 'scientific':
       return 'domains';
     case 'l3':
     case 'l3_cluster':
+    case 'l3_group':
       return 'l3';
     case 'ih':
     case 'ih_cluster':
+    case 'ih_group':
       return 'ih';
     case 'l4':
     case 'l4_cluster':
+    case 'l4_group':
       return 'l4';
     case 'l5':
     case 'l5_cluster':
+    case 'l5_group':
       return 'l5';
     case 'l6':
     case 'l6_cluster':
+    case 'l6_group':
       return 'l6';
     default:
       return 'other';
