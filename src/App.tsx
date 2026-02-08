@@ -557,6 +557,89 @@ function App() {
         return;
       }
 
+      // STEP 10: Common Experiment Synthesis (per L4 branch)
+      // For each L4, gather ALL L6 tasks across ALL L5 branches and ask if a single experiment can unify them
+      if (stepId === 10) {
+        const step1Output = steps[0]?.output;
+        const step8Output = steps[7]?.output;
+        const step9Output = steps[8]?.output;
+        
+        // Get Q0 text
+        let q0Text = '';
+        if (step1Output) {
+          if (typeof step1Output === 'string') q0Text = step1Output;
+          else q0Text = step1Output.Q0 || step1Output.q0 || step1Output.question || '';
+        }
+        
+        const l4Questions = step8Output?.l4_questions || [];
+        const allL6Tasks = step9Output?.l6_tasks || [];
+        
+        if (l4Questions.length === 0) {
+          updateStepStatus(stepId, 'error', null, 'No L4 questions found from Step 8');
+          return;
+        }
+        if (allL6Tasks.length === 0) {
+          updateStepStatus(stepId, 'error', null, 'No L6 tasks found from Step 9');
+          return;
+        }
+        
+        console.log(`[Step 10] Processing ${l4Questions.length} L4 branches for common experiment synthesis`);
+        
+        // Build batch items: one per L4, with all its L6 tasks
+        const items = l4Questions.map((l4q: any) => {
+          const l4Id = l4q.id;
+          // Gather all L6 tasks that belong to this L4 (via parent_l4_id)
+          const l6ForThisL4 = allL6Tasks.filter((t: any) => t.parent_l4_id === l4Id);
+          
+          return {
+            q0: q0Text,
+            l4_question: l4q,
+            l6_tasks: l6ForThisL4.map((t: any) => ({
+              id: t.id,
+              title: t.title,
+              type: t.type,
+              parent_l5_id: t.parent_l5_id,
+              simt_parameters: t.simt_parameters,
+              expected_impact: t.expected_impact,
+            })),
+            l6_count: l6ForThisL4.length,
+            goal: currentGoal
+          };
+        }).filter((item: any) => item.l6_count > 0); // Skip L4s with no L6 tasks
+        
+        if (items.length === 0) {
+          updateStepStatus(stepId, 'error', null, 'No L4 branches have L6 tasks to synthesize');
+          return;
+        }
+        
+        console.log(`[Step 10] Sending ${items.length} L4 branches (with L6 tasks) to Convergence Critic`);
+        
+        const batchResult = await executeStepBatch(stepId, agent, items, controller.signal, globalLens);
+        
+        // Aggregate results
+        const commonL6Results: any[] = [];
+        batchResult.batch_results.forEach((result: any) => {
+          if (result.success && result.data) {
+            commonL6Results.push(result.data);
+          }
+        });
+        
+        const feasibleCount = commonL6Results.filter((r: any) => r.feasible).length;
+        const notFeasibleCount = commonL6Results.filter((r: any) => !r.feasible).length;
+        
+        updateStepStatus(stepId, 'completed', {
+          common_l6_results: commonL6Results,
+          batch_summary: {
+            l4_processed: items.length,
+            feasible: feasibleCount,
+            not_feasible: notFeasibleCount,
+            successful: batchResult.successful,
+            failed: batchResult.failed
+          }
+        });
+        return;
+      }
+
       // STEP 4: 2-Phase Scientific Knowledge Collection (Phase 4c REMOVED)
       // Phase 4a: Domain Mapping → Phase 4b: Domain Scans (parallel)
       if (stepId === 4) {

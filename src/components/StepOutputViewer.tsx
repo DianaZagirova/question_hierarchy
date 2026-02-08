@@ -920,6 +920,77 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
       );
     }
 
+    // Step 10: Common L6 Experiment Synthesis
+    if (stepId === 10) {
+      const commonL6Results = output?.common_l6_results || [];
+      const summary = output?.batch_summary;
+      
+      return (
+        <div className="space-y-4">
+          {summary && (
+            <div className="flex gap-3 mb-3 text-sm">
+              <span className="px-2 py-1 rounded bg-slate-100 border">L4 processed: <strong>{summary.l4_processed}</strong></span>
+              <span className="px-2 py-1 rounded bg-green-50 border border-green-200 text-green-700">Feasible: <strong>{summary.feasible}</strong></span>
+              <span className="px-2 py-1 rounded bg-red-50 border border-red-200 text-red-700">Not feasible: <strong>{summary.not_feasible}</strong></span>
+            </div>
+          )}
+          
+          {commonL6Results.map((result: any, idx: number) => (
+            <div key={idx} className={`p-4 rounded-lg border-2 ${result.feasible ? 'border-yellow-500/60 bg-yellow-50/50' : 'border-red-800/40 bg-red-50/30'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">{result.feasible ? '⚗️' : '✗'}</span>
+                <span className="font-bold text-sm">{result.l4_reference_id}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${result.feasible ? 'bg-yellow-200 text-yellow-800' : 'bg-red-200 text-red-800'}`}>
+                  {result.feasible ? 'FEASIBLE' : 'NOT FEASIBLE'}
+                </span>
+                {result.confidence && (
+                  <span className="text-xs text-muted-foreground">Confidence: {Math.round(result.confidence * 100)}%</span>
+                )}
+              </div>
+              
+              {result.feasible && result.common_experiment && (
+                <div className="space-y-2 ml-6">
+                  <p className="font-semibold text-sm">{result.common_experiment.title}</p>
+                  <p className="text-xs text-muted-foreground italic">{result.common_experiment.unified_hypothesis}</p>
+                  {result.common_experiment.design && (
+                    <div className="text-xs space-y-1 bg-white/60 p-2 rounded border">
+                      <p><strong>System:</strong> {result.common_experiment.design.system}</p>
+                      <p><strong>Readout:</strong> {result.common_experiment.design.primary_readout}</p>
+                      <p><strong>Timeline:</strong> {result.common_experiment.design.timeline}</p>
+                      <p><strong>Success:</strong> {result.common_experiment.design.success_criteria}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">{result.common_experiment.l6_coverage}</p>
+                </div>
+              )}
+              
+              {!result.feasible && (
+                <div className="space-y-1 ml-6">
+                  {(result.rejection_reasons || []).map((reason: string, rIdx: number) => (
+                    <p key={rIdx} className="text-xs text-red-600">• {reason}</p>
+                  ))}
+                  {result.closest_partial_grouping && (
+                    <p className="text-xs text-muted-foreground mt-1 italic">Partial grouping: {result.closest_partial_grouping}</p>
+                  )}
+                </div>
+              )}
+              
+              {result.reasoning && (
+                <details className="mt-2 ml-6">
+                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Show reasoning</summary>
+                  <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{result.reasoning}</p>
+                </details>
+              )}
+            </div>
+          ))}
+          
+          {commonL6Results.length === 0 && (
+            <p className="text-sm text-muted-foreground">No common L6 synthesis results found</p>
+          )}
+        </div>
+      );
+    }
+
     // Default: show formatted JSON
     return (
       <pre className="text-xs overflow-auto max-h-96 bg-white p-3 rounded border select-text whitespace-pre-wrap break-words">
@@ -1675,6 +1746,141 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
         </div>
       );
     
+    case 'common_l6': {
+      const exp = nodeData.common_experiment || {};
+      const design = exp.design || {};
+      const arms = Array.isArray(design.intervention_arms) ? design.intervention_arms : [];
+      const secondaryReadouts = Array.isArray(design.secondary_readouts) ? design.secondary_readouts : [];
+
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-block bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-xs font-bold">FEASIBLE</span>
+            {nodeData.confidence && (
+              <span className="text-xs text-muted-foreground">Confidence: {Math.round(nodeData.confidence * 100)}%</span>
+            )}
+          </div>
+          {nodeData.l4_reference_id && (
+            <div className="text-xs text-muted-foreground">L4: <span className="font-mono">{nodeData.l4_reference_id}</span></div>
+          )}
+          {exp.title && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">Experiment Title</p>
+              <p className="text-xs mt-1 text-foreground font-semibold">{exp.title}</p>
+            </div>
+          )}
+          {exp.unified_hypothesis && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">Unified Hypothesis</p>
+              <p className="text-xs mt-1 text-foreground italic">{exp.unified_hypothesis}</p>
+            </div>
+          )}
+          {design.system && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">System</p>
+              <p className="text-xs mt-1 text-foreground">{design.system}</p>
+            </div>
+          )}
+          {arms.length > 0 && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">Intervention Arms</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {arms.map((arm: string, i: number) => (
+                  <li key={i} className="text-xs text-foreground">{arm}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {design.primary_readout && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">Primary Readout</p>
+              <p className="text-xs mt-1 text-foreground">{design.primary_readout}</p>
+            </div>
+          )}
+          {secondaryReadouts.length > 0 && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">Secondary Readouts</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {secondaryReadouts.map((r: string, i: number) => (
+                  <li key={i} className="text-xs text-foreground">{r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {design.timeline && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-yellow-400">Timeline</p>
+              <p className="text-xs mt-1 text-foreground">{design.timeline}</p>
+            </div>
+          )}
+          {design.success_criteria && (
+            <div className="bg-green-500/10 border border-green-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-green-400">Success Criteria</p>
+              <p className="text-xs mt-1 text-foreground">{design.success_criteria}</p>
+            </div>
+          )}
+          {exp.l6_coverage && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">L6 Coverage</p>
+              <p className="text-xs mt-1 text-foreground">{exp.l6_coverage}</p>
+            </div>
+          )}
+          {exp.advantages_over_individual && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Advantages Over Individual Experiments</p>
+              <p className="text-xs mt-1 text-foreground">{exp.advantages_over_individual}</p>
+            </div>
+          )}
+          {nodeData.reasoning && (
+            <div className="bg-secondary/30 border border-border/30 p-2 rounded">
+              <p className="text-xs font-semibold text-muted-foreground">Reasoning</p>
+              <p className="text-xs mt-1 text-foreground whitespace-pre-wrap">{nodeData.reasoning}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case 'common_l6_fail': {
+      const rejectionReasons = Array.isArray(nodeData.rejection_reasons) ? nodeData.rejection_reasons : [];
+
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-block bg-red-800/30 text-red-400 px-2 py-1 rounded text-xs font-bold">NOT FEASIBLE</span>
+            {nodeData.confidence && (
+              <span className="text-xs text-muted-foreground">Confidence: {Math.round(nodeData.confidence * 100)}%</span>
+            )}
+          </div>
+          {nodeData.l4_reference_id && (
+            <div className="text-xs text-muted-foreground">L4: <span className="font-mono">{nodeData.l4_reference_id}</span></div>
+          )}
+          {rejectionReasons.length > 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-red-400">Rejection Reasons</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {rejectionReasons.map((reason: string, i: number) => (
+                  <li key={i} className="text-xs text-foreground">{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {nodeData.closest_partial_grouping && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Closest Partial Grouping</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.closest_partial_grouping}</p>
+            </div>
+          )}
+          {nodeData.reasoning && (
+            <div className="bg-secondary/30 border border-border/30 p-2 rounded">
+              <p className="text-xs font-semibold text-muted-foreground">Reasoning</p>
+              <p className="text-xs mt-1 text-foreground whitespace-pre-wrap">{nodeData.reasoning}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     default:
       return (
         <pre className="bg-secondary/30 border border-border/30 p-3 rounded text-xs overflow-auto max-h-64 text-foreground select-text">

@@ -675,6 +675,64 @@ export const buildGraphFromSteps = (
     });
   }
 
+  // ============================================================
+  // Step 10: Common L6 Experiment Synthesis (per L4 branch)
+  // Shows as a special node connected to L4 — gold if feasible, red if not
+  // ============================================================
+  const step10 = steps.find(s => s.id === 10);
+  if (step10?.output) {
+    const commonL6Results = step10.output.common_l6_results || [];
+
+    commonL6Results.forEach((result: any) => {
+      const l4Id = result.l4_reference_id;
+      if (!l4Id) return;
+
+      // Only show if parent L4 individual node is visible
+      const parentL4Node = nodes.find(n => n.id === `l4-${l4Id}`);
+      if (!parentL4Node) return;
+
+      const isFeasible = result.feasible === true;
+      const nodeId = `common-l6-${l4Id}`;
+      const nodeType = isFeasible ? 'common_l6' : 'common_l6_fail';
+      const color = isFeasible ? '#eab308' : '#991b1b';
+
+      const title = isFeasible
+        ? result.common_experiment?.title || 'Common Experiment'
+        : 'No Common Experiment Possible';
+
+      const subtitle = isFeasible
+        ? `Confidence: ${Math.round((result.confidence || 0) * 100)}%`
+        : (result.rejection_reasons?.[0] || 'Incompatible L6 tasks');
+
+      const fullText = isFeasible
+        ? `⚗️ Common Experiment: ${result.common_experiment?.title || 'Unified experiment'}`
+        : `✗ No common experiment possible for this L4 branch`;
+
+      nodes.push({
+        id: nodeId,
+        type: 'standard',
+        position: { x: 0, y: 0 },
+        data: {
+          label: isFeasible ? `⚗️ ${trunc(title, 50)}` : `✗ ${trunc(title, 50)}`,
+          fullText: fullText,
+          subtitle: trunc(subtitle, 60),
+          type: nodeType,
+          fullData: result,
+        },
+        width: 280,
+        height: 80,
+      });
+
+      edges.push(makeEdge(
+        `l4-${l4Id}-${nodeId}`,
+        `l4-${l4Id}`,
+        nodeId,
+        color,
+        { width: 2, animated: isFeasible, dash: isFeasible ? undefined : '6,3' }
+      ));
+    });
+  }
+
   return { nodes, edges };
 };
 

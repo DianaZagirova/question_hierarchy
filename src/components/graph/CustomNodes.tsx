@@ -16,6 +16,8 @@ export const NODE_COLORS = {
   l4: { bg: 'from-lime-500/20 to-green-500/20', border: 'border-lime-500/60', glow: 'shadow-lime-500/40', text: 'text-lime-400' },
   l5: { bg: 'from-green-400/20 to-lime-400/20', border: 'border-green-400/60', glow: 'shadow-green-400/40', text: 'text-green-400' },
   l6: { bg: 'from-teal-500/20 to-cyan-500/20', border: 'border-teal-500/60', glow: 'shadow-teal-500/40', text: 'text-teal-400' },
+  common_l6: { bg: 'from-yellow-500/20 to-amber-500/20', border: 'border-yellow-500/60', glow: 'shadow-yellow-500/40', text: 'text-yellow-400' },
+  common_l6_fail: { bg: 'from-red-900/20 to-slate-800/20', border: 'border-red-800/60', glow: 'shadow-red-900/20', text: 'text-red-400' },
   cluster: { bg: 'from-slate-700/10 to-slate-800/10', border: 'border-slate-600/40', glow: 'shadow-slate-600/20', text: 'text-slate-400' },
 };
 
@@ -28,6 +30,8 @@ const getNodeIcon = (type: string) => {
     case 'scientific': return <FlaskConical className="w-4 h-4" />;
     case 'l3': return <Lightbulb className="w-4 h-4" />;
     case 'l6': return <Workflow className="w-4 h-4" />;
+    case 'common_l6': return <FlaskConical className="w-4 h-4" />;
+    case 'common_l6_fail': return <FlaskConical className="w-4 h-4" />;
     default: return null;
   }
 };

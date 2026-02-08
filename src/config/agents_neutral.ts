@@ -766,7 +766,7 @@ To drill from L4 to L6, identify the **bottleneck**:
 - If we can't isolate it -> Create L5: MODEL_REQ.
 - If the logic is circular -> Create L5: MECHANISM_DRILL.
 
-## 6. For each L4 create {{MIN_L5}}-{{MAX_L5}} new nodes. Select the most not trivial, powerful, relevant to the overall context. 
+## 6. For each L4 create {{MIN_L5}}-{{MAX_L5}} L5 nodes. For each L5 create 2-5 L6 leaf_specs. Select the most not trivial, powerful, relevant to the overall context. Each L5 MUST have MULTIPLE L6 tasks — a single L6 per L5 is NOT acceptable.
 
 ## 7. OUTPUT FORMAT (JSON ONLY)
 {
@@ -781,7 +781,20 @@ To drill from L4 to L6, identify the **bottleneck**:
        {
          "id": "T_L6_XXX_01",
          "type": "LEAF_SPEC | TOOL_DEV | MODEL_DEV",
-         "title": "Actionable task title",
+         "title": "First actionable task title",
+         "simt_parameters": {
+           "system": "...",
+           "intervention": "...",
+           "meter": "...",
+           "threshold_time": "..."
+         },
+         "expected_impact": "How this result rules out/confirms IH_X vs IH_Y.",
+         "spv_link": "SPV_ID"
+       },
+       {
+         "id": "T_L6_XXX_02",
+         "type": "LEAF_SPEC | TOOL_DEV | MODEL_DEV",
+         "title": "Second actionable task title",
          "simt_parameters": {
            "system": "...",
            "intervention": "...",
@@ -812,5 +825,73 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
         default: 4
       }
     }
+  },
+  {
+    id: 'agent-common-l6-synthesizer',
+    name: 'The Convergence Critic',
+    icon: '🔬',
+    role: 'Common Experiment Synthesis (L4→Common L6)',
+    description: 'Step 10: For each L4 branch, critically evaluates whether ALL L6 tasks across ALL L5 sub-branches can be unified into a single common experiment. Returns either a synthesized experiment or a justified impossibility verdict.',
+    model: 'gpt-4.1',
+    temperature: 0.2,
+    systemPrompt: `You are the Convergence Critic — the most skeptical scientist on the team.
+
+## YOUR MISSION
+Given a master question (Q0), an L4 tactical question, and ALL L6 experimental tasks that descend from it (across all L5 branches), you must determine whether a **single, unified experiment** can meaningfully address the core intent of ALL those L6 tasks simultaneously.
+
+## CRITICAL MINDSET
+You are NOT a yes-man. You must be brutally honest:
+- If the L6 tasks span fundamentally different biological systems, readouts, or timescales — say NO.
+- If unifying them would dilute scientific rigor or create an experiment that tests nothing well — say NO.
+- If the L6 tasks share enough overlap in system, intervention logic, or readout that a well-designed multi-arm or multiplexed experiment could genuinely cover them — say YES and design it.
+- A vague "umbrella" experiment that hand-waves over differences is WORSE than admitting impossibility.
+
+## DECISION CRITERIA FOR FEASIBILITY
+A common experiment is FEASIBLE only if ALL of the following hold:
+1. **System Compatibility**: All L6 tasks can use the same or closely related biological model/substrate
+2. **Intervention Logic**: The interventions can be combined as arms/conditions in one experimental design (e.g., multi-arm trial, factorial design, multiplexed assay)
+3. **Readout Convergence**: The measurements/meters can be captured in the same experimental session or pipeline
+4. **Temporal Alignment**: The timescales and thresholds are compatible (not mixing acute vs. chronic endpoints)
+5. **Scientific Coherence**: The unified experiment still tests a meaningful, non-trivial hypothesis
+
+## OUTPUT FORMAT (JSON ONLY)
+If a common experiment IS feasible:
+{
+  "l4_reference_id": "Q_L4_XXX",
+  "feasible": true,
+  "common_experiment": {
+    "title": "Concise experiment title (max 120 chars)",
+    "unified_hypothesis": "The single hypothesis this experiment tests",
+    "design": {
+      "system": "The biological model/substrate",
+      "intervention_arms": ["Arm 1 description", "Arm 2 description"],
+      "primary_readout": "Main measurement",
+      "secondary_readouts": ["Additional measurement 1"],
+      "timeline": "Duration and key timepoints",
+      "success_criteria": "What constitutes a positive result"
+    },
+    "l6_coverage": "Brief explanation of how this covers the individual L6 tasks",
+    "advantages_over_individual": "Why running this single experiment is better than running each L6 separately"
+  },
+  "confidence": 0.85,
+  "reasoning": "Step-by-step reasoning for why unification works"
+}
+
+If a common experiment is NOT feasible:
+{
+  "l4_reference_id": "Q_L4_XXX",
+  "feasible": false,
+  "common_experiment": null,
+  "rejection_reasons": [
+    "Reason 1: e.g., L6 tasks span incompatible biological systems (in-vivo mouse vs. in-silico model)",
+    "Reason 2: e.g., Readouts require fundamentally different instrumentation"
+  ],
+  "closest_partial_grouping": "If some subset of L6 tasks COULD be unified, mention which ones and why the rest cannot join",
+  "confidence": 0.9,
+  "reasoning": "Step-by-step reasoning for why unification is impossible"
+}
+
+Return ONLY valid JSON. No markdown, no explanations outside the JSON.`,
+    enabled: true,
   },
 ];

@@ -31,9 +31,10 @@ const initialSteps: PipelineStep[] = [
   { id: 7, name: 'Divergent Hypothesis Instantiation', agentId: 'agent-instantiator', status: 'pending', input: null, output: null },
   { id: 8, name: 'Tactical Decomposition', agentId: 'agent-explorer', status: 'pending', input: null, output: null },
   { id: 9, name: 'Execution Drilldown', agentId: 'agent-tactical-engineer', status: 'pending', input: null, output: null },
+  { id: 10, name: 'Common Experiment Synthesis', agentId: 'agent-common-l6-synthesizer', status: 'pending', input: null, output: null },
 ];
 
-const STORAGE_VERSION = 4; // v4: Force Step 5 (Judge) to skipped status permanently
+const STORAGE_VERSION = 5; // v5: Added Step 10 (Common L6 Synthesis)
 
 export const useAppStore = create<AppStore>()(
   persist(
@@ -168,6 +169,7 @@ export const useAppStore = create<AppStore>()(
             instantiation_hypotheses: state.steps[6]?.output,
             l4_questions: state.steps[7]?.output,
             l6_tasks: state.steps[8]?.output,
+            common_l6: state.steps[9]?.output,
           },
         };
 
@@ -218,9 +220,14 @@ export const useAppStore = create<AppStore>()(
           console.log(`[Storage Migration] Upgrading from v${version} to v${STORAGE_VERSION}`);
           
           // Force Step 5 (Judge) to skipped status
-          const migratedSteps = persistedState.steps?.map((step: any) => 
+          let migratedSteps = persistedState.steps?.map((step: any) => 
             step.id === 5 ? { ...step, status: 'skipped', output: null, error: undefined } : step
           ) || initialSteps;
+          
+          // Add Step 10 if missing
+          if (!migratedSteps.find((s: any) => s.id === 10)) {
+            migratedSteps = [...migratedSteps, { id: 10, name: 'Common Experiment Synthesis', agentId: 'agent-common-l6-synthesizer', status: 'pending', input: null, output: null }];
+          }
           
           console.log('[Storage Migration] Step 5 (Judge) forced to skipped status');
           console.log('[Storage Migration] Resetting agents to defaults');

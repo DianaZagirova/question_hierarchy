@@ -70,15 +70,49 @@ def interpolate_prompt(agent_config):
     
     return prompt
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+# ============================================================
+# Provider-aware client initialization
+# Supports: "openai" (default) and "openrouter"
+# ============================================================
+API_PROVIDER = os.getenv('API_PROVIDER', 'openai').lower().strip()
+
+if API_PROVIDER == 'openrouter':
+    openrouter_key = os.getenv('OPENROUTER_API_KEY')
+    openrouter_base = os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
+    if not openrouter_key:
+        print("\n⚠️  WARNING: API_PROVIDER=openrouter but OPENROUTER_API_KEY is not set!")
+    client = OpenAI(
+        api_key=openrouter_key,
+        base_url=openrouter_base,
+    )
+    print(f"🔌 Provider: OpenRouter ({openrouter_base})")
+else:
+    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    print(f"🔌 Provider: OpenAI (direct)")
+
+
+def resolve_model(model_name):
+    """
+    Map model names for the active provider.
+    OpenRouter requires 'openai/' prefix for OpenAI models.
+    If the model already contains '/' it's assumed to be a full path
+    (e.g. 'anthropic/claude-3.5-sonnet') and is used as-is.
+    """
+    if API_PROVIDER != 'openrouter':
+        return model_name
+    # Already a full provider/model path
+    if '/' in model_name:
+        return model_name
+    # Prefix with openai/ for standard OpenAI model names
+    return f'openai/{model_name}'
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'ok',
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'provider': API_PROVIDER,
     })
 
 def execute_single_item(step_id, agent_config, input_data):
@@ -147,8 +181,10 @@ def execute_single_item(step_id, agent_config, input_data):
     
     # Call OpenAI API with step-specific optimizations
     api_start = time.time()
-    completion = client.chat.completions.create(
-        model=agent_config['model'],
+    model = resolve_model(agent_config['model'])
+    
+    api_kwargs = dict(
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -156,8 +192,17 @@ def execute_single_item(step_id, agent_config, input_data):
         temperature=agent_config['temperature'],
         response_format={"type": "json_object"},
         max_tokens=max_tokens,
-        timeout=timeout_seconds
+        timeout=timeout_seconds,
     )
+    
+    # OpenRouter supports extra headers for tracking
+    if API_PROVIDER == 'openrouter':
+        api_kwargs['extra_headers'] = {
+            'HTTP-Referer': 'https://omega-point.local',
+            'X-Title': 'Omega Point Pipeline',
+        }
+    
+    completion = client.chat.completions.create(**api_kwargs)
 
     api_duration = time.time() - api_start
     response_text = completion.choices[0].message.content
@@ -781,6 +826,27 @@ Bridge Lexicon (SPVs):
 
 Generate L5 mechanistic sub-questions and L6 experiment-ready tasks (with S-I-M-T parameters) for this specific L4 question."""
     
+    # STEP 10: INPUT: Q0, L4 question, all L6 tasks for that L4 branch | OUTPUT: Common experiment or impossibility verdict
+    elif step_id == 10:
+        q0_text = input_data.get('q0', '')
+        l4_question = input_data.get('l4_question', {})
+        l6_tasks = input_data.get('l6_tasks', [])
+        
+        print(f"\nStep 10 Debug: Processing L4 {l4_question.get('id', 'unknown')}")
+        print(f"  L6 tasks: {len(l6_tasks)}")
+        
+        return f"""MASTER QUESTION (Q0):
+{q0_text}
+
+L4 TACTICAL QUESTION:
+{json.dumps(l4_question, indent=2)}
+
+ALL L6 EXPERIMENT TASKS FOR THIS L4 BRANCH ({len(l6_tasks)} tasks):
+{json.dumps(l6_tasks, indent=2)}
+
+Analyze whether a single, unified experiment can meaningfully address ALL the above L6 tasks.
+Be brutally critical — do NOT force unification if the tasks are fundamentally incompatible."""
+    
     else:
         return json.dumps(input_data)
 
@@ -789,7 +855,12 @@ if __name__ == '__main__':
     
     print(f"\n🚀 OMEGA-POINT Server running on port {port}")
     print(f"📡 API endpoint: http://localhost:{port}/api")
-    api_key_status = '✓ Configured' if os.getenv('OPENAI_API_KEY') else '✗ Missing'
-    print(f"🔑 OpenAI API Key: {api_key_status}\n")
+    print(f"🔌 API Provider: {API_PROVIDER}")
+    if API_PROVIDER == 'openrouter':
+        key_status = '✓ Configured' if os.getenv('OPENROUTER_API_KEY') else '✗ Missing'
+        print(f"🔑 OpenRouter API Key: {key_status}")
+    else:
+        key_status = '✓ Configured' if os.getenv('OPENAI_API_KEY') else '✗ Missing'
+        print(f"🔑 OpenAI API Key: {key_status}")
     
     app.run(host='0.0.0.0', port=port, debug=True)

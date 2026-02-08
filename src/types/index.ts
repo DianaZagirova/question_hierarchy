@@ -204,6 +204,7 @@ export interface ProjectVersion {
     instantiation_hypotheses?: Record<string, InstantiationHypothesis[]>;
     l4_questions?: Record<string, L4Question[]>;
     l6_tasks?: Record<string, L6Task[]>;
+    common_l6?: any[];
   };
 }
 

@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { StepOutputViewer } from './StepOutputViewer';
 import { PipelineStep, AgentConfig } from '@/types';
-import { Play, SkipForward, CheckCircle, XCircle, Circle, Loader, RefreshCw, Trash2, StopCircle } from 'lucide-react';
+import { Play, SkipForward, CheckCircle, XCircle, Circle, Loader, RefreshCw, Trash2, StopCircle, Info, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PipelineViewProps {
@@ -16,8 +16,53 @@ interface PipelineViewProps {
   onRunStep4Phase?: (phase: '4a' | '4b') => void;
 }
 
+// Step-specific input/output descriptions
+const STEP_IO: Record<number, { inputs: string[]; outputs: string[] }> = {
+  1: {
+    inputs: ['User-provided goal/objective (free text)'],
+    outputs: ['Q₀ — a single, engineering-grade master question with success criteria, baseline, and constraints'],
+  },
+  2: {
+    inputs: ['Q₀ from Step 1'],
+    outputs: ['Goal Pillars (sub-goals with state definitions, done criteria, failure modes)', 'Bridge Lexicon (SPVs — System Property Variables with meter classes)'],
+  },
+  3: {
+    inputs: ['Goal Pillars from Step 2', 'Bridge Lexicon from Step 2'],
+    outputs: ['Requirement Atoms (RAs) — atomic, testable requirements per goal with state variables, failure shapes, and perturbation classes'],
+  },
+  4: {
+    inputs: ['Goal Pillars from Step 2', 'Requirement Atoms from Step 3', 'Bridge Lexicon from Step 2'],
+    outputs: ['Scientific Knowledge Base — domain-mapped interventions with evidence levels, organized by research domain'],
+  },
+  5: {
+    inputs: ['Requirement Atoms from Step 3', 'Scientific Knowledge from Step 4'],
+    outputs: ['Matching Edges — connections between RAs and scientific interventions (SKIPPED — integrated into Step 4b)'],
+  },
+  6: {
+    inputs: ['Goal Pillars from Step 2', 'Requirement Atoms from Step 3', 'Scientific Knowledge from Step 4'],
+    outputs: ['L3 Seed Questions — frontier research questions per goal, each with strategy, rationale, and discriminator target'],
+  },
+  7: {
+    inputs: ['L3 Questions from Step 6', 'Goal Pillars from Step 2'],
+    outputs: ['Instantiation Hypotheses (IH) — competing process hypotheses per L3, with discriminating predictions and domain categories'],
+  },
+  8: {
+    inputs: ['L3 Questions from Step 6', 'IH from Step 7', 'Scientific Knowledge from Step 4'],
+    outputs: ['L4 Tactical Questions — discriminators, model/tool requirements, and unknown explorations per L3 branch'],
+  },
+  9: {
+    inputs: ['L4 Questions from Step 8', 'Requirement Atoms from Step 3'],
+    outputs: ['L5 Mechanistic Drills (sub-questions per L4)', 'L6 Leaf Specs (actionable experiment tasks with S-I-M-T parameters)'],
+  },
+  10: {
+    inputs: ['Q₀ from Step 1', 'L4 Questions from Step 8', 'All L6 Tasks from Step 9 (grouped per L4 branch)'],
+    outputs: ['Per-L4 verdict: either a unified Common Experiment design or a justified impossibility statement with rejection reasons'],
+  },
+};
+
 export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRunStep, onSkipStep, onClearStep, onAbortStep, onRunStep4Phase }) => {
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
+  const [agentInfoStep, setAgentInfoStep] = useState<number | null>(null);
 
   const toggleStep = (stepId: number) => {
     setExpandedSteps(prev => {
@@ -143,6 +188,18 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setAgentInfoStep(agentInfoStep === step.id ? null : step.id)}
+                  className={cn(
+                    "px-2 text-muted-foreground hover:text-foreground",
+                    agentInfoStep === step.id && "text-blue-400 bg-blue-500/10"
+                  )}
+                  title="Agent info"
+                >
+                  <Info size={16} />
+                </Button>
                 {canRunStep(step, index) && (
                   <>
                     <Button
@@ -222,6 +279,82 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
               </div>
             </div>
           </CardHeader>
+
+          {/* Agent Info Panel */}
+          {agentInfoStep === step.id && agent && (
+            <CardContent className="border-t border-border/30">
+              <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4 relative">
+                <button
+                  onClick={() => setAgentInfoStep(null)}
+                  className="absolute top-2 right-2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X size={14} />
+                </button>
+
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-3">
+                  {agent.icon && <span className="text-2xl">{agent.icon}</span>}
+                  <div>
+                    <div className="font-bold text-sm text-foreground">{agent.name}</div>
+                    <div className="text-xs text-blue-400 font-semibold">{agent.role}</div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {agent.description && (
+                  <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{agent.description}</p>
+                )}
+
+                {/* Model & Settings */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
+                    Model: {agent.model}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
+                    Temp: {agent.temperature}
+                  </span>
+                  {agent.settings?.nodeCount && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
+                      Nodes: {agent.settings.nodeCount.min}–{agent.settings.nodeCount.max} (default {agent.settings.nodeCount.default})
+                    </span>
+                  )}
+                  {agent.enabled === false && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-900/30 text-red-400 border border-red-800/50">
+                      DISABLED
+                    </span>
+                  )}
+                </div>
+
+                {/* Inputs */}
+                {STEP_IO[step.id] && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded p-2.5">
+                      <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide mb-1.5">Inputs</div>
+                      <ul className="space-y-1">
+                        {STEP_IO[step.id].inputs.map((input, i) => (
+                          <li key={i} className="text-xs text-foreground/80 flex gap-1.5">
+                            <span className="text-emerald-500 shrink-0">→</span>
+                            {input}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="bg-amber-500/5 border border-amber-500/20 rounded p-2.5">
+                      <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wide mb-1.5">Outputs</div>
+                      <ul className="space-y-1">
+                        {STEP_IO[step.id].outputs.map((output, i) => (
+                          <li key={i} className="text-xs text-foreground/80 flex gap-1.5">
+                            <span className="text-amber-500 shrink-0">←</span>
+                            {output}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          )}
 
           {/* Step 4 Phase Progress Indicator (shown when running) */}
           {step.id === 4 && step.status === 'running' && step.output && typeof step.output === 'object' && (step.output as any).phase && (

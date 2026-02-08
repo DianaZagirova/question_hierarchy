@@ -407,6 +407,9 @@ const getLayerIdFromNodeType = (nodeType: string): string => {
     case 'l6_cluster':
     case 'l6_group':
       return 'l6';
+    case 'common_l6':
+    case 'common_l6_fail':
+      return 'l6';
     default:
       return 'other';
   }
