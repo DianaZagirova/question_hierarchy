@@ -1,16 +1,20 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from openai import OpenAI
 import os
 import json
 import time
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Max parallel workers for batch execution (configurable via .env)
+MAX_BATCH_WORKERS = int(os.getenv('MAX_BATCH_WORKERS', '15'))
 
 # In production, serve the built frontend from ../dist
 DIST_DIR = os.path.join(os.path.dirname(__file__), '..', 'dist')
@@ -22,6 +26,75 @@ else:
     app = Flask(__name__)
 
 CORS(app)
+
+# ─── Thread-safe batch progress store ────────────────────────────────────────
+# Keyed by step_id. Each entry tracks real-time progress for a running batch.
+_progress_lock = threading.Lock()
+_progress_store: dict = {}  # step_id -> { completed, total, successful, failed, elapsed, eta, items: [...] }
+
+def _update_progress(step_id, completed, total, successful, failed, elapsed, eta, latest_item=None):
+    """Thread-safe update of batch progress for a step."""
+    with _progress_lock:
+        entry = _progress_store.get(step_id, {'items': []})
+        entry.update({
+            'step_id': step_id,
+            'completed': completed,
+            'total': total,
+            'successful': successful,
+            'failed': failed,
+            'elapsed': round(elapsed, 1),
+            'eta': round(eta, 1),
+            'percent': round((completed / total) * 100, 1) if total > 0 else 0,
+            'timestamp': time.time(),
+        })
+        if latest_item:
+            entry['items'].append(latest_item)
+            # Keep only last 20 items to avoid memory bloat
+            if len(entry['items']) > 20:
+                entry['items'] = entry['items'][-20:]
+        _progress_store[step_id] = entry
+
+def _clear_progress(step_id):
+    with _progress_lock:
+        _progress_store.pop(step_id, None)
+
+def _get_progress(step_id):
+    with _progress_lock:
+        return _progress_store.get(step_id, None)
+
+@app.route('/api/progress/<int:step_id>', methods=['GET'])
+def stream_progress(step_id):
+    """SSE endpoint: streams real-time batch progress for a given step."""
+    def generate():
+        last_completed = -1
+        idle_count = 0
+        while True:
+            progress = _get_progress(step_id)
+            if progress and progress.get('completed', 0) != last_completed:
+                last_completed = progress['completed']
+                idle_count = 0
+                yield f"data: {json.dumps(progress)}\n\n"
+                # If batch is done, send final event and stop
+                if progress['completed'] >= progress['total']:
+                    yield f"data: {json.dumps({**progress, 'done': True})}\n\n"
+                    return
+            else:
+                idle_count += 1
+            # If no progress for 5 minutes, stop the stream
+            if idle_count > 300:
+                yield f"data: {json.dumps({'done': True, 'timeout': True})}\n\n"
+                return
+            time.sleep(1)
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
 
 def interpolate_prompt(agent_config, global_lens=None):
     """Interpolate placeholders in agent system prompts with actual values.
@@ -37,39 +110,47 @@ def interpolate_prompt(agent_config, global_lens=None):
         prompt = re.sub(r'\{\{LENS\}\}', effective_lens, prompt)
         prompt = prompt.replace('[LENS]', effective_lens)  # Legacy support
     
-    # Replace node count placeholders
+    # Replace node count placeholders (min, max, and target/default)
     if agent_config.get('settings', {}).get('nodeCount'):
         node_count = agent_config['settings']['nodeCount']
         min_count = str(node_count['min'])
         max_count = str(node_count['max'])
+        target_count = str(node_count.get('default', node_count['min']))
         
         # For Goal Pillars
         prompt = re.sub(r'\{\{MIN_GOALS\}\}', min_count, prompt)
         prompt = re.sub(r'\{\{MAX_GOALS\}\}', max_count, prompt)
+        prompt = re.sub(r'\{\{TARGET_GOALS\}\}', target_count, prompt)
         
         # For Research Domains
         prompt = re.sub(r'\{\{MIN_DOMAINS\}\}', min_count, prompt)
         prompt = re.sub(r'\{\{MAX_DOMAINS\}\}', max_count, prompt)
+        prompt = re.sub(r'\{\{TARGET_DOMAINS\}\}', target_count, prompt)
         
         # For L3 Questions
         prompt = re.sub(r'\{\{MIN_L3\}\}', min_count, prompt)
         prompt = re.sub(r'\{\{MAX_L3\}\}', max_count, prompt)
+        prompt = re.sub(r'\{\{TARGET_L3\}\}', target_count, prompt)
         
         # For Instantiation Hypotheses (IH)
         prompt = re.sub(r'\{\{MIN_IH\}\}', min_count, prompt)
         prompt = re.sub(r'\{\{MAX_IH\}\}', max_count, prompt)
+        prompt = re.sub(r'\{\{TARGET_IH\}\}', target_count, prompt)
         
         # For L4 Questions
         prompt = re.sub(r'\{\{MIN_L4\}\}', min_count, prompt)
         prompt = re.sub(r'\{\{MAX_L4\}\}', max_count, prompt)
+        prompt = re.sub(r'\{\{TARGET_L4\}\}', target_count, prompt)
         
         # For L5 Nodes
         prompt = re.sub(r'\{\{MIN_L5\}\}', min_count, prompt)
         prompt = re.sub(r'\{\{MAX_L5\}\}', max_count, prompt)
+        prompt = re.sub(r'\{\{TARGET_L5\}\}', target_count, prompt)
         
         # For Scientific Pillars
         prompt = re.sub(r'\{\{MIN_PILLARS\}\}', min_count, prompt)
         prompt = re.sub(r'\{\{MAX_PILLARS\}\}', max_count, prompt)
+        prompt = re.sub(r'\{\{TARGET_PILLARS\}\}', target_count, prompt)
     
     # Replace any custom parameters
     if agent_config.get('settings', {}).get('customParams'):
@@ -330,21 +411,13 @@ def execute_step_batch():
         print(f'{"#"*70}')
         print(f'📦 Total items to process: {len(items)}')
         
-        # Adjust max workers based on step complexity to avoid rate limiting
-        # Step 4 (domain scans) - increased to 5 workers for faster execution
-        if step_id == 4:
-            max_workers = 5  # Increased from 3 to 5 for faster domain scanning
-            print(f'⚡ Processing in PARALLEL with max {max_workers} workers (optimized for Step 4)...')
-            if phase_info.get('phase') == '4b':
-                print(f'⏱️  Note: Step 4 Phase 2 (Domain Scans) may take up to 10 minutes per goal')
-        elif step_id in [6, 7, 8, 9]:  # L3, IH, L4, L5
-            max_workers = 5
-            print(f'Processing in PARALLEL with max {max_workers} workers...')
-        else:
-            max_workers = 8
-            print(f'Processing in PARALLEL with max {max_workers} workers...')
+        # Adjust max workers — maximize parallelism for speed
+        # Capped by MAX_BATCH_WORKERS env var (default 15)
+        max_workers = min(len(items), MAX_BATCH_WORKERS)
+        print(f'⚡ Processing {len(items)} items in PARALLEL with {max_workers} workers (MAX_BATCH_WORKERS={MAX_BATCH_WORKERS})...')
         
         results = [None] * len(items)  # Pre-allocate results list
+        _clear_progress(step_id)  # Reset progress for this step
         
         # Process items in parallel using ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -356,7 +429,12 @@ def execute_step_batch():
             
             # Process completed tasks as they finish
             completed = 0
+            successful_so_far = 0
+            failed_so_far = 0
             batch_start_time = time.time()
+            
+            # Initialize progress
+            _update_progress(step_id, 0, len(items), 0, 0, 0, 0)
             
             for future in as_completed(future_to_idx):
                 idx = future_to_idx[future]
@@ -394,6 +472,15 @@ def execute_step_batch():
                         'data': result,
                         'item_index': idx
                     }
+                    successful_so_far += 1
+                    
+                    # Update real-time progress via SSE store
+                    _update_progress(
+                        step_id, completed, len(items),
+                        successful_so_far, failed_so_far,
+                        elapsed, eta_seconds,
+                        latest_item={'index': idx, 'success': True}
+                    )
                     
                     if step_id == 4:
                         print(f"\n{'─'*60}")
@@ -420,6 +507,15 @@ def execute_step_batch():
                         'error': str(item_error),
                         'item_index': idx
                     }
+                    failed_so_far += 1
+                    
+                    # Update real-time progress via SSE store
+                    _update_progress(
+                        step_id, completed, len(items),
+                        successful_so_far, failed_so_far,
+                        elapsed, eta_seconds,
+                        latest_item={'index': idx, 'success': False, 'error': str(item_error)}
+                    )
         
         # Filter out None results (should all be filled)
         completed_results = [r for r in results if r is not None]
@@ -439,6 +535,8 @@ def execute_step_batch():
         else:
             print(f"\n=== Batch Complete: {successful_count}/{len(items)} successful ===")
         
+        _clear_progress(step_id)  # Clean up progress store
+        
         return jsonify({
             'batch_results': completed_results,
             'total_processed': len(completed_results),
@@ -448,6 +546,7 @@ def execute_step_batch():
     
     except Exception as error:
         print(f'Error in batch execution: {error}')
+        _clear_progress(step_id)  # Clean up on error too
         return jsonify({
             'error': str(error),
             'details': 'Batch execution failed'

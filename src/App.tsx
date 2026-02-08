@@ -72,6 +72,9 @@ function App() {
     alert('Input/Output check file saved successfully!');
   };
 
+  const handleEditOutput = (stepId: number, newOutput: any) => {
+    updateStepStatus(stepId, 'completed', newOutput);
+  };
 
   // Session management
   const { initialize: initSessions, updateActiveSessionMeta, saveCurrentToSession } = useSessionStore();
@@ -629,6 +632,7 @@ function App() {
                 onClearStep={clearStep}
                 onAbortStep={handleAbortStep}
                 onRunStep4Phase={handleRunStep4Phase}
+                onEditOutput={handleEditOutput}
               />
             </div>
             
@@ -708,6 +712,7 @@ function App() {
             onSkipStep={skipStep}
             onClearStep={clearStep}
             onAbortStep={handleAbortStep}
+            onEditOutput={handleEditOutput}
           />
         )}
 

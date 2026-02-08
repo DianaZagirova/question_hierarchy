@@ -105,6 +105,57 @@ export const cleanupAbortController = (stepId: number): void => {
   abortControllers.delete(stepId);
 };
 
+// ─── Real-time batch progress via SSE ──────────────────────────────
+export interface BatchProgress {
+  step_id: number;
+  completed: number;
+  total: number;
+  successful: number;
+  failed: number;
+  elapsed: number;   // seconds
+  eta: number;       // seconds remaining
+  percent: number;
+  done?: boolean;
+  timeout?: boolean;
+  items?: Array<{ index: number; success: boolean; error?: string }>;
+}
+
+/**
+ * Subscribe to real-time batch progress for a step via SSE.
+ * Returns a cleanup function to close the connection.
+ */
+export const subscribeBatchProgress = (
+  stepId: number,
+  onProgress: (progress: BatchProgress) => void,
+  onDone?: () => void,
+): (() => void) => {
+  const url = `${API_URL}/api/progress/${stepId}`;
+  const eventSource = new EventSource(url);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data: BatchProgress = JSON.parse(event.data);
+      onProgress(data);
+      if (data.done) {
+        eventSource.close();
+        onDone?.();
+      }
+    } catch (e) {
+      console.warn('[SSE] Failed to parse progress event:', e);
+    }
+  };
+
+  eventSource.onerror = () => {
+    // Connection lost or server closed — clean up silently
+    eventSource.close();
+    onDone?.();
+  };
+
+  return () => {
+    eventSource.close();
+  };
+};
+
 export const testConnection = async (): Promise<boolean> => {
   try {
     const response = await api.get('/api/health');

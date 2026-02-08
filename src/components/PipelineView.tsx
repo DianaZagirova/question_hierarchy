@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { StepOutputViewer } from './StepOutputViewer';
 import { PipelineStep, AgentConfig } from '@/types';
-import { Play, SkipForward, CheckCircle, XCircle, Circle, Loader, RefreshCw, Trash2, StopCircle, Info, X } from 'lucide-react';
+import { Play, SkipForward, CheckCircle, XCircle, Circle, Loader, RefreshCw, Trash2, StopCircle, Info, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { subscribeBatchProgress, BatchProgress } from '@/lib/api';
 
 interface PipelineViewProps {
   steps: PipelineStep[];
@@ -14,6 +15,7 @@ interface PipelineViewProps {
   onClearStep: (stepId: number) => void;
   onAbortStep: (stepId: number) => void;
   onRunStep4Phase?: (phase: '4a' | '4b') => void;
+  onEditOutput?: (stepId: number, newOutput: any) => void;
 }
 
 // Step-specific input/output descriptions
@@ -60,9 +62,78 @@ const STEP_IO: Record<number, { inputs: string[]; outputs: string[] }> = {
   },
 };
 
-export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRunStep, onSkipStep, onClearStep, onAbortStep, onRunStep4Phase }) => {
+export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRunStep, onSkipStep, onClearStep, onAbortStep, onRunStep4Phase, onEditOutput }) => {
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [agentInfoStep, setAgentInfoStep] = useState<number | null>(null);
+  const [editingStep, setEditingStep] = useState<number | null>(null);
+  const [editJson, setEditJson] = useState<string>('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<Record<number, BatchProgress>>({});
+  const sseCleanupRefs = useRef<Record<number, () => void>>({});
+
+  // Subscribe to SSE progress for running batch steps (steps 3-10 use batching)
+  useEffect(() => {
+    const batchStepIds = [3, 4, 6, 7, 8, 9, 10];
+    steps.forEach((step) => {
+      if (step.status === 'running' && batchStepIds.includes(step.id) && !sseCleanupRefs.current[step.id]) {
+        const cleanup = subscribeBatchProgress(
+          step.id,
+          (progress) => {
+            setBatchProgress((prev) => ({ ...prev, [step.id]: progress }));
+          },
+          () => {
+            // On done/disconnect, remove from active subscriptions
+            delete sseCleanupRefs.current[step.id];
+          }
+        );
+        sseCleanupRefs.current[step.id] = cleanup;
+      }
+      // Clean up SSE if step is no longer running
+      if (step.status !== 'running' && sseCleanupRefs.current[step.id]) {
+        sseCleanupRefs.current[step.id]();
+        delete sseCleanupRefs.current[step.id];
+        // Clear stale progress after a short delay
+        setTimeout(() => {
+          setBatchProgress((prev) => {
+            const next = { ...prev };
+            delete next[step.id];
+            return next;
+          });
+        }, 2000);
+      }
+    });
+    // Cleanup all on unmount
+    return () => {
+      Object.values(sseCleanupRefs.current).forEach((fn) => fn());
+      sseCleanupRefs.current = {};
+    };
+  }, [steps.map(s => `${s.id}:${s.status}`).join(',')]);
+
+  const handleStartEdit = (stepId: number, output: any) => {
+    setEditingStep(stepId);
+    setEditJson(JSON.stringify(output, null, 2));
+    setEditError(null);
+    // Ensure step is expanded
+    setExpandedSteps((prev) => new Set(prev).add(stepId));
+  };
+
+  const handleSaveEdit = (stepId: number) => {
+    try {
+      const parsed = JSON.parse(editJson);
+      onEditOutput?.(stepId, parsed);
+      setEditingStep(null);
+      setEditJson('');
+      setEditError(null);
+    } catch (e: any) {
+      setEditError(e.message);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingStep(null);
+    setEditJson('');
+    setEditError(null);
+  };
 
   const toggleStep = (stepId: number) => {
     setExpandedSteps(prev => {
@@ -164,11 +235,23 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                               • Agent disabled - function integrated into Step 4
                             </span>
                           )}
-                          {!isDisabled && step.status === 'running' && (
-                            <span className="ml-2 text-primary animate-pulse">
-                              • Processing (this may take 30-60 seconds)
-                            </span>
-                          )}
+                          {!isDisabled && step.status === 'running' && (() => {
+                            const prog = batchProgress[step.id];
+                            if (prog && prog.total > 0) {
+                              const etaMin = Math.ceil(prog.eta / 60);
+                              return (
+                                <span className="ml-2 text-primary">
+                                  • {prog.completed}/{prog.total} items ({prog.percent}%)
+                                  {prog.eta > 0 && ` — ETA ${etaMin < 1 ? '<1' : etaMin} min`}
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="ml-2 text-primary animate-pulse">
+                                • Processing (this may take 30-60 seconds)
+                              </span>
+                            );
+                          })()}
                           {/* Show Step 4 phase information */}
                           {step.id === 4 && step.output && typeof step.output === 'object' && (step.output as any).phase && (
                             <span className="ml-2 text-blue-400">
@@ -233,6 +316,22 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                 )}
                 {step.status === 'completed' && (
                   <>
+                    {onEditOutput && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStartEdit(step.id, step.output)}
+                        className={cn(
+                          "px-2",
+                          editingStep === step.id
+                            ? "border-amber-400 text-amber-400 bg-amber-500/10"
+                            : "border-amber-300 text-amber-600 hover:bg-amber-50"
+                        )}
+                        title="Edit output JSON"
+                      >
+                        <Pencil size={16} />
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -356,6 +455,45 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
             </CardContent>
           )}
 
+          {/* Real-time batch progress bar (for all batch steps except Step 4 which has its own UI) */}
+          {step.status === 'running' && step.id !== 4 && batchProgress[step.id] && batchProgress[step.id].total > 0 && (
+            <CardContent className="border-t border-border/30 py-3">
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-primary uppercase tracking-wide">
+                    Batch Progress
+                  </span>
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    {batchProgress[step.id].successful > 0 && (
+                      <span className="text-green-400">{batchProgress[step.id].successful} ok</span>
+                    )}
+                    {batchProgress[step.id].failed > 0 && (
+                      <span className="text-rose-400">{batchProgress[step.id].failed} failed</span>
+                    )}
+                    {batchProgress[step.id].elapsed > 0 && (
+                      <span>{Math.round(batchProgress[step.id].elapsed)}s elapsed</span>
+                    )}
+                    {batchProgress[step.id].eta > 0 && (
+                      <span className="text-primary font-semibold">
+                        ETA {Math.ceil(batchProgress[step.id].eta / 60) < 1 ? '<1' : Math.ceil(batchProgress[step.id].eta / 60)} min
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-primary to-accent h-full transition-all duration-700 ease-out rounded-full"
+                    style={{ width: `${batchProgress[step.id].percent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-0.5">
+                  <span>{batchProgress[step.id].completed} / {batchProgress[step.id].total} items</span>
+                  <span className="text-primary font-semibold">{batchProgress[step.id].percent}%</span>
+                </div>
+              </div>
+            </CardContent>
+          )}
+
           {/* Step 4 Phase Progress Indicator (shown when running) */}
           {step.id === 4 && step.status === 'running' && step.output && typeof step.output === 'object' && (step.output as any).phase && (
             <CardContent className="border-t border-border/30">
@@ -458,7 +596,56 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                   <p className="text-sm text-rose-300 mt-1">{step.error}</p>
                 </div>
               )}
-              {(step.output || step.step4Phases) && (
+              {/* JSON Editor Mode */}
+              {editingStep === step.id && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Pencil size={14} className="text-amber-400" />
+                      <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                        Editing Step {step.id} Output
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleSaveEdit(step.id)}
+                        className="bg-green-600 hover:bg-green-700 text-white text-xs px-3"
+                      >
+                        Save Changes
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCancelEdit}
+                        className="border-slate-500 text-slate-400 hover:bg-slate-700 text-xs px-3"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                  {editError && (
+                    <div className="bg-rose-500/10 border border-rose-500/30 rounded p-2 text-xs text-rose-400">
+                      JSON Parse Error: {editError}
+                    </div>
+                  )}
+                  <textarea
+                    value={editJson}
+                    onChange={(e) => {
+                      setEditJson(e.target.value);
+                      setEditError(null);
+                    }}
+                    className="w-full h-[500px] bg-slate-900 border border-amber-500/30 rounded-lg p-3 text-xs font-mono text-foreground leading-relaxed focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 transition-all resize-y"
+                    spellCheck={false}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Edit the JSON output directly. Changes will be saved to the pipeline and used by downstream steps.
+                    Be careful to maintain valid JSON structure.
+                  </p>
+                </div>
+              )}
+              {/* Normal Output Viewer */}
+              {editingStep !== step.id && (step.output || step.step4Phases) && (
                 <StepOutputViewer output={step.output} stepId={step.id} step={step} />
               )}
             </CardContent>

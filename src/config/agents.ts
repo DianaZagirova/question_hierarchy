@@ -44,7 +44,7 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
     lens: 'Distributed Consensus Architecture. View Homo sapiens as a multi-agent system where health is a \'collective agreement\' between subsystems. Aging is not \'breaking,\' it is \'de-synchronization\' or \'loss of consensus\' where individual parts stop following the global protocol.',
     systemPrompt: `You are "The Immortalist Architect". Your mission is to define the REQUIRED END-STATES (Goal Pillars) for the system and simultaneously construct a "Bridge Lexicon" (Shared Language) to map these goals to scientific reality.
 
-Generate {{MIN_GOALS}}-{{MAX_GOALS}} architecture-neutral, MECE-ish required end-states (Goal Pillars) that, if satisfied together, are sufficient to make the Q₀ requirement plausible.
+Generate {{MIN_GOALS}}-{{MAX_GOALS}} architecture-neutral, MECE-ish required end-states (Goal Pillars) that, if satisfied together, are sufficient to make the Q₀ requirement plausible. Aim for {{TARGET_GOALS}} goals as the ideal number.
 
 ## CONTEXTUAL LENS (EPISTEMIC FRAME), if any:
 {{LENS}}
@@ -292,7 +292,7 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
 4) bridge_lexicon: SPV definitions
 
 ## TASK
-Identify {{MIN_DOMAINS}}-{{MAX_DOMAINS}} DISTINCT research domains that:
+Identify {{MIN_DOMAINS}}-{{MAX_DOMAINS}} DISTINCT research domains (aim for {{TARGET_DOMAINS}}) that:
 - Address Goal's catastrophe_primary and failure modes
 - Target high-priority SPVs in target_goal.bridge_tags
 - Are MECE (Mutually Exclusive, Collectively Exhaustive)
@@ -352,7 +352,7 @@ Return ONLY valid JSON. No markdown, no explanations.`,
     description: 'Step 4b: Deep-dive into ONE research domain to identify 15-25 scientific interventions/assets relevant to the Goal.',
     model: 'gpt-4.1',
     temperature: 0.8,
-    systemPrompt: `You are "The Domain Specialist". Generate {{MIN_PILLARS}}-{{MAX_PILLARS}} Scientific Pillars for ONE research domain that address a specific Goal.
+    systemPrompt: `You are "The Domain Specialist". Generate {{MIN_PILLARS}}-{{MAX_PILLARS}} Scientific Pillars (aim for approximately {{TARGET_PILLARS}}) for ONE research domain that address a specific Goal.
 
 CRITICAL: Scientific Pillars must be ESTABLISHED, EVIDENCE-BASED scientific knowledge — not hypothetical or speculative interventions. Focus on:
 - Known biological mechanisms, pathways, and processes with published evidence
@@ -579,7 +579,7 @@ Use other not trivial probes.
 
 ## 5. If applicable, wrap up the L3 into meaningful metaphors that might assume different molecular mechanisms. 
 
-## 6. Create {{MIN_L3}}-{{MAX_L3}} L3 questions for each goal at max. Select the most important, innovative, non-trivial, prespective for the goal. 
+## 6. Create {{MIN_L3}}-{{MAX_L3}} L3 questions for each goal (aim for {{TARGET_L3}} as the ideal number). Select the most important, innovative, non-trivial, prespective for the goal. 
 
 ## 7. OUTPUT FORMAT (JSON)
 Return a single JSON object containing the Seed Questions grouped by Goal.
@@ -621,7 +621,7 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
     enabled: true,
     settings: {
       nodeCount: {
-        min: 3,
+        min: 6,
         max: 12,
         default: 8
       },
@@ -655,7 +655,7 @@ requirement_atoms: (RAs defining the state variables like Consensus Coherence or
 bridge_lexicon: (Shared SPV/FCC terminology).
 
 4. MISSION RULES
-Diversity is Mandatory: Generate {{MIN_IH}}-{{MAX_IH}} IHs. Do not collapse into mainstream geroscience. Select the most non-trivial, innovative, but realistic IHs.
+Diversity is Mandatory: Generate {{MIN_IH}}-{{MAX_IH}} IHs (aim for {{TARGET_IH}} as the ideal number). Do not collapse into mainstream geroscience. Select the most non-trivial, innovative, but realistic IHs.
 
 Solution Neutrality Breach (Authorized): At this stage, you ARE allowed to name candidate physical substrates, but you must do so as competing possibilities.
 
@@ -812,7 +812,7 @@ To drill from L4 to L6, identify the **bottleneck**:
 - If we can't isolate it -> Create L5: MODEL_REQ.
 - If the logic is circular -> Create L5: MECHANISM_DRILL.
 
-## 6. For each L4 create {{MIN_L5}}-{{MAX_L5}} L5 nodes. For each L5 create 2-5 L6 leaf_specs. Select the most not trivial, powerful, relevant to the overall context. Each L5 MUST have MULTIPLE L6 tasks — a single L6 per L5 is NOT acceptable.
+## 6. For each L4 create {{MIN_L5}}-{{MAX_L5}} L5 nodes (aim for {{TARGET_L5}}). For each L5 create 2-5 L6 leaf_specs. Select the most not trivial, powerful, relevant to the overall context. Each L5 MUST have MULTIPLE L6 tasks — a single L6 per L5 is NOT acceptable.
 
 ## 7. OUTPUT FORMAT (JSON ONLY)
 {

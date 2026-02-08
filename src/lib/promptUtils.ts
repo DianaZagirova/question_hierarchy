@@ -12,37 +12,45 @@ export function interpolatePrompt(agent: AgentConfig, globalLens?: string): stri
     prompt = prompt.replace(/\{\{LENS\}\}/g, effectiveLens);
   }
   
-  // Replace node count placeholders
+  // Replace node count placeholders (min, max, and target/default)
   if (agent.settings?.nodeCount) {
     const { min, max } = agent.settings.nodeCount;
+    const target = agent.settings.nodeCount.default;
     
     // For Goal Pillars (Agent Immortalist)
     prompt = prompt.replace(/\{\{MIN_GOALS\}\}/g, min.toString());
     prompt = prompt.replace(/\{\{MAX_GOALS\}\}/g, max.toString());
+    prompt = prompt.replace(/\{\{TARGET_GOALS\}\}/g, target.toString());
     
     // For Research Domains (Domain Mapper)
     prompt = prompt.replace(/\{\{MIN_DOMAINS\}\}/g, min.toString());
     prompt = prompt.replace(/\{\{MAX_DOMAINS\}\}/g, max.toString());
+    prompt = prompt.replace(/\{\{TARGET_DOMAINS\}\}/g, target.toString());
     
     // For Scientific Pillars (Domain Specialist)
     prompt = prompt.replace(/\{\{MIN_PILLARS\}\}/g, min.toString());
     prompt = prompt.replace(/\{\{MAX_PILLARS\}\}/g, max.toString());
+    prompt = prompt.replace(/\{\{TARGET_PILLARS\}\}/g, target.toString());
     
     // For L3 Questions
     prompt = prompt.replace(/\{\{MIN_L3\}\}/g, min.toString());
     prompt = prompt.replace(/\{\{MAX_L3\}\}/g, max.toString());
+    prompt = prompt.replace(/\{\{TARGET_L3\}\}/g, target.toString());
     
     // For Instantiation Hypotheses (IH)
     prompt = prompt.replace(/\{\{MIN_IH\}\}/g, min.toString());
     prompt = prompt.replace(/\{\{MAX_IH\}\}/g, max.toString());
+    prompt = prompt.replace(/\{\{TARGET_IH\}\}/g, target.toString());
     
     // For L4 Questions
     prompt = prompt.replace(/\{\{MIN_L4\}\}/g, min.toString());
     prompt = prompt.replace(/\{\{MAX_L4\}\}/g, max.toString());
+    prompt = prompt.replace(/\{\{TARGET_L4\}\}/g, target.toString());
     
     // For L5 Nodes
     prompt = prompt.replace(/\{\{MIN_L5\}\}/g, min.toString());
     prompt = prompt.replace(/\{\{MAX_L5\}\}/g, max.toString());
+    prompt = prompt.replace(/\{\{TARGET_L5\}\}/g, target.toString());
   }
   
   // Replace any custom parameters
