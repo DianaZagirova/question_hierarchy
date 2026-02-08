@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { ChevronDown, ChevronRight, Layers, FlaskConical, Target, ListChecks, Lightbulb, Workflow, Microscope } from 'lucide-react';
+import { ChevronDown, ChevronRight, Layers, FlaskConical, Target, ListChecks, Lightbulb, Workflow, Microscope, Info } from 'lucide-react';
 
 // Color scheme for different node types
 export const NODE_COLORS = {
@@ -103,6 +103,17 @@ export const ClusterNode = memo(({ data, selected }: NodeProps) => {
     if (data.onToggle) {
       data.onToggle();
     }
+    // Also select the node to show details
+    if (data.onSelect) {
+      data.onSelect();
+    }
+  };
+
+  const handleInfoClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data.onSelect) {
+      data.onSelect();
+    }
   };
 
   return (
@@ -133,9 +144,18 @@ export const ClusterNode = memo(({ data, selected }: NodeProps) => {
             <div className={colors.text}>
               {getNodeIcon(data.type)}
             </div>
-            <div className="text-sm font-bold text-foreground">
+            <div className="text-sm font-bold text-foreground flex-1">
               {data.title}
             </div>
+            {data.onSelect && (
+              <button
+                onClick={handleInfoClick}
+                className={`p-1 rounded hover:bg-slate-700/60 ${colors.text} opacity-60 hover:opacity-100 transition-opacity flex-shrink-0`}
+                title="Show details"
+              >
+                <Info className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Description */}

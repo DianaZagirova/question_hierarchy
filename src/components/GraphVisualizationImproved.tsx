@@ -124,12 +124,18 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
                 [node.id]: !prev[node.id],
               }));
             },
+            onSelect: () => {
+              setSelectedNode(node.data);
+              if (onNodeHighlight) {
+                onNodeHighlight(node.id, node.data.type);
+              }
+            },
           },
         };
       }
       return node;
     });
-  }, [filteredGraph.nodes]);
+  }, [filteredGraph.nodes, onNodeHighlight]);
 
   useEffect(() => {
     setNodes(nodesWithCallbacks);

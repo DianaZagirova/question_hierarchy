@@ -23,18 +23,19 @@ else:
 
 CORS(app)
 
-def interpolate_prompt(agent_config):
-    """Interpolate placeholders in agent system prompts with actual values"""
+def interpolate_prompt(agent_config, global_lens=None):
+    """Interpolate placeholders in agent system prompts with actual values.
+    
+    Lens priority: globalLens (user-configured) > selectedLens > agent.lens
+    """
     prompt = agent_config['systemPrompt']
     
-    # Replace lens placeholder
-    if agent_config.get('lens'):
-        prompt = re.sub(r'\{\{LENS\}\}', agent_config['lens'], prompt)
-        prompt = prompt.replace('[LENS]', agent_config['lens'])  # Legacy support
+    # Determine effective lens: globalLens takes priority
+    effective_lens = global_lens or agent_config.get('settings', {}).get('selectedLens') or agent_config.get('lens')
     
-    # Replace selected lens from settings
-    if agent_config.get('settings', {}).get('selectedLens'):
-        prompt = re.sub(r'\{\{LENS\}\}', agent_config['settings']['selectedLens'], prompt)
+    if effective_lens:
+        prompt = re.sub(r'\{\{LENS\}\}', effective_lens, prompt)
+        prompt = prompt.replace('[LENS]', effective_lens)  # Legacy support
     
     # Replace node count placeholders
     if agent_config.get('settings', {}).get('nodeCount'):
@@ -123,7 +124,7 @@ def health_check():
         'provider': API_PROVIDER,
     })
 
-def execute_single_item(step_id, agent_config, input_data):
+def execute_single_item(step_id, agent_config, input_data, global_lens=None):
     """Execute a single item (helper function for batch processing)"""
     start_time = time.time()
     
@@ -162,8 +163,8 @@ def execute_single_item(step_id, agent_config, input_data):
     if step_id == 4:
         print(f"  Input size: {len(user_prompt)} characters")
 
-    # Prepare system prompt with interpolated values
-    system_prompt = interpolate_prompt(agent_config)
+    # Prepare system prompt with interpolated values (globalLens overrides agent-level lens)
+    system_prompt = interpolate_prompt(agent_config, global_lens)
     
     # Add JSON instruction to system prompt (required by OpenAI for json_object mode)
     if "JSON" not in system_prompt and "json" not in system_prompt:
@@ -277,12 +278,13 @@ def execute_step():
         step_id = data.get('stepId')
         agent_config = data.get('agentConfig')
         input_data = data.get('input')
+        global_lens = data.get('globalLens')  # User-configured epistemic lens
 
         print(f'\n=== Executing Step {step_id} ===')
         print(f'Agent: {agent_config.get("name")}')
         print(f"User Prompt (truncated): {str(input_data)[:200]}...")
 
-        result = execute_single_item(step_id, agent_config, input_data)
+        result = execute_single_item(step_id, agent_config, input_data, global_lens)
         
         print(f"\nResponse received ({len(str(result))} chars)")
         print(f"Parsed JSON keys: {list(result.keys())}")
@@ -321,6 +323,7 @@ def execute_step_batch():
         agent_config = data.get('agentConfig')
         items = data.get('items', [])
         phase_info = data.get('phase_info', {})  # Get phase information for Step 4
+        global_lens = data.get('globalLens')  # User-configured epistemic lens
         
         print(f'\n{"#"*70}')
         print(f'### BATCH EXECUTION: Step {step_id} - {agent_config.get("name")}')
@@ -347,7 +350,7 @@ def execute_step_batch():
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             future_to_idx = {
-                executor.submit(execute_single_item, step_id, agent_config, item): idx 
+                executor.submit(execute_single_item, step_id, agent_config, item, global_lens): idx 
                 for idx, item in enumerate(items)
             }
             
@@ -643,7 +646,12 @@ Perform strategic evaluation and classification of the G-S links."""
         print(f"  - Scientific pillars: {len(scientific_pillars)}")
         print(f"  - Relationship summary: {len(relationship_summary)} samples")
 
-        return f"""CRITICAL: You are generating L3 questions for Goal ID: {goal_id}
+        q0_ref = input_data.get('Q0_reference', '')
+        
+        return f"""Master Project Question (Q0):
+{q0_ref}
+
+CRITICAL: You are generating L3 questions for Goal ID: {goal_id}
 
 ALL L3 question IDs MUST use this exact format: Q_L3_{goal_id}_N
 where N is the question number (1, 2, 3, 4, 5).
@@ -681,26 +689,25 @@ Remember: Use {goal_id} in ALL L3 question IDs!"""
     elif step_id == 7:
         step2_data = input_data.get('step2', {}) if isinstance(input_data, dict) else {}
         step3_data = input_data.get('step3', {}) if isinstance(input_data, dict) else {}
-        step4_data = input_data.get('step4', {}) if isinstance(input_data, dict) else {}
         step5_data = input_data.get('step5', {}) if isinstance(input_data, dict) else {}
         
         # Check if this is a batch call with single L3 question
         if 'l3_question' in input_data:
             l3_question = input_data['l3_question']
-            # For batch processing, we just need the single L3 question
-            l3_questions_list = [l3_question]
         else:
             # Fallback to old behavior
             step6_data = input_data.get('step6', {}) if isinstance(input_data, dict) else {}
             l3_questions = step6_data.get('l3_questions', [])
             l3_question = l3_questions[0] if l3_questions else {}
-            l3_questions_list = l3_questions
         
-        goals = step2_data.get('goals', [])
-        goal = goals[0] if goals else {}
+        # Use parent_goal from input (goal-specific), fallback to step2 goals[0]
+        goal = input_data.get('parent_goal', {})
+        if not goal:
+            goals = step2_data.get('goals', [])
+            goal = goals[0] if goals else {}
         bridge_lexicon = step2_data.get('bridge_lexicon', {})
         
-        # Get RAs
+        # Get RAs — now goal-specific (list) or legacy (dict keyed by goal ID)
         ras = []
         if isinstance(step3_data, list):
             ras = step3_data
@@ -709,30 +716,47 @@ Remember: Use {goal_id} in ALL L3 question IDs!"""
                 if isinstance(value, list):
                     ras.extend(value)
         
-        print(f"\nStep 7 Debug: Processing L3 question: {l3_question.get('id', 'unknown')}")
+        # Get goal-specific S-nodes from step5
+        goal_id = goal.get('id', '')
+        scientific_pillars = []
+        if goal_id and goal_id in step5_data:
+            goal_s_data = step5_data.get(goal_id, {})
+            scientific_pillars = goal_s_data.get('scientific_pillars', [])
         
-        return f"""Goal with Requirement Atoms:
-{json.dumps({'goal': goal, 'requirement_atoms': ras}, indent=2)}
+        print(f"\nStep 7 Debug: Processing L3 question: {l3_question.get('id', 'unknown')}")
+        print(f"  Parent Goal: {goal_id}, RAs: {len(ras)}, S-nodes: {len(scientific_pillars)}")
+        
+        q0_ref = input_data.get('Q0_reference', '')
+        
+        return f"""Master Project Question (Q0):
+{q0_ref}
+
+Parent Goal:
+{json.dumps(goal, indent=2)}
+
+Requirement Atoms (for this Goal):
+{json.dumps(ras[:5], indent=2)}
 
 Bridge Lexicon:
 {json.dumps(bridge_lexicon, indent=2)}
 
+Scientific Reality (S-nodes for this Goal):
+{json.dumps([{'id': s.get('id'), 'title': s.get('title'), 'relationship_to_goal': s.get('relationship_to_goal'), 'mechanism': s.get('mechanism')} for s in scientific_pillars[:15]], indent=2)}
+
 L3 Question to analyze:
 {json.dumps(l3_question, indent=2)}
 
-Generate Instantiation Hypotheses (IHs) for this L3 question."""
+Generate Instantiation Hypotheses (IHs) for this L3 question. All hypotheses must be relevant to the Master Project Question (Q0) above."""
     
     # STEP 8: INPUT: 1 L3 question + context | OUTPUT: L4 tactical questions for that L3
     elif step_id == 8:
         # Check if this is a batch call with single L3 question
         if 'l3_question' in input_data:
             l3_question = input_data['l3_question']
-            step2_data = input_data.get('step2', {})
             step3_data = input_data.get('step3', {})
             step7_data = input_data.get('step7', {})
         else:
             # Legacy: process first L3 from step 6
-            step2_data = input_data.get('step2', {}) if isinstance(input_data, dict) else {}
             step3_data = input_data.get('step3', {}) if isinstance(input_data, dict) else {}
             step6_data = input_data.get('step6', {}) if isinstance(input_data, dict) else {}
             step7_data = input_data.get('step7', {}) if isinstance(input_data, dict) else {}
@@ -740,11 +764,14 @@ Generate Instantiation Hypotheses (IHs) for this L3 question."""
             l3_questions = step6_data.get('l3_questions', step6_data.get('seed_questions', []))
             l3_question = l3_questions[0] if l3_questions else {}
         
-        goals = step2_data.get('goals', [])
-        goal = goals[0] if goals else {}
-        bridge_lexicon = step2_data.get('bridge_lexicon', {})
+        # Use parent_goal from input (goal-specific), fallback to step2
+        goal = input_data.get('parent_goal', {})
+        if not goal:
+            step2_data = input_data.get('step2', {}) if isinstance(input_data, dict) else {}
+            goals = step2_data.get('goals', [])
+            goal = goals[0] if goals else {}
         
-        # Get RAs
+        # Get RAs — now goal-specific (list) or legacy (dict keyed by goal ID)
         ras = []
         if isinstance(step3_data, list):
             ras = step3_data
@@ -753,54 +780,48 @@ Generate Instantiation Hypotheses (IHs) for this L3 question."""
                 if isinstance(value, list):
                     ras.extend(value)
         
-        # Get IHs
+        # Get IHs — now pre-filtered to this L3's IHs only
         ihs = step7_data.get('instantiation_hypotheses', []) if isinstance(step7_data, dict) else []
         if not ihs and isinstance(step7_data, list):
             ihs = step7_data
         
-        print(f"\nStep 8 Debug: Processing L3 question {l3_question.get('id', 'unknown')}")
-        print(f"  IHs available: {len(ihs)}")
+        q0_ref = input_data.get('Q0_reference', '')
         
-        return f"""L3 Seed Question:
+        print(f"\nStep 8 Debug: Processing L3 question {l3_question.get('id', 'unknown')}")
+        print(f"  Parent Goal: {goal.get('id', 'unknown')}, RAs: {len(ras)}, IHs: {len(ihs)}")
+        
+        return f"""Master Project Question (Q0):
+{q0_ref}
+
+L3 Seed Question:
 {json.dumps(l3_question, indent=2)}
 
-Goal Context:
+Parent Goal Context:
 {json.dumps(goal, indent=2)}
 
-Requirement Atoms:
-{json.dumps(ras[:3], indent=2)}
+Requirement Atoms (for this Goal):
+{json.dumps(ras[:5], indent=2)}
 
-Bridge Lexicon (SPVs):
-{json.dumps(bridge_lexicon.get('system_properties', [])[:5], indent=2)}
-
-Instantiation Hypotheses:
+Instantiation Hypotheses (for this L3):
 {json.dumps(ihs, indent=2)}
 
-Generate L4 Tactical Questions that discriminate between these hypotheses for this specific L3 question."""
+Generate L4 Tactical Questions that discriminate between these hypotheses for this specific L3 question. All tactical questions must serve the Master Project Question (Q0) above."""
     
     # STEP 9: INPUT: 1 L4 question + context | OUTPUT: L5/L6 tasks for that L4
     elif step_id == 9:
+        step3_data = input_data.get('step3', {}) if isinstance(input_data, dict) else {}
+        step5_data = input_data.get('step5', {}) if isinstance(input_data, dict) else {}
+        
         # Check if this is a batch call with single L4 question
         if 'l4_question' in input_data:
             l4_question = input_data['l4_question']
-            step2_data = input_data.get('step2', {})
-            step3_data = input_data.get('step3', {})
-            step7_data = input_data.get('step7', {})
         else:
             # Legacy: process first L4 from step 8
-            step2_data = input_data.get('step2', {}) if isinstance(input_data, dict) else {}
-            step3_data = input_data.get('step3', {}) if isinstance(input_data, dict) else {}
-            step7_data = input_data.get('step7', {}) if isinstance(input_data, dict) else {}
             step8_data = input_data.get('step8', {}) if isinstance(input_data, dict) else {}
-            
             l4_questions = step8_data.get('l4_questions', step8_data.get('child_nodes_L4', []))
             l4_question = l4_questions[0] if l4_questions else {}
         
-        goals = step2_data.get('goals', [])
-        goal = goals[0] if goals else {}
-        bridge_lexicon = step2_data.get('bridge_lexicon', {})
-        
-        # Get RAs
+        # Get RAs — now goal-specific (list) or legacy (dict keyed by goal ID)
         ras = []
         if isinstance(step3_data, list):
             ras = step3_data
@@ -809,28 +830,32 @@ Generate L4 Tactical Questions that discriminate between these hypotheses for th
                 if isinstance(value, list):
                     ras.extend(value)
         
-        # Get IHs for context
-        ihs = step7_data.get('instantiation_hypotheses', []) if isinstance(step7_data, dict) else []
-        if not ihs and isinstance(step7_data, list):
-            ihs = step7_data
+        # Get goal-specific S-nodes from step5
+        scientific_pillars = []
+        if isinstance(step5_data, dict):
+            for goal_id, goal_data in step5_data.items():
+                if isinstance(goal_data, dict):
+                    scientific_pillars.extend(goal_data.get('scientific_pillars', []))
+        
+        # Build S-node summary for prompt
+        s_node_summary = [{'id': s.get('id'), 'title': s.get('title'), 'relationship_to_goal': s.get('relationship_to_goal')} for s in scientific_pillars[:10]]
+        
+        q0_ref = input_data.get('Q0_reference', '')
         
         print(f"\nStep 9 Debug: Processing L4 question {l4_question.get('id', 'unknown')}")
-        print(f"  IHs available: {len(ihs)}")
+        print(f"  RAs: {len(ras)}, S-nodes: {len(scientific_pillars)}")
         
-        return f"""L4 Tactical Question:
+        return f"""Master Project Question (Q0):
+{q0_ref}
+
+L4 Tactical Question:
 {json.dumps(l4_question, indent=2)}
 
-Instantiation Hypotheses Context:
-{json.dumps(ihs[:3], indent=2)}
+Requirement Atoms (for parent Goal):
+{json.dumps(ras[:3], indent=2)}
 
-Goal Context:
-{json.dumps(goal, indent=2)}
-
-Requirement Atoms:
-{json.dumps(ras[:2], indent=2)}
-
-Bridge Lexicon (SPVs):
-{json.dumps(bridge_lexicon.get('system_properties', [])[:5], indent=2)}
+Scientific Reality (S-nodes for parent Goal):
+{json.dumps(s_node_summary, indent=2)}
 
 Generate L5 mechanistic sub-questions and L6 experiment-ready tasks (with S-I-M-T parameters) for this specific L4 question."""
     

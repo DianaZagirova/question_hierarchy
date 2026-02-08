@@ -1227,6 +1227,14 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
             </div>
           )}
           
+          {/* Multiple Realizability Check */}
+          {nodeData.multiple_realizability_check && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Multiple Realizability</p>
+              <p className="text-sm mt-1 text-foreground leading-relaxed">{nodeData.multiple_realizability_check}</p>
+            </div>
+          )}
+
           {nodeData.meter_status && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded">
               <p className="text-xs font-semibold text-emerald-400">Meter Status</p>
@@ -1279,7 +1287,13 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
             {nodeData.readiness_level && (
               <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
                 <p className="font-semibold text-cyan-400">Readiness</p>
-                <p className="text-foreground">{nodeData.readiness_level}</p>
+                <p className="text-foreground font-semibold">{nodeData.readiness_level}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {nodeData.readiness_level === 'RL-1' ? 'Lab-stage: early research, in-vitro or animal models only' :
+                   nodeData.readiness_level === 'RL-2' ? 'Model-stage: human data exists but limited trials or observational' :
+                   nodeData.readiness_level === 'RL-3' ? 'Deployed: proven in humans with clinical evidence' :
+                   ''}
+                </p>
               </div>
             )}
             {nodeData.best_supported_model && (
@@ -1362,16 +1376,22 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
             <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-cyan-400">Capabilities</p>
               <div className="space-y-1 mt-1">
-                {capabilities.map((cap: any, i: number) => (
-                  <div key={i} className="text-xs bg-cyan-500/20 p-2 rounded border border-cyan-500/40">
-                    <div className="font-semibold text-cyan-300">
-                      {cap.spv_id}: {cap.effect_direction}
+                {capabilities.map((cap: any, i: number) => {
+                  const spvInfo = lookupBridgeLexiconItem(cap.spv_id, bridgeLexicon);
+                  return (
+                    <div key={i} className="text-xs bg-cyan-500/20 p-2 rounded border border-cyan-500/40">
+                      <div className="font-semibold text-cyan-300">
+                        {cap.spv_id}{spvInfo ? ` — ${spvInfo.name}` : ''}: {cap.effect_direction}
+                      </div>
+                      {spvInfo?.definition && (
+                        <div className="text-[10px] text-foreground/60 mt-0.5 italic">{spvInfo.definition}</div>
+                      )}
+                      {cap.rationale && (
+                        <div className="text-foreground mt-1 text-[10px]">{cap.rationale}</div>
+                      )}
                     </div>
-                    {cap.rationale && (
-                      <div className="text-foreground mt-1 text-[10px]">{cap.rationale}</div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1414,6 +1434,77 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
         </div>
       );
     
+    case 'l3_group':
+      const sa = nodeData.strategic_assessment;
+      const ba = nodeData.bridge_alignment;
+      const spvFocus = sa?.spv_focus || [];
+      return (
+        <div className="space-y-3">
+          {nodeData.target_goal_title && (
+            <div className="bg-rose-500/10 border border-rose-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-rose-400">Goal Title (Metaphor)</p>
+              <p className="text-sm mt-1 text-foreground font-semibold">{nodeData.target_goal_title}</p>
+            </div>
+          )}
+          {nodeData.cluster_status && (
+            <div className="inline-block bg-rose-500/20 text-rose-300 px-2 py-1 rounded text-xs font-semibold">
+              Cluster: {nodeData.cluster_status}
+            </div>
+          )}
+          {sa && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-rose-400 uppercase tracking-wide">Strategic Assessment</p>
+              {sa.the_delta_summary && (
+                <div className="bg-rose-500/10 border border-rose-500/30 p-3 rounded">
+                  <p className="text-[10px] font-semibold text-rose-300 mb-1">The Delta (Gap)</p>
+                  <p className="text-xs text-foreground leading-relaxed">{sa.the_delta_summary}</p>
+                </div>
+              )}
+              {sa.epistemic_block && (
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded">
+                  <p className="text-[10px] font-semibold text-amber-300 mb-1">Epistemic Block</p>
+                  <p className="text-xs text-foreground leading-relaxed">{sa.epistemic_block}</p>
+                </div>
+              )}
+              {spvFocus.length > 0 && (
+                <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded">
+                  <p className="text-[10px] font-semibold text-blue-300 mb-1">SPV Focus</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {spvFocus.map((spv: string, i: number) => (
+                      <span key={i} className="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-[10px] font-mono">
+                        {spv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {ba && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Bridge Alignment</p>
+              {ba.primary_spv_impact && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded">
+                  <p className="text-[10px] font-semibold text-emerald-300 mb-1">Primary SPV Impact</p>
+                  <p className="text-xs text-foreground leading-relaxed">{ba.primary_spv_impact}</p>
+                </div>
+              )}
+              {ba.catastrophe_prevention && (
+                <div className="bg-red-500/10 border border-red-500/30 p-3 rounded">
+                  <p className="text-[10px] font-semibold text-red-300 mb-1">Catastrophe Prevention</p>
+                  <p className="text-xs text-foreground leading-relaxed">{ba.catastrophe_prevention}</p>
+                </div>
+              )}
+            </div>
+          )}
+          {nodeData.questions && (
+            <div className="text-[10px] text-muted-foreground mt-2">
+              {nodeData.questions.length} L3 question{nodeData.questions.length !== 1 ? 's' : ''} generated
+            </div>
+          )}
+        </div>
+      );
+
     case 'l3':
       return (
         <div className="space-y-2">

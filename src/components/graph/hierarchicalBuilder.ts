@@ -38,7 +38,8 @@ export function buildL3Hierarchy(
   l4Data: any[],
   l5Data: any[],
   l6Data: any[],
-  context: HierarchyBuilderContext
+  context: HierarchyBuilderContext,
+  goalAnalysis?: any
 ): number {
   if (l3Questions.length === 0) return startY;
 
@@ -47,7 +48,7 @@ export function buildL3Hierarchy(
 
   let currentY = startY;
 
-  // Create L3 group node
+  // Create L3 group node — include per-goal analysis data if available
   const l3GroupId = `l3-group-${goalId}`;
   const l3GroupNode = createGroupNode(
     l3GroupId,
@@ -56,7 +57,7 @@ export function buildL3Hierarchy(
     'l3_group',
     NODE_COLORS.l3,
     l3Questions.length,
-    { questions: l3Questions, goalId }
+    { questions: l3Questions, goalId, ...goalAnalysis }
   );
   nodes.push(l3GroupNode);
 

@@ -9,7 +9,7 @@ import {
   extractGoals,
   minimalGoal,
   minimalRAs,
-  truncateQ0,
+  fullQ0,
   filterSPVsForGoal,
   findAgent,
 } from '@/lib/pipelineHelpers';
@@ -54,7 +54,7 @@ export async function runStep4(
   const domainMappingItems = goals.map((goal: any) => {
     const ras = step3Output?.[goal.id] || [];
     return {
-      Q0_reference: truncateQ0(steps),
+      Q0_reference: fullQ0(steps),
       target_goal: minimalGoal(goal),
       requirement_atoms: minimalRAs(ras),
       bridge_lexicon: filterSPVsForGoal(goal, filteredBridgeLexicon.system_properties),
@@ -113,7 +113,7 @@ export async function runStep4(
 
     domains.forEach((domain: any) => {
       allDomainScanItems.push({
-        Q0_reference: truncateQ0(steps),
+        Q0_reference: fullQ0(steps),
         target_goal: minimalGoal(goal),
         requirement_atoms: minimalRAs(ras),
         bridge_lexicon: filterSPVsForGoal(goal, filteredBridgeLexicon.system_properties),

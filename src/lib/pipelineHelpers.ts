@@ -115,11 +115,13 @@ export function minimalRAs(ras: any[]) {
   }));
 }
 
-/** Truncate Q0 text to reduce API payload size */
-export function truncateQ0(steps: PipelineStep[], maxLen = 1500): string {
-  const q0Text = steps[0]?.output?.Q0 || '';
-  return q0Text.length > maxLen ? q0Text.substring(0, maxLen) + '...[truncated]' : q0Text;
+/** Extract full Q0 text — never truncate, every step needs the complete context */
+export function fullQ0(steps: PipelineStep[]): string {
+  return steps[0]?.output?.Q0 || '';
 }
+
+/** @deprecated Use fullQ0 instead — kept for backward compatibility */
+export const truncateQ0 = fullQ0;
 
 /** Filter bridge lexicon SPVs to only those referenced by a goal */
 export function filterSPVsForGoal(goal: any, allSPVs: any[]) {
@@ -131,6 +133,20 @@ export function filterSPVsForGoal(goal: any, allSPVs: any[]) {
       relevantIds.includes(spv.id || spv.ID)
     ),
   };
+}
+
+/** Extract goal-specific scientific pillars from Step 4 output */
+export function extractSNodesForGoal(steps: PipelineStep[], goalId: string): any[] {
+  const step4Output = steps[3]?.output;
+  if (!step4Output || !step4Output[goalId]) return [];
+  return step4Output[goalId].scientific_pillars || [];
+}
+
+/** Extract the full goal-specific Step 4 data (domain mapping + scans + pillars) */
+export function extractStep4ForGoal(steps: PipelineStep[], goalId: string): any | null {
+  const step4Output = steps[3]?.output;
+  if (!step4Output || !step4Output[goalId]) return null;
+  return step4Output[goalId];
 }
 
 /** Find an agent by ID, returning null if not found */

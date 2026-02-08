@@ -228,11 +228,22 @@ export function usePipelineExecution(context: PipelineContext) {
         }
         // Step 6: Single goal L3 generation
         else if (stepId === 6) {
+          // Check that S-nodes exist for this goal
+          const step4Output = steps[3]?.output;
+          const goalStep4Data = step4Output?.[goalId] || null;
+          const goalSNodes = goalStep4Data?.scientific_pillars || [];
+          if (goalSNodes.length === 0) {
+            updateStepStatus(stepId, 'error', null, `No scientific pillars (S-nodes) found for goal ${goalId}. Run Step 4 first.`);
+            cleanupAbortController(stepId);
+            return;
+          }
+          const step3Output = steps[2]?.output;
           const input = {
             goal_pillar: targetGoal,
             step2: { bridge_lexicon: { system_properties: filteredSPVs } },
-            step3: steps[2]?.output,
-            step4: steps[3]?.output,
+            step3: step3Output?.[goalId] || [], // Only this goal's RAs
+            step4: { [goalId]: goalStep4Data },
+            step5: { [goalId]: goalStep4Data },
             goal: currentGoal,
           };
           const result = await executeStep({

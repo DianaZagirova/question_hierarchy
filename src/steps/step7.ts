@@ -4,7 +4,7 @@
 
 import { PipelineStep, AgentConfig } from '@/types';
 import { executeStepBatch } from '@/lib/api';
-import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs } from '@/lib/pipelineHelpers';
+import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs, extractStep4ForGoal, fullQ0 } from '@/lib/pipelineHelpers';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Step7');
@@ -24,16 +24,21 @@ export async function runStep7(
   const goals = step2Output?.goals || [];
   const { allSPVs } = extractBridgeLexicon(steps);
 
+  const step3Output = steps[2]?.output; // RAs keyed by goal ID
+
   log.info(`Processing ${l3Questions.length} L3 question(s) for IH generation`);
 
   const items = l3Questions.map((l3q: any) => {
-    const parentGoal = goals.find((g: any) => g.id === l3q.parent_goal_id);
+    const parentGoalId = l3q.parent_goal_id || l3q.target_goal_id;
+    const parentGoal = goals.find((g: any) => g.id === parentGoalId);
     const enrichedParentGoal = parentGoal ? enrichGoalWithSPVs(parentGoal, allSPVs) : null;
+    const goalStep4Data = parentGoalId ? extractStep4ForGoal(steps, parentGoalId) : null;
     return {
+      Q0_reference: fullQ0(steps),
       l3_question: l3q,
       parent_goal: enrichedParentGoal,
-      step3: steps[2]?.output,
-      step5: steps[4]?.output,
+      step3: parentGoalId ? (step3Output?.[parentGoalId] || []) : [],
+      step5: parentGoalId && goalStep4Data ? { [parentGoalId]: goalStep4Data } : steps[4]?.output,
       goal: currentGoal,
     };
   });

@@ -4,7 +4,7 @@
 
 import { PipelineStep, AgentConfig } from '@/types';
 import { executeStepBatch } from '@/lib/api';
-import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs } from '@/lib/pipelineHelpers';
+import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs, extractStep4ForGoal, fullQ0 } from '@/lib/pipelineHelpers';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Step8');
@@ -24,17 +24,27 @@ export async function runStep8(
   const goals = step2Output?.goals || [];
   const { allSPVs } = extractBridgeLexicon(steps);
 
+  const step3Output = steps[2]?.output; // RAs keyed by goal ID
+  const step7Output = steps[6]?.output; // IHs from step 7
+  const allIHs = step7Output?.instantiation_hypotheses || [];
+
   log.info(`Processing ${l3Questions.length} L3 question(s) for L4 generation`);
 
   const items = l3Questions.map((l3q: any) => {
-    const parentGoal = goals.find((g: any) => g.id === l3q.parent_goal_id);
+    const parentGoalId = l3q.parent_goal_id || l3q.target_goal_id;
+    const l3Id = l3q.id;
+    const parentGoal = goals.find((g: any) => g.id === parentGoalId);
     const enrichedParentGoal = parentGoal ? enrichGoalWithSPVs(parentGoal, allSPVs) : null;
+    const goalStep4Data = parentGoalId ? extractStep4ForGoal(steps, parentGoalId) : null;
+    // Filter IHs to only those belonging to this L3 question
+    const l3IHs = allIHs.filter((ih: any) => ih.parent_l3_id === l3Id || ih.l3_question_id === l3Id);
     return {
+      Q0_reference: fullQ0(steps),
       l3_question: l3q,
       parent_goal: enrichedParentGoal,
-      step3: steps[2]?.output,
-      step7: steps[6]?.output,
-      step5: steps[4]?.output,
+      step3: parentGoalId ? (step3Output?.[parentGoalId] || []) : [],
+      step7: { instantiation_hypotheses: l3IHs },
+      step5: parentGoalId && goalStep4Data ? { [parentGoalId]: goalStep4Data } : steps[4]?.output,
       goal: currentGoal,
     };
   });

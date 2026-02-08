@@ -1724,8 +1724,9 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
     const step8New = steps.find(s => s.id === 8);
     const step9New = steps.find(s => s.id === 9);
 
-    // Extract all L3 questions
+    // Extract all L3 questions and per-goal analysis data
     let allL3Questions: any[] = [];
+    let goalAnalyses: Record<string, any> = {};
     if (step6New?.output) {
       if (Array.isArray(step6New.output)) {
         allL3Questions = step6New.output;
@@ -1733,6 +1734,9 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
         allL3Questions = Array.isArray(step6New.output.l3_questions) ? step6New.output.l3_questions : [];
       } else if (step6New.output.seed_questions) {
         allL3Questions = Array.isArray(step6New.output.seed_questions) ? step6New.output.seed_questions : [];
+      }
+      if (step6New.output.goal_analyses) {
+        goalAnalyses = step6New.output.goal_analyses;
       }
     }
 
@@ -1829,7 +1833,8 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           edges: newEdges,
           collapsedGroups,
           config: DEFAULT_LAYOUT_CONFIG,
-        }
+        },
+        goalAnalyses[goalId]
       );
 
       // Update yOffset to be below this goal's hierarchy

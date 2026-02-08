@@ -4,7 +4,7 @@
 
 import { PipelineStep, AgentConfig } from '@/types';
 import { executeStepBatch } from '@/lib/api';
-import { extractL4Questions } from '@/lib/pipelineHelpers';
+import { extractL4Questions, extractStep4ForGoal, fullQ0 } from '@/lib/pipelineHelpers';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Step9');
@@ -20,14 +20,26 @@ export async function runStep9(
   const { l4Questions, error } = extractL4Questions(steps, selectedL4Id);
   if (error) throw new Error(error);
 
+  const step3Output = steps[2]?.output; // RAs keyed by goal ID
+  const step6Output = steps[5]?.output; // L3 questions
+  const allL3s = step6Output?.l3_questions || step6Output?.seed_questions || [];
+
   log.info(`Processing ${l4Questions.length} L4 question(s) for L5/L6 drilldown`);
 
-  const items = l4Questions.map((l4q: any) => ({
-    l4_question: l4q,
-    step3: steps[2]?.output,
-    step5: steps[4]?.output,
-    goal: currentGoal,
-  }));
+  const items = l4Questions.map((l4q: any) => {
+    // Trace parent: L4 -> parent L3 -> parent Goal
+    const parentL3Id = l4q.parent_l3_id || l4q.l3_question_id;
+    const parentL3 = allL3s.find((l3: any) => l3.id === parentL3Id);
+    const parentGoalId = parentL3?.parent_goal_id || parentL3?.target_goal_id || l4q.parent_goal_id;
+    const goalStep4Data = parentGoalId ? extractStep4ForGoal(steps, parentGoalId) : null;
+    return {
+      Q0_reference: fullQ0(steps),
+      l4_question: l4q,
+      step3: parentGoalId ? (step3Output?.[parentGoalId] || []) : [],
+      step5: parentGoalId && goalStep4Data ? { [parentGoalId]: goalStep4Data } : steps[4]?.output,
+      goal: currentGoal,
+    };
+  });
 
   const batchResult = await executeStepBatch(9, agent, items, signal, globalLens);
 
