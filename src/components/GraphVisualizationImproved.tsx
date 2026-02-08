@@ -200,6 +200,17 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     setClusterState({});
   }, []);
 
+  // Reset to default view: collapse all, show all layers, clear search, hierarchical layout, center on Q0
+  const handleResetView = useCallback(() => {
+    setClusterState({});
+    setSearchTerm('');
+    setVisibleLayers(new Set(['q0', 'goals', 'spvs', 'ras', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6']));
+    setLayoutMode('hierarchical');
+    setSelectedNode(null);
+    if (onNodeHighlight) onNodeHighlight(null, null);
+    setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 150);
+  }, [fitView, onNodeHighlight]);
+
   return (
     <div className="h-full w-full relative bg-background">
       <ReactFlow
@@ -256,6 +267,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
             onLayerToggle={handleLayerToggle}
             onExpandAll={handleExpandAll}
             onCollapseAll={handleCollapseAll}
+            onResetView={handleResetView}
             layoutMode={layoutMode}
             onLayoutChange={setLayoutMode}
           />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, Layers, Eye, EyeOff } from 'lucide-react';
+import { Search, Filter, Layers, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -10,6 +10,7 @@ interface GraphControlsProps {
   onLayerToggle: (layer: string) => void;
   onExpandAll: () => void;
   onCollapseAll: () => void;
+  onResetView: () => void;
   layoutMode: 'hierarchical' | 'force' | 'radial';
   onLayoutChange: (mode: 'hierarchical' | 'force' | 'radial') => void;
 }
@@ -34,6 +35,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
   onLayerToggle,
   onExpandAll,
   onCollapseAll,
+  onResetView,
   layoutMode,
   onLayoutChange,
 }) => {
@@ -106,12 +108,18 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
       </div>
 
       {/* View Controls */}
-      <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 flex gap-2">
-        <Button size="sm" variant="outline" onClick={onExpandAll} className="flex-1 h-8 text-xs">
-          Expand All
-        </Button>
-        <Button size="sm" variant="outline" onClick={onCollapseAll} className="flex-1 h-8 text-xs">
-          Collapse All
+      <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onExpandAll} className="flex-1 h-8 text-xs">
+            Expand All
+          </Button>
+          <Button size="sm" variant="outline" onClick={onCollapseAll} className="flex-1 h-8 text-xs">
+            Collapse All
+          </Button>
+        </div>
+        <Button size="sm" variant="outline" onClick={onResetView} className="h-8 text-xs w-full border-blue-500/40 text-blue-400 hover:bg-blue-500/10">
+          <RotateCcw size={12} className="mr-1.5" />
+          Reset Default View
         </Button>
       </div>
     </div>

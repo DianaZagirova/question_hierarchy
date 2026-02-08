@@ -23,6 +23,9 @@ function App() {
   const [selectedL3Id, setSelectedL3Id] = useState<string | null>(null); // For single-L3 pipeline
   const [selectedL4Id, setSelectedL4Id] = useState<string | null>(null); // For single-L4 pipeline
   const [globalLens, setGlobalLens] = useState<string>(''); // Global lens for all agents
+  const [lensKey, setLensKey] = useState<string>(''); // Which preset is selected (or 'custom')
+  const [customLensText, setCustomLensText] = useState<string>(''); // Freeform custom lens
+  const [editedLensDescriptions, setEditedLensDescriptions] = useState<Record<string, string>>({}); // Overrides for preset descriptions
   const [useImprovedGraph, setUseImprovedGraph] = useState(true); // Toggle for improved graph visualization
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { 
@@ -225,31 +228,91 @@ function App() {
                   Epistemic Lens (Optional)
                 </label>
                 <select
-                  value={globalLens}
-                  onChange={(e) => setGlobalLens(e.target.value)}
+                  value={lensKey}
+                  onChange={(e) => {
+                    const key = e.target.value;
+                    setLensKey(key);
+                    if (key === '') {
+                      setGlobalLens('');
+                    } else if (key === 'custom') {
+                      setGlobalLens(customLensText);
+                    } else {
+                      const presets: Record<string, string> = {
+                        dca: "Distributed Consensus Architecture. View Homo sapiens as a multi-agent system where health is a 'collective agreement' between subsystems. Aging is not 'breaking,' it is 'de-synchronization' or 'loss of consensus' where individual parts stop following the global protocol.",
+                        itec: "Information Theory & Error Correction. View aging as progressive accumulation of errors in biological information processing, storage, and transmission. Health is high-fidelity information flow; aging is rising noise and corrupted signals.",
+                        cas: "Complex Adaptive Systems. View the organism as a network of interacting agents with emergent properties. Aging is loss of network robustness, reduced adaptability, and failure of distributed coordination.",
+                        re: "Reliability Engineering. View the body as a mission-critical system with redundancy, fault tolerance, and graceful degradation. Aging is the progressive loss of safety margins and backup systems.",
+                        ccs: "Cybernetic Control Systems. View health as stable homeostatic regulation via feedback loops. Aging is drift in setpoints, degraded sensor accuracy, and weakened actuator response.",
+                      };
+                      setGlobalLens(editedLensDescriptions[key] || presets[key] || '');
+                    }
+                  }}
                   className="w-full bg-secondary/30 border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                 >
-                  <option value="">No lens selected (agents will use their defaults)</option>
-                  <option value="Distributed Consensus Architecture. View Homo sapiens as a multi-agent system where health is a 'collective agreement' between subsystems. Aging is not 'breaking,' it is 'de-synchronization' or 'loss of consensus' where individual parts stop following the global protocol.">
-                    Distributed Consensus Architecture
-                  </option>
-                  <option value="Information Theory & Error Correction. View aging as progressive accumulation of errors in biological information processing, storage, and transmission. Health is high-fidelity information flow; aging is rising noise and corrupted signals.">
-                    Information Theory & Error Correction
-                  </option>
-                  <option value="Complex Adaptive Systems. View the organism as a network of interacting agents with emergent properties. Aging is loss of network robustness, reduced adaptability, and failure of distributed coordination.">
-                    Complex Adaptive Systems
-                  </option>
-                  <option value="Reliability Engineering. View the body as a mission-critical system with redundancy, fault tolerance, and graceful degradation. Aging is the progressive loss of safety margins and backup systems.">
-                    Reliability Engineering
-                  </option>
-                  <option value="Cybernetic Control Systems. View health as stable homeostatic regulation via feedback loops. Aging is drift in setpoints, degraded sensor accuracy, and weakened actuator response.">
-                    Cybernetic Control Systems
-                  </option>
+                  <option value="">No lens selected (agents use defaults)</option>
+                  <option value="dca">Distributed Consensus Architecture</option>
+                  <option value="itec">Information Theory & Error Correction</option>
+                  <option value="cas">Complex Adaptive Systems</option>
+                  <option value="re">Reliability Engineering</option>
+                  <option value="ccs">Cybernetic Control Systems</option>
+                  <option value="custom">Custom Lens...</option>
                 </select>
-                {globalLens && (
-                  <p className="text-xs text-muted-foreground mt-1.5 italic">
-                    {globalLens}
-                  </p>
+
+                {/* Editable description for preset lenses */}
+                {lensKey && lensKey !== 'custom' && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Lens Description (editable)</span>
+                      {editedLensDescriptions[lensKey] && (
+                        <button
+                          onClick={() => {
+                            const presets: Record<string, string> = {
+                              dca: "Distributed Consensus Architecture. View Homo sapiens as a multi-agent system where health is a 'collective agreement' between subsystems. Aging is not 'breaking,' it is 'de-synchronization' or 'loss of consensus' where individual parts stop following the global protocol.",
+                              itec: "Information Theory & Error Correction. View aging as progressive accumulation of errors in biological information processing, storage, and transmission. Health is high-fidelity information flow; aging is rising noise and corrupted signals.",
+                              cas: "Complex Adaptive Systems. View the organism as a network of interacting agents with emergent properties. Aging is loss of network robustness, reduced adaptability, and failure of distributed coordination.",
+                              re: "Reliability Engineering. View the body as a mission-critical system with redundancy, fault tolerance, and graceful degradation. Aging is the progressive loss of safety margins and backup systems.",
+                              ccs: "Cybernetic Control Systems. View health as stable homeostatic regulation via feedback loops. Aging is drift in setpoints, degraded sensor accuracy, and weakened actuator response.",
+                            };
+                            const updated = { ...editedLensDescriptions };
+                            delete updated[lensKey];
+                            setEditedLensDescriptions(updated);
+                            setGlobalLens(presets[lensKey] || '');
+                          }}
+                          className="text-[10px] text-amber-400 hover:text-amber-300"
+                        >
+                          Reset to default
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={globalLens}
+                      onChange={(e) => {
+                        setGlobalLens(e.target.value);
+                        setEditedLensDescriptions(prev => ({ ...prev, [lensKey]: e.target.value }));
+                      }}
+                      rows={3}
+                      className="w-full bg-secondary/30 border border-border/50 rounded-md px-3 py-2 text-xs text-foreground font-mono leading-relaxed focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all resize-y"
+                    />
+                  </div>
+                )}
+
+                {/* Custom lens freeform input */}
+                {lensKey === 'custom' && (
+                  <div className="mt-2">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">
+                      Write your own epistemic lens
+                    </span>
+                    <textarea
+                      value={customLensText}
+                      onChange={(e) => {
+                        setCustomLensText(e.target.value);
+                        setGlobalLens(e.target.value);
+                      }}
+                      placeholder="Describe a conceptual framework through which all agents should interpret the problem..."
+                      rows={4}
+                      className="w-full bg-secondary/30 border border-border/50 rounded-md px-3 py-2 text-xs text-foreground font-mono leading-relaxed focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all resize-y"
+                    />
+                  </div>
                 )}
               </div>
             </div>
