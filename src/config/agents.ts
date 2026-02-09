@@ -129,6 +129,7 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
       },
       availableLenses: [
         'Distributed Consensus Architecture. View Homo sapiens as a multi-agent system where health is a \'collective agreement\' between subsystems. Aging is not \'breaking,\' it is \'de-synchronization\' or \'loss of consensus\' where individual parts stop following the global protocol.',
+        'Synchronization & Phase Transition Architecture. View Homo sapiens as a coupled oscillator system where coordinated vitality emerges from dynamic synchronization across scales. Health is emergent spatio-temporal order; aging is progressive phase-desynchronization, resonance overload, or fragmentation of collective rhythms. Catastrophe arises when synchronization is lost or feedback loops spiral into instability.',
         'Information Theory & Error Correction. View aging as progressive accumulation of errors in biological information processing, storage, and transmission. Health is high-fidelity information flow; aging is rising noise and corrupted signals.',
         'Complex Adaptive Systems. View the organism as a network of interacting agents with emergent properties. Aging is loss of network robustness, reduced adaptability, and failure of distributed coordination.',
         'Reliability Engineering. View the body as a mission-critical system with redundancy, fault tolerance, and graceful degradation. Aging is the progressive loss of safety margins and backup systems.',

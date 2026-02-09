@@ -1,0 +1,25 @@
+# ============================================================
+# OMEGA-POINT — Docker Compose
+# ============================================================
+# Usage:
+#   cp .env.production.example .env   # configure your API keys
+#   docker compose up --build -d      # build & start
+#   docker compose logs -f            # view logs
+#   docker compose down               # stop
+# ============================================================
+
+services:
+  omega-point:
+    build: .
+    container_name: omega-point
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:${PORT:-3001}"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=${PORT:-3001}
+      - HOST=0.0.0.0
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-300}
