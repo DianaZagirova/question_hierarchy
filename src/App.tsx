@@ -17,7 +17,7 @@ import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield,
 function App() {
   const [activeTab, setActiveTab] = useState<'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
   const [scientificPillars, setScientificPillars] = useState<any>(null);
-  const [splitRatio, setSplitRatio] = useState(35); // Percentage for pipeline width
+  const [splitRatio, setSplitRatio] = useState(27); // Percentage for pipeline width
   const [isDragging, setIsDragging] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null); // For single-goal pipeline
   const [selectedL3Id, setSelectedL3Id] = useState<string | null>(null); // For single-L3 pipeline
@@ -151,7 +151,7 @@ function App() {
         </div>
       </header>
 
-      <div className="relative z-10 container mx-auto p-6">
+      <div className="relative z-10 max-w-[90vw] mx-auto px-4 py-6">
 
         {/* Goal Input */}
         <Card className="mb-6 neon-border bg-card/50 backdrop-blur-sm shadow-[0_0_30px_rgba(34,197,94,0.1)]">
