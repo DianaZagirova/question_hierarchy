@@ -22,7 +22,7 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
     setExpandedSections(newExpanded);
   };
 
-  const renderGoalPillar = (goal: any, index: number) => {
+  const renderGoalPillar = (goal: any, index: number, bridgeLex?: any) => {
     const failureChannels = goal.bridge_tags?.failure_channels || [];
     const systemProps = goal.bridge_tags?.system_properties_required || [];
     
@@ -64,22 +64,34 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
               {failureChannels.length > 0 && (
                 <div className="bg-pink-500/10 p-2 rounded border border-pink-500/30">
                   <p className="text-xs font-semibold text-pink-400">Failure Channels</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {failureChannels.map((fcc: string, i: number) => (
-                      <span key={i} className="text-xs bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded border border-pink-500/30">{fcc}</span>
-                    ))}
+                  <div className="space-y-1 mt-1">
+                    {failureChannels.map((fcc: string, i: number) => {
+                      const fccInfo = lookupBridgeLexiconItem(fcc, bridgeLex);
+                      return (
+                        <div key={i} className="text-xs bg-pink-500/20 text-pink-300 px-2 py-1 rounded border border-pink-500/30">
+                          <span className="font-mono">{fcc}</span>
+                          {fccInfo && <span className="text-pink-200 ml-1">— {fccInfo.name}</span>}
+                          {fccInfo?.definition && <p className="text-[10px] text-foreground/60 mt-0.5 leading-relaxed">{fccInfo.definition}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
               {systemProps.length > 0 && (
                 <div className="bg-amber-500/10 p-2 rounded border border-amber-500/30">
                   <p className="text-xs font-semibold text-amber-400">System Properties</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {systemProps.map((spv: any, i: number) => (
-                      <span key={i} className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
-                        {spv.spv_id} ({spv.importance})
-                      </span>
-                    ))}
+                  <div className="space-y-1 mt-1">
+                    {systemProps.map((spv: any, i: number) => {
+                      const spvInfo = lookupBridgeLexiconItem(spv.spv_id, bridgeLex);
+                      return (
+                        <div key={i} className="text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded border border-amber-500/30">
+                          <span className="font-mono">{spv.spv_id}</span> <span className="text-amber-400/60">({spv.importance})</span>
+                          {spvInfo && <span className="text-amber-200 ml-1">— {spvInfo.name}</span>}
+                          {spvInfo?.definition && <p className="text-[10px] text-foreground/60 mt-0.5 leading-relaxed">{spvInfo.definition}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -568,7 +580,7 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
                 {expandedSections.has('goals') ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                 Goal Pillars ({goals.length})
               </button>
-              {expandedSections.has('goals') && goals.map(renderGoalPillar)}
+              {expandedSections.has('goals') && goals.map((goal: any, i: number) => renderGoalPillar(goal, i, bridgeLexicon))}
             </div>
           )}
           
@@ -1110,6 +1122,48 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               {nodeData.evidence_of_state.meter_status && (
                 <p className="text-xs mt-2 text-foreground">Status: {nodeData.evidence_of_state.meter_status}</p>
               )}
+            </div>
+          )}
+          {nodeData.bridge_tags?.failure_channels?.length > 0 && (
+            <div className="bg-pink-500/10 border border-pink-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-pink-400 mb-2">Failure Channels</p>
+              <div className="space-y-1.5">
+                {nodeData.bridge_tags.failure_channels.map((fccId: string, i: number) => {
+                  const fccInfo = lookupBridgeLexiconItem(fccId, bridgeLexicon);
+                  return (
+                    <div key={i} className="bg-pink-500/10 border border-pink-500/20 rounded p-2">
+                      <p className="text-xs font-mono text-pink-300">{fccId}</p>
+                      {fccInfo && (
+                        <div className="mt-1">
+                          <p className="text-xs font-semibold text-pink-200">{fccInfo.name}</p>
+                          {fccInfo.definition && <p className="text-xs text-foreground/70 leading-relaxed mt-0.5">{fccInfo.definition}</p>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {nodeData.bridge_tags?.system_properties_required?.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded">
+              <p className="text-xs font-semibold text-amber-400 mb-2">System Properties</p>
+              <div className="space-y-1.5">
+                {nodeData.bridge_tags.system_properties_required.map((sp: any, i: number) => {
+                  const spvInfo = lookupBridgeLexiconItem(sp.spv_id, bridgeLexicon);
+                  return (
+                    <div key={i} className="bg-amber-500/10 border border-amber-500/20 rounded p-2">
+                      <p className="text-xs font-mono text-amber-300">{sp.spv_id} <span className="text-amber-400/60">({sp.importance})</span></p>
+                      {spvInfo && (
+                        <div className="mt-1">
+                          <p className="text-xs font-semibold text-amber-200">{spvInfo.name}</p>
+                          {spvInfo.definition && <p className="text-xs text-foreground/70 leading-relaxed mt-0.5">{spvInfo.definition}</p>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
           {nodeData.scope_note && (
