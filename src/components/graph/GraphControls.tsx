@@ -42,7 +42,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
   return (
     <div className="absolute top-4 left-4 z-10 flex flex-row items-start gap-2">
       {/* Column 1: Search + Visible Layers */}
-      <div className="flex flex-col gap-2 w-[200px]">
+      <div className="flex flex-col gap-2 w-[115px]">
         <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -60,7 +60,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs font-semibold">Visible Layers</span>
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5">
             {LAYERS.map((layer) => (
               <button
                 key={layer.id}
@@ -80,34 +80,32 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
             ))}
           </div>
         </div>
-      </div>
-
-      {/* Column 2: Layout */}
-      <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[100px]">
-        <div className="flex items-center gap-2 mb-2">
-          <Layers className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-semibold">Layout</span>
-        </div>
-        <div className="flex flex-col gap-1">
-          {(['hierarchical', 'force', 'radial'] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => onLayoutChange(mode)}
-              className={`
-                px-2 py-1.5 rounded text-[10px] font-medium transition-all capitalize
-                ${layoutMode === mode
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                }
-              `}
-            >
-              {mode}
-            </button>
-          ))}
+        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <Layers className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-semibold">Layout</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            {(['hierarchical', 'force', 'radial'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => onLayoutChange(mode)}
+                className={`
+                  px-2 py-1.5 rounded text-[10px] font-medium transition-all capitalize
+                  ${layoutMode === mode
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }
+                `}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Column 3: Collapse / Expand / Reset */}
+      {/* Column 2: Collapse / Expand / Reset */}
       <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[120px] flex flex-col gap-1.5">
         <Button size="sm" variant="outline" onClick={onExpandAll} className="w-full h-8 text-xs">
           Expand All

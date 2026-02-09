@@ -35,14 +35,15 @@ COPY server/app.py /app/server/app.py
 COPY --from=frontend /app/dist /app/dist
 
 # Environment defaults (override via docker-compose or docker run -e)
-ENV NODE_ENV=production \
-    PORT=3001 \
+ENV PYTHONUNBUFFERED=1 \
+    NODE_ENV=production \
+    PORT=3002 \
     HOST=0.0.0.0 \
     GUNICORN_WORKERS=4 \
     GUNICORN_TIMEOUT=300 \
     API_PROVIDER=openai
 
-EXPOSE 3001
+EXPOSE 3002
 
 CMD gunicorn \
     --chdir server \
@@ -51,5 +52,7 @@ CMD gunicorn \
     --timeout "${GUNICORN_TIMEOUT}" \
     --access-logfile - \
     --error-logfile - \
+    --capture-output \
+    --enable-stdio-inheritance \
     --log-level info \
     app:app

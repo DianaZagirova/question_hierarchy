@@ -252,7 +252,7 @@ function App() {
                   }}
                   className="w-full bg-secondary/30 border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                 >
-                  <option value="">No lens selected (agents use defaults)</option>
+                  <option value="">No specific focus</option>
                   <option value="dca">Distributed Consensus Architecture</option>
                   <option value="itec">Information Theory & Error Correction</option>
                   <option value="cas">Complex Adaptive Systems</option>

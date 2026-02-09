@@ -7,10 +7,8 @@ export function interpolatePrompt(agent: AgentConfig, globalLens?: string): stri
   let prompt = agent.systemPrompt;
   
   // Replace lens placeholder with priority: globalLens > selectedLens > agent.lens
-  const effectiveLens = globalLens || agent.settings?.selectedLens || agent.lens;
-  if (effectiveLens) {
-    prompt = prompt.replace(/\{\{LENS\}\}/g, effectiveLens);
-  }
+  const effectiveLens = globalLens || agent.settings?.selectedLens || agent.lens || 'No specific focus';
+  prompt = prompt.replace(/\{\{LENS\}\}/g, effectiveLens);
   
   // Replace node count placeholders (min, max, and target/default)
   if (agent.settings?.nodeCount) {

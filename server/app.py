@@ -104,11 +104,9 @@ def interpolate_prompt(agent_config, global_lens=None):
     prompt = agent_config['systemPrompt']
     
     # Determine effective lens: globalLens takes priority
-    effective_lens = global_lens or agent_config.get('settings', {}).get('selectedLens') or agent_config.get('lens')
-    
-    if effective_lens:
-        prompt = re.sub(r'\{\{LENS\}\}', effective_lens, prompt)
-        prompt = prompt.replace('[LENS]', effective_lens)  # Legacy support
+    effective_lens = global_lens or agent_config.get('settings', {}).get('selectedLens') or agent_config.get('lens') or 'No specific focus'
+    prompt = re.sub(r'\{\{LENS\}\}', effective_lens, prompt)
+    prompt = prompt.replace('[LENS]', effective_lens)  # Legacy support
     
     # Replace node count placeholders (min, max, and target/default)
     if agent_config.get('settings', {}).get('nodeCount'):

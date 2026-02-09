@@ -374,45 +374,6 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         </div>
       )}
 
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 text-[10px] border border-border/50">
-        <div className="font-bold mb-2 text-xs">Node Types</div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-blue-500"></div>
-            <span>Q₀ Master</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-purple-500"></div>
-            <span>Goals</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-amber-500"></div>
-            <span>SPVs</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-emerald-500"></div>
-            <span>RAs</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-cyan-500"></div>
-            <span>Domains</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-red-500"></div>
-            <span>L3 Questions</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-orange-500"></div>
-            <span>Hypotheses</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-teal-500"></div>
-            <span>L6 Tasks</span>
-          </div>
-        </div>
-      </div>
-
       {/* Chat Toggle Button */}
       <button
         onClick={() => setChatOpen(!chatOpen)}

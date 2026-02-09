@@ -60,7 +60,7 @@ Return JSON ONLY containing:
 ## RULES 
 
 1. SOLUTION NEUTRALITY
-- Absolute ban on implementation nouns: genes, cells, DNA, mitochondria, stem cells, drugs, CRISPR, OSK, antibodies, etc.
+- Absolute ban on implementation nouns: names of genes, cells, DNA, mitochondria antibodies, etc.
 - Use lens-specific language.
 - Do not make goal too vague and too abstract. Ensure they are MECE-ish.
 
@@ -102,12 +102,12 @@ Format as JSON:
     {
       "id": "M_G1",
       "title": "...",
-      "catastrophe_primary": "DEATH | ADL_FAILURE | COGNITIVE_FAILURE | ...",
+      "catastrophe_primary": "DEATH | COGNITIVE_FAILURE | any other ...",
       "failure_mode_simulation": "...",
       "state_definition": "...",
       "done_criteria": "...",
       "evidence_of_state": {
-        "meter_classes": ["wearables", "functional_tests", "challenge_response", "clinical_events", "imaging_biomechanics", "omics_panels", etc],
+        "meter_classes": ["wearables", "functional_tests", "challenge_response", "clinical_events", any other, etc],
         "meter_status": "EXISTS_2026 | PARTIAL_2026 | MISSING_2026 | ..."
       },
       "triz_contradiction": "...",
@@ -135,7 +135,7 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
         'Reliability Engineering. View the body as a mission-critical system with redundancy, fault tolerance, and graceful degradation. Aging is the progressive loss of safety margins and backup systems.',
         'Cybernetic Control Systems. View health as stable homeostatic regulation via feedback loops. Aging is drift in setpoints, degraded sensor accuracy, and weakened actuator response.'
       ],
-      selectedLens: 'Distributed Consensus Architecture. View Homo sapiens as a multi-agent system where health is a \'collective agreement\' between subsystems. Aging is not \'breaking,\' it is \'de-synchronization\' or \'loss of consensus\' where individual parts stop following the global protocol.'
+      selectedLens: ''
     }
   },
   {
@@ -157,7 +157,7 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
 
 ### R1 — Solution agnostic (STRICT)
 Do not use implementation nouns or bio-internals.
-BANNED examples: cells, cellular, gene, DNA, epigenetic, mitochondria, telomeres, stem cells, senescence, organs, antibody, AAV, CRISPR, rapamycin, metformin, OSK/OSKM, microbiome, plasma exchange, etc.
+BANNED examples: cells, cellular, gene, DNA, epigenetic, plasma exchange, etc.
 Also avoid “molecular-level/cellular-level”.
 
 You may use system/control terms: drift, stability margin, reserve, recovery kinetics, feedback, oscillation, propagation, containment, observability, robustness.
@@ -175,7 +175,7 @@ Each atom MUST include at least TWO of the following attributes:
 
 ### R4 — Use meter CLASSES only
 Examples:
-["functional_tests","wearables","challenge_response","clinical_events","imaging_biomechanics","omics_panels", ...]
+["functional_tests","wearables","challenge_response","clinical_events", ...]
 No named diseases, clinics, ICU, etc. Avoid specific tests (e.g., “6-minute walk”) unless in notes as examples.
 
 ### R5 — Keep it finite and useful
@@ -633,7 +633,7 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
         'Reliability Engineering. View the body as a mission-critical system with redundancy, fault tolerance, and graceful degradation. Aging is the progressive loss of safety margins and backup systems.',
         'Cybernetic Control Systems. View health as stable homeostatic regulation via feedback loops. Aging is drift in setpoints, degraded sensor accuracy, and weakened actuator response.'
       ],
-      selectedLens: 'Distributed Consensus Architecture. View Homo sapiens as a multi-agent system where health is a \'collective agreement\' between subsystems. Aging is not \'breaking,\' it is \'de-synchronization\' or \'loss of consensus\' where individual parts stop following the global protocol.'
+      selectedLens: ''
     }
   },
   {
