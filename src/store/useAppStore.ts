@@ -19,6 +19,7 @@ interface AppStore extends AppState {
   setSelectedGoalId: (goalId: string | null) => void;
   setSelectedL3Id: (l3Id: string | null) => void;
   setSelectedL4Id: (l4Id: string | null) => void;
+  updateNodeData: (stepId: number, path: string[], updatedData: any) => void;
 }
 
 const initialSteps: PipelineStep[] = [
@@ -214,6 +215,69 @@ export const useAppStore = create<AppStore>()(
 
       setSelectedL4Id: (l4Id: string | null) => {
         set({ selectedL4Id: l4Id });
+      },
+
+      updateNodeData: (stepId: number, path: string[], updatedData: any) => {
+        set((state) => {
+          const steps = [...state.steps];
+          const step = steps.find(s => s.id === stepId);
+
+          if (!step || !step.output) {
+            console.warn(`[Store] Cannot update node: Step ${stepId} not found or has no output`);
+            return state;
+          }
+
+          let newOutput;
+
+          // Special case: empty path means replace/merge the entire output (e.g., for Q0)
+          if (path.length === 0) {
+            // Deep clone the output
+            newOutput = JSON.parse(JSON.stringify(step.output));
+            // Merge updated data with existing output
+            if (typeof newOutput === 'object' && !Array.isArray(newOutput)) {
+              newOutput = { ...newOutput, ...updatedData };
+            } else {
+              // If output is not an object, replace it entirely
+              newOutput = updatedData;
+            }
+          } else {
+            // Deep clone the step output to avoid mutation
+            newOutput = JSON.parse(JSON.stringify(step.output));
+
+            // Navigate to the target object using the path
+            let target = newOutput;
+            for (let i = 0; i < path.length - 1; i++) {
+              const key = path[i];
+              if (target[key] === undefined) {
+                console.warn(`[Store] Path not found at key: ${key}`);
+                return state;
+              }
+              target = target[key];
+            }
+
+            // Get the final key and the object to update
+            const finalKey = path[path.length - 1];
+
+            if (typeof target[finalKey] === 'object' && !Array.isArray(target[finalKey])) {
+              // Merge the updated data with existing data (preserving keys not in updatedData)
+              target[finalKey] = { ...target[finalKey], ...updatedData };
+            } else {
+              // For arrays or primitive values, replace entirely
+              target[finalKey] = updatedData;
+            }
+          }
+
+          // Update the step
+          const updatedSteps = steps.map(s =>
+            s.id === stepId
+              ? { ...s, output: newOutput, timestamp: new Date() }
+              : s
+          );
+
+          console.log(`[Store] Node data updated for Step ${stepId} at path:`, path);
+
+          return { steps: updatedSteps };
+        });
       },
     }),
     {

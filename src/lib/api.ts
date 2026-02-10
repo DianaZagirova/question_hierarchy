@@ -239,4 +239,76 @@ export const testConnection = async (): Promise<boolean> => {
   }
 };
 
+// ─── Node Improvement: LLM-powered node data improvement ───────────
+export interface NodeImprovementParams {
+  nodeData: any;
+  nodeType: string;
+  nodeLabel: string;
+  contextNodes: any[];
+  q0: string;
+  goal: string;
+  lens: string;
+  model: string;
+  temperature: number;
+  customPrompt?: string;
+}
+
+/**
+ * Stream an LLM response to improve node data.
+ * Returns an abort function.
+ */
+export const streamNodeImprovement = (
+  params: NodeImprovementParams,
+  onToken: (token: string) => void,
+  onDone: () => void,
+  onError?: (error: string) => void,
+): (() => void) => {
+  const controller = new AbortController();
+
+  fetch(`${API_URL}/api/improve-node`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+    signal: controller.signal,
+  })
+    .then(async (response) => {
+      if (!response.ok || !response.body) {
+        onError?.(`HTTP ${response.status}`);
+        onDone();
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.token) onToken(data.token);
+            if (data.error) onError?.(data.error);
+            if (data.done) { onDone(); return; }
+          } catch { /* skip malformed */ }
+        }
+      }
+      onDone();
+    })
+    .catch((err) => {
+      if (err.name !== 'AbortError') {
+        onError?.(err.message);
+      }
+      onDone();
+    });
+
+  return () => controller.abort();
+};
+
 export default api;

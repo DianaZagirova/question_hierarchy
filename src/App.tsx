@@ -6,13 +6,12 @@ import { loadPipelineJSON, saveToFile, saveInputsOutputs } from './lib/fileIO';
 import { SessionSwitcher } from './components/SessionSwitcher';
 import { AgentCard } from './components/AgentCard';
 import { PipelineView } from './components/PipelineView';
-import { GraphVisualization } from './components/GraphVisualization';
 import { GraphVisualizationWrapper } from './components/GraphVisualizationWrapper';
 import { ParticleBackground } from './components/ParticleBackground';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
-import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2 } from 'lucide-react';
+import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
@@ -26,7 +25,7 @@ function App() {
   const [lensKey, setLensKey] = useState<string>(''); // Which preset is selected (or 'custom')
   const [customLensText, setCustomLensText] = useState<string>(''); // Freeform custom lens
   const [editedLensDescriptions, setEditedLensDescriptions] = useState<Record<string, string>>({}); // Overrides for preset descriptions
-  const [useImprovedGraph, setUseImprovedGraph] = useState(true); // Toggle for improved graph visualization
+  const [zenMode, setZenMode] = useState(false); // Zen mode - show only graph and minimap
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { 
     currentGoal, 
@@ -709,18 +708,25 @@ function App() {
               <div className="flex items-center justify-between p-4 border-b border-border/30">
                 <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
                 <button
-                  onClick={() => setUseImprovedGraph(!useImprovedGraph)}
-                  className="px-3 py-1 text-xs bg-primary/20 hover:bg-primary/30 rounded transition-colors"
+                  onClick={() => setZenMode(!zenMode)}
+                  className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/40 hover:border-purple-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                  title={zenMode ? "Show all controls" : "Hide controls (zen mode)"}
                 >
-                  {useImprovedGraph ? 'Legacy View' : 'Modern View'}
+                  {zenMode ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Full View</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Zen Mode</span>
+                    </>
+                  )}
                 </button>
               </div>
               <div className="h-[calc(100%-70px)]">
-                {useImprovedGraph ? (
-                  <GraphVisualizationWrapper steps={steps} />
-                ) : (
-                  <GraphVisualization steps={steps} />
-                )}
+                <GraphVisualizationWrapper steps={steps} zenMode={zenMode} />
               </div>
             </div>
           </div>
@@ -770,18 +776,25 @@ function App() {
             <div className="flex items-center justify-between p-4 border-b border-border/30">
               <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
               <button
-                onClick={() => setUseImprovedGraph(!useImprovedGraph)}
-                className="px-3 py-1 text-xs bg-primary/20 hover:bg-primary/30 rounded transition-colors"
+                onClick={() => setZenMode(!zenMode)}
+                className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/40 hover:border-purple-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                title={zenMode ? "Show all controls" : "Hide controls (zen mode)"}
               >
-                {useImprovedGraph ? 'Legacy View' : 'Modern View'}
+                {zenMode ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5" />
+                    <span>Full View</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Zen Mode</span>
+                  </>
+                )}
               </button>
             </div>
             <div className="h-[calc(100%-60px)]">
-              {useImprovedGraph ? (
-                <GraphVisualizationWrapper steps={steps} />
-              ) : (
-                <GraphVisualization steps={steps} />
-              )}
+              <GraphVisualizationWrapper steps={steps} zenMode={zenMode} />
             </div>
           </div>
         )}

@@ -983,10 +983,142 @@ Be brutally critical — do NOT force unification if the tasks are fundamentally
 # ============================================================
 # NODE CHAT: Chat with LLM about selected graph nodes
 # ============================================================
+@app.route('/api/improve-node', methods=['POST'])
+def improve_node():
+    """Stream an LLM response to improve a node's data.
+
+    Takes the current node data, context nodes, Q0, goal, lens, and returns
+    improved JSON data while preserving structure and keys.
+    """
+    data = request.json
+    node_data = data.get('nodeData', {})
+    node_type = data.get('nodeType', 'unknown')
+    node_label = data.get('nodeLabel', 'Node')
+    context_nodes = data.get('contextNodes', [])
+    q0 = data.get('q0', '')
+    goal = data.get('goal', '')
+    lens = data.get('lens', '')
+    model = data.get('model', 'gpt-4.1')
+    temperature = float(data.get('temperature', 0.7))
+    custom_prompt = data.get('customPrompt', '')
+
+    # Build system prompt for node improvement
+    system_prompt = f"""You are an expert scientific research assistant for the Omega Point project. Your task is to improve and refine the data for a specific node in a hierarchical knowledge graph.
+
+## MASTER PROJECT CONTEXT
+
+**Master Question (Q0):**
+{q0 if q0 else 'Not specified'}
+
+**Current Goal:**
+{goal if goal else 'Not specified'}
+
+**Epistemic Lens:**
+{lens if lens else 'None specified'}
+
+## NODE TO IMPROVE
+
+**Node Type:** {node_type}
+**Node Label:** {node_label}
+
+**Current Node Data:**
+{json.dumps(node_data, indent=2)}
+
+## CONTEXT NODES (for reference)
+
+{json.dumps(context_nodes, indent=2) if context_nodes else 'No additional context nodes provided'}
+
+## INSTRUCTIONS
+
+1. **Improve the Content**: Enhance descriptions, rationales, mechanisms, and text fields to be more:
+   - Precise and technically accurate
+   - Detailed and comprehensive
+   - Well-structured and clear
+   - Scientifically rigorous
+   - Aligned with the project's Q0 and epistemic lens
+
+2. **CRITICAL: Preserve Structure**
+   - Keep ALL existing keys/fields
+   - Do NOT add new top-level keys
+   - Do NOT remove any keys
+   - Do NOT change IDs (id, parent_node_id, parent_goal_id, etc.)
+   - Do NOT change type fields
+   - Do NOT change numerical scores unless clearly improving accuracy
+   - ONLY improve textual content, descriptions, and rationales
+
+3. **Output Format**
+   - Return ONLY valid JSON matching the exact structure of the input
+   - No markdown, no code blocks, no explanations
+   - Just the improved JSON object
+
+4. **Quality Standards**
+   - Be specific rather than vague
+   - Use concrete examples where appropriate
+   - Maintain scientific accuracy
+   - Ensure consistency with project context
+   - Avoid generic or placeholder text
+"""
+
+    # Append custom instructions if provided
+    if custom_prompt and custom_prompt.strip():
+        system_prompt += f"""
+
+## ADDITIONAL CUSTOM INSTRUCTIONS
+
+{custom_prompt.strip()}
+
+**Important:** Apply these custom instructions while still following all structure preservation rules above.
+"""
+
+    system_prompt += "\n\nReturn the improved node data as a single JSON object now:"
+
+    # User prompt with current data
+    user_prompt = f"Please improve this {node_type} node data while preserving all keys and structure:\n\n{json.dumps(node_data, indent=2)}"
+
+    def generate():
+        try:
+            resolved = resolve_model(model)
+            api_kwargs = dict(
+                model=resolved,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=temperature,
+                max_tokens=4096,
+                stream=True,
+                response_format={"type": "json_object"},
+            )
+            if API_PROVIDER == 'openrouter':
+                api_kwargs['extra_headers'] = {
+                    'HTTP-Referer': 'https://omega-point.local',
+                    'X-Title': 'Omega Point Node Improvement',
+                }
+
+            stream = client.chat.completions.create(**api_kwargs)
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    yield f"data: {json.dumps({'token': token})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as e:
+            print(f"[Node Improvement] Error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
+
 @app.route('/api/node-chat', methods=['POST'])
 def node_chat():
     """Stream a chat response about selected graph nodes.
-    
+
     Always includes Q0, goal, and lens in the system context.
     Accepts conversation history for multi-turn chat.
     """

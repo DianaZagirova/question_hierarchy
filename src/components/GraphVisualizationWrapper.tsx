@@ -7,6 +7,7 @@ interface GraphVisualizationWrapperProps {
   steps: PipelineStep[];
   highlightedNodeId?: string | null;
   onNodeHighlight?: (nodeId: string | null, nodeType: string | null) => void;
+  zenMode?: boolean;
 }
 
 export const GraphVisualizationWrapper: React.FC<GraphVisualizationWrapperProps> = (props) => {
