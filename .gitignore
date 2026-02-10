@@ -44,5 +44,6 @@ server/env/
 build
 
 #Markdown files
-*.md
+*.md 
 ./docs
+!README.md    
