@@ -187,41 +187,58 @@ export const NodeChat: React.FC<NodeChatProps> = ({
       </div>
 
       {/* Selected Nodes Chips */}
-      <div className="px-3 py-2 border-b border-border/20 max-h-[120px] overflow-y-auto">
-        <div className="flex flex-wrap gap-1.5">
-          {selectedNodes.map(node => (
-            <div
-              key={node.id}
-              className={`
-                inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium
-                ${NODE_TYPE_COLORS[node.type] || 'bg-slate-500/20 border-slate-500/50 text-slate-300'}
-              `}
-            >
-              <span className="font-bold">{getNodeTypeLabel(node.type)}</span>
-              <span className="max-w-[120px] truncate opacity-80">
-                {node.label?.replace(/^(Q0|Goal|L\d|IH|RA|SPV|Domain):?\s*/i, '')}
+      <div className="px-4 py-3 border-b border-border/20 bg-secondary/5">
+        {selectedNodes.length === 0 ? (
+          <div className="flex items-center gap-2 py-2">
+            <div className="w-1 h-1 bg-primary/40 rounded-full animate-pulse" />
+            <p className="text-xs text-muted-foreground">
+              Click nodes in the graph (Ctrl/Cmd + Click) to add them to chat context
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground/80">
+                Selected Nodes ({selectedNodes.length})
               </span>
-              <button
-                onClick={() => onRemoveNode(node.id)}
-                className="ml-0.5 hover:text-red-400 transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
+              {selectedNodes.length > 1 && (
+                <button
+                  onClick={onClearNodes}
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-red-400 transition-all hover:gap-1.5"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Clear all
+                </button>
+              )}
             </div>
-          ))}
-          {selectedNodes.length > 1 && (
-            <button
-              onClick={onClearNodes}
-              className="text-[10px] text-muted-foreground hover:text-red-400 px-2 py-0.5 transition-colors"
-            >
-              Clear all
-            </button>
-          )}
-        </div>
-        {selectedNodes.length === 0 && (
-          <p className="text-[11px] text-muted-foreground italic py-1">
-            Click nodes in the graph to add them to the chat context
-          </p>
+            <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto">
+              {selectedNodes.map(node => (
+                <div
+                  key={node.id}
+                  className={`
+                    group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border
+                    transition-all duration-200 hover:shadow-md animate-in fade-in zoom-in-95 duration-200
+                    ${NODE_TYPE_COLORS[node.type] || 'bg-slate-500/20 border-slate-500/50 text-slate-300'}
+                  `}
+                >
+                  <span className="text-[9px] font-bold uppercase tracking-wide">
+                    {getNodeTypeLabel(node.type)}
+                  </span>
+                  <div className="w-px h-3 bg-current opacity-30" />
+                  <span className="max-w-[100px] truncate text-[11px] font-medium">
+                    {node.label?.replace(/^(Q0|Goal|L\d|IH|RA|SPV|Domain):?\s*/i, '')}
+                  </span>
+                  <button
+                    onClick={() => onRemoveNode(node.id)}
+                    className="ml-0.5 p-0.5 rounded hover:bg-red-500/30 hover:text-red-300 transition-all opacity-60 group-hover:opacity-100"
+                    title="Remove node"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

@@ -8,16 +8,17 @@ import { AgentCard } from './components/AgentCard';
 import { PipelineView } from './components/PipelineView';
 import { GraphVisualizationWrapper } from './components/GraphVisualizationWrapper';
 import { ParticleBackground } from './components/ParticleBackground';
+import { SystemOverview } from './components/SystemOverview';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
 import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
-import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info } from 'lucide-react';
 import { sessionManager } from './lib/sessionManager';
 import { stateSync } from './lib/stateSync';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
+  const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
   const [scientificPillars, setScientificPillars] = useState<any>(null);
   const [splitRatio, setSplitRatio] = useState(27); // Percentage for pipeline width
   const [isDragging, setIsDragging] = useState(false);
@@ -365,6 +366,17 @@ function App() {
         {/* Tabs */}
         <div className="flex gap-2 mb-6 bg-card/50 backdrop-blur-sm rounded-xl p-2 shadow-lg neon-border">
           <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
+              activeTab === 'overview'
+                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
+                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
+            }`}
+          >
+            <Info size={18} />
+            System Overview
+          </button>
+          <button
             onClick={() => setActiveTab('agents')}
             className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
               activeTab === 'agents'
@@ -433,6 +445,12 @@ function App() {
         </div>
 
         {/* Content */}
+        {activeTab === 'overview' && (
+          <div className="pb-12">
+            <SystemOverview />
+          </div>
+        )}
+
         {activeTab === 'split' && (
           <div ref={containerRef} className="flex gap-0 h-[800px] relative">
             <div

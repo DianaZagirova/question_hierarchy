@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import ReactFlow, {
   Node,
-  Controls,
   Background,
   useNodesState,
   useEdgesState,
@@ -564,12 +563,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         proOptions={{ hideAttribution: true }}
       >
         <Background color="hsl(var(--muted-foreground) / 0.15)" gap={16} />
-        <Controls
-          showZoom
-          showFitView
-          showInteractive
-          className="bg-card/95 backdrop-blur-sm border-border shadow-lg"
-        />
+        {/* Controls component removed - default zoom controls hidden */}
         <MiniMap
           nodeColor={(node) => {
             const type = node.data?.type;
@@ -605,8 +599,8 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         {/* Stats Panel - Hidden in Zen Mode */}
         {!zenMode && (
           <Panel position="top-right">
-            <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 text-xs">
-              <div className="font-bold mb-2">Graph Stats</div>
+            <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 text-xs w-[180px]">
+              <div className="font-semibold mb-2 text-sm">Graph Stats</div>
               <div className="space-y-1 text-[10px]">
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Total Nodes:</span>
@@ -723,20 +717,21 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         </div>
       )}
 
-      {/* Chat Toggle Button - Positioned to avoid MiniMap */}
-      <button
-        onClick={() => setChatOpen(!chatOpen)}
-        className={`
-          absolute bottom-4 right-[200px] z-20 flex items-center gap-2 px-4 py-2.5 rounded-xl
-          font-semibold text-sm shadow-lg transition-all duration-200
-          ${chatOpen
-            ? 'bg-primary/30 border-primary/60 text-primary hover:bg-primary/40'
-            : 'bg-card/95 border-border/50 text-foreground hover:bg-card hover:border-primary/40'
-          }
-          border backdrop-blur-sm hover:scale-105
-        `}
-        title="Chat with multiple nodes using AI"
-      >
+      {/* Chat Toggle Button - Top right, below Graph Stats */}
+      {!zenMode && (
+        <button
+          onClick={() => setChatOpen(!chatOpen)}
+          className={`
+            absolute top-36 right-4 z-20 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg
+            font-semibold text-sm shadow-lg transition-all duration-200 w-[180px]
+            ${chatOpen
+              ? 'bg-primary/30 border-primary/60 text-primary hover:bg-primary/40'
+              : 'bg-card/95 border-border/50 text-foreground hover:bg-card hover:border-primary/40'
+            }
+            border backdrop-blur-sm hover:scale-105
+          `}
+          title="Chat with multiple nodes using AI"
+        >
         <MessageSquare className="w-4 h-4" />
         <span>Node Chat</span>
         {chatNodes.length > 0 && (
@@ -745,6 +740,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
           </span>
         )}
       </button>
+      )}
 
       {/* Node Chat Panel */}
       <NodeChat

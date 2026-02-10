@@ -521,26 +521,42 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
                 {contextNodes.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs font-semibold text-foreground">Additional Context Nodes:</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-foreground">Context Nodes</span>
+                        <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold">
+                          {contextNodes.length}
+                        </span>
+                      </div>
                       <button
                         onClick={onClearContextNodes}
-                        className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-red-400 transition-all hover:gap-1.5"
                       >
+                        <Trash2 className="w-3 h-3" />
                         Clear All
                       </button>
                     </div>
-                    <div className="space-y-2">
-                      {contextNodes.map((node) => (
-                        <div key={node.id} className="flex items-center justify-between bg-secondary/30 rounded p-2 border border-primary/20">
-                          <div className="flex-1">
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {contextNodes.map((node, idx) => (
+                        <div
+                          key={node.id}
+                          className="group flex items-center gap-3 bg-gradient-to-r from-secondary/30 to-secondary/10 hover:from-secondary/50 hover:to-secondary/30 rounded-lg p-2.5 border border-primary/20 hover:border-primary/40 transition-all duration-200 animate-in fade-in slide-in-from-left-2"
+                          style={{ animationDelay: `${idx * 50}ms` }}
+                        >
+                          <div className="flex-shrink-0 w-8 h-8 rounded-md bg-primary/20 border border-primary/30 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-primary">
+                              {node.type.slice(0, 2).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
                             <div className="text-xs font-semibold text-foreground truncate">{node.label}</div>
-                            <div className="text-[10px] text-muted-foreground">{node.type}</div>
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{node.type}</div>
                           </div>
                           <button
                             onClick={() => onRemoveContextNode(node.id)}
-                            className="text-red-400 hover:text-red-300 transition-colors p-1"
+                            className="flex-shrink-0 p-1.5 rounded-md hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
+                            title="Remove context node"
                           >
-                            <Trash2 size={14} />
+                            <X size={14} />
                           </button>
                         </div>
                       ))}
