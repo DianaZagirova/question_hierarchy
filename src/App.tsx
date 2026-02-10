@@ -421,15 +421,19 @@ function App() {
             Graph View
           </button>
           <button
-            onClick={() => setActiveTab('scientific')}
-            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'scientific'
-                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
-            }`}
+            onClick={() => {}}
+            disabled
+            className="px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 opacity-40 cursor-not-allowed text-muted-foreground border border-transparent relative group"
+            title="This feature is deprecated and no longer available"
           >
             <Network size={18} />
-            Scientific Pillars
+            <span>Scientific Pillars</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40">
+              Deprecated
+            </span>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-card border border-border/50 rounded-md text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              This tab is deprecated
+            </div>
           </button>
           <button
             onClick={() => setActiveTab('versions')}
