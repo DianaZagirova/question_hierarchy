@@ -3,9 +3,12 @@ Session middleware for Omega Point multi-session support
 Handles session extraction, validation, and decorator utilities
 """
 
+import logging
 from functools import wraps
 from flask import request, jsonify
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def get_session_id() -> Optional[str]:
@@ -45,23 +48,23 @@ def require_session(db):
     session_id = get_session_id()
 
     if not session_id:
-        return None, jsonify({
+        return None, (jsonify({
             'error': 'Missing session',
             'message': 'No session ID provided in request'
-        }), 401
+        }), 401)
 
     # Validate session exists and is not expired
     if not db.is_valid_session(session_id):
-        return None, jsonify({
+        return None, (jsonify({
             'error': 'Invalid session',
             'message': 'Session is invalid or expired'
-        }), 401
+        }), 401)
 
     # Update last accessed timestamp
     try:
         db.update_session_access(session_id)
     except Exception as e:
-        print(f"Warning: Failed to update session access time: {e}")
+        logger.warning(f"Failed to update session access time: {e}")
 
     return session_id, None
 

@@ -6,6 +6,8 @@ import json
 import time
 import re
 import threading
+import sys
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from dotenv import load_dotenv
@@ -15,23 +17,36 @@ from database import db
 from redis_client import redis_client
 from session_middleware import get_session_id, require_session, with_session, optional_session
 
+# Configure logging to stdout
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    stream=sys.stdout,
+    force=True
+)
+logger = logging.getLogger(__name__)
+
 # Load environment variables
 load_dotenv()
 
 # Initialize database and Redis connections
 try:
     db.initialize()
-    print("✓ Database connection established")
+    logger.info("✓ Database connection established")
+    sys.stdout.flush()
 except Exception as e:
-    print(f"⚠ Database initialization failed: {e}")
-    print("  Continuing without database support...")
+    logger.warning(f"⚠ Database initialization failed: {e}")
+    logger.warning("  Continuing without database support...")
+    sys.stdout.flush()
 
 try:
     redis_client.initialize()
-    print("✓ Redis connection established")
+    logger.info("✓ Redis connection established")
+    sys.stdout.flush()
 except Exception as e:
-    print(f"⚠ Redis initialization failed: {e}")
-    print("  Continuing without Redis support...")
+    logger.warning(f"⚠ Redis initialization failed: {e}")
+    logger.warning("  Continuing without Redis support...")
+    sys.stdout.flush()
 
 # Max parallel workers for batch execution (configurable via .env)
 MAX_BATCH_WORKERS = int(os.getenv('MAX_BATCH_WORKERS', '15'))
@@ -83,7 +98,7 @@ def _update_progress(session_id, step_id, completed, total, successful, failed, 
             )
             return
     except Exception as e:
-        print(f"Redis progress update failed, using fallback: {e}")
+        logger.warning(f"Redis progress update failed, using fallback: {e}")
 
     # Fallback to in-memory store
     with _progress_lock:
@@ -114,7 +129,7 @@ def _clear_progress(session_id, step_id):
             redis_client.clear_progress(session_id, step_id)
             return
     except Exception as e:
-        print(f"Redis progress clear failed, using fallback: {e}")
+        logger.warning(f"Redis progress update failed, using fallback: {e}")
 
     # Fallback to in-memory store
     with _progress_lock:
@@ -133,7 +148,7 @@ def _get_progress(session_id, step_id):
                 progress['timestamp'] = time.time()
                 return progress
     except Exception as e:
-        print(f"Redis progress get failed, using fallback: {e}")
+        logger.warning(f"Redis progress update failed, using fallback: {e}")
 
     # Fallback to in-memory store
     with _progress_lock:
@@ -212,6 +227,7 @@ def create_session():
 
         return response
     except Exception as e:
+        logger.error(f"Error creating session: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -248,6 +264,7 @@ def validate_session():
 
             return response
         except Exception as e:
+            logger.error(f"Error validating/creating session: {e}", exc_info=True)
             return jsonify({'error': str(e)}), 500
 
 
@@ -267,6 +284,7 @@ def get_session_state(session_id):
             'state': state_data or {}
         })
     except Exception as e:
+        logger.error(f"Error retrieving session state: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -291,6 +309,7 @@ def save_session_state(session_id):
             'saved': True
         })
     except Exception as e:
+        logger.error(f"Error saving session state: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 # ─── End Session Management Endpoints ─────────────────────────────────────────
@@ -367,15 +386,15 @@ if API_PROVIDER == 'openrouter':
     openrouter_key = os.getenv('OPENROUTER_API_KEY')
     openrouter_base = os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
     if not openrouter_key:
-        print("\n⚠️  WARNING: API_PROVIDER=openrouter but OPENROUTER_API_KEY is not set!")
+        logger.warning("⚠️  WARNING: API_PROVIDER=openrouter but OPENROUTER_API_KEY is not set!")
     client = OpenAI(
         api_key=openrouter_key,
         base_url=openrouter_base,
     )
-    print(f"🔌 Provider: OpenRouter ({openrouter_base})")
+    logger.info(f"🔌 Provider: OpenRouter ({openrouter_base})")
 else:
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-    print(f"🔌 Provider: OpenAI (direct)")
+    logger.info(f"🔌 Provider: OpenAI (direct)")
 
 
 def resolve_model(model_name):
@@ -404,8 +423,15 @@ def health_check():
 
 def execute_single_item(step_id, agent_config, input_data, global_lens=None):
     """Execute a single item (helper function for batch processing)"""
+    # Validate required agent_config fields
+    required_fields = ['name', 'model', 'temperature', 'systemPrompt']
+    missing_fields = [field for field in required_fields if field not in agent_config]
+    if missing_fields:
+        raise ValueError(f"agent_config missing required fields: {', '.join(missing_fields)}. "
+                        f"Available fields: {', '.join(agent_config.keys())}")
+
     start_time = time.time()
-    
+
     # Enhanced logging for Step 4
     if step_id == 4:
         # Determine if this is Phase 4a or 4b based on input structure
@@ -414,32 +440,32 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
             domain_id = input_data.get('target_domain', {}).get('domain_id', 'unknown')
             domain_name = input_data.get('target_domain', {}).get('domain_name', 'unknown')
             goal_id = input_data.get('target_goal', {}).get('id', 'unknown')
-            print(f"\n{'='*60}")
-            print(f"[Step 4b] 🔬 DOMAIN SCAN STARTING")
-            print(f"{'='*60}")
-            print(f"  Goal: {goal_id}")
-            print(f"  Domain: {domain_id}")
-            print(f"  Domain Name: {domain_name}")
-            print(f"  Agent: {agent_config.get('name', 'Unknown')}")
-            print(f"  Model: {agent_config.get('model', 'Unknown')}")
-            print(f"  Temperature: {agent_config.get('temperature', 'Unknown')}")
+            logger.info(f"\n{'='*60}")
+            logger.info(f"[Step 4b] 🔬 DOMAIN SCAN STARTING")
+            logger.info(f"{'='*60}")
+            logger.info(f"  Goal: {goal_id}")
+            logger.info(f"  Domain: {domain_id}")
+            logger.info(f"  Domain Name: {domain_name}")
+            logger.info(f"  Agent: {agent_config.get('name', 'Unknown')}")
+            logger.info(f"  Model: {agent_config.get('model', 'Unknown')}")
+            logger.info(f"  Temperature: {agent_config.get('temperature', 'Unknown')}")
         else:
             phase = "4a (Domain Mapping)"
             goal_id = input_data.get('target_goal', {}).get('id', 'unknown')
-            print(f"\n{'='*60}")
-            print(f"[Step 4a] 🗺️  DOMAIN MAPPING STARTING")
-            print(f"{'='*60}")
-            print(f"  Goal: {goal_id}")
-            print(f"  Agent: {agent_config.get('name', 'Unknown')}")
-            print(f"  Model: {agent_config.get('model', 'Unknown')}")
-            print(f"  Temperature: {agent_config.get('temperature', 'Unknown')}")
+            logger.info(f"\n{'='*60}")
+            logger.info(f"[Step 4a] 🗺️  DOMAIN MAPPING STARTING")
+            logger.info(f"{'='*60}")
+            logger.info(f"  Goal: {goal_id}")
+            logger.info(f"  Agent: {agent_config.get('name', 'Unknown')}")
+            logger.info(f"  Model: {agent_config.get('model', 'Unknown')}")
+            logger.info(f"  Temperature: {agent_config.get('temperature', 'Unknown')}")
     
     # Prepare the prompt based on step
     user_prompt = prepare_user_prompt(step_id, input_data)
     
     # Log prompt size
     if step_id == 4:
-        print(f"  Input size: {len(user_prompt)} characters")
+        logger.info(f"  Input size: {len(user_prompt)} characters")
 
     # Prepare system prompt with interpolated values (globalLens overrides agent-level lens)
     system_prompt = interpolate_prompt(agent_config, global_lens)
@@ -452,8 +478,8 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
     if step_id == 4:
         timeout_seconds = 300  # 5 minutes for Step 4 (domain specialist)
         max_tokens = 32000  # Allow larger responses for Step 4
-        print(f"  Timeout: {timeout_seconds}s")
-        print(f"  Max tokens: {max_tokens}")
+        logger.info(f"  Timeout: {timeout_seconds}s")
+        logger.info(f"  Max tokens: {max_tokens}")
     elif step_id in [6, 7, 8, 9]:  # L3, IH, L4, L5 steps
         timeout_seconds = 240  # 4 minutes
         max_tokens = 28000
@@ -462,9 +488,9 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
         max_tokens = 24000
 
     if step_id == 4:
-        print(f"  ⏳ Sending request to OpenAI...")
+        logger.info(f"  ⏳ Sending request to OpenAI...")
     else:
-        print(f"[Step {step_id}] Calling OpenAI API with model: {agent_config['model']} (timeout: {timeout_seconds}s)")
+        logger.info(f"[Step {step_id}] Calling OpenAI API with model: {agent_config['model']} (timeout: {timeout_seconds}s)")
     
     # Call OpenAI API with step-specific optimizations
     api_start = time.time()
@@ -498,12 +524,12 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
     usage = completion.usage
     
     if step_id == 4:
-        print(f"  ✅ API call completed in {api_duration:.2f}s")
-        print(f"  📊 Tokens - Prompt: {usage.prompt_tokens}, Completion: {usage.completion_tokens}, Total: {usage.total_tokens}")
-        print(f"  💰 Estimated cost: ${(usage.prompt_tokens * 0.00001 + usage.completion_tokens * 0.00003):.4f}")
+        logger.info(f"  ✅ API call completed in {api_duration:.2f}s")
+        logger.info(f"  📊 Tokens - Prompt: {usage.prompt_tokens}, Completion: {usage.completion_tokens}, Total: {usage.total_tokens}")
+        logger.info(f"  💰 Estimated cost: ${(usage.prompt_tokens * 0.00001 + usage.completion_tokens * 0.00003):.4f}")
     else:
-        print(f"[Step {step_id}] API call completed in {api_duration:.2f}s")
-        print(f"[Step {step_id}] Tokens - Prompt: {usage.prompt_tokens}, Completion: {usage.completion_tokens}, Total: {usage.total_tokens}")
+        logger.info(f"[Step {step_id}] API call completed in {api_duration:.2f}s")
+        logger.info(f"[Step {step_id}] Tokens - Prompt: {usage.prompt_tokens}, Completion: {usage.completion_tokens}, Total: {usage.total_tokens}")
 
     # Parse JSON response
     try:
@@ -515,35 +541,35 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
             if 'target_domain' in input_data:
                 # Phase 4b - Domain Scan
                 pillars = result.get('scientific_pillars', [])
-                print(f"  📦 Generated {len(pillars)} scientific pillars")
+                logger.info(f"  📦 Generated {len(pillars)} scientific pillars")
                 if pillars:
                     # Show sample pillars
-                    print(f"  📋 Sample interventions:")
+                    logger.info(f"  📋 Sample interventions:")
                     for i, pillar in enumerate(pillars[:3]):
-                        print(f"     {i+1}. {pillar.get('id', 'N/A')}: {pillar.get('title', 'N/A')[:60]}...")
+                        logger.info(f"     {i+1}. {pillar.get('id', 'N/A')}: {pillar.get('title', 'N/A')[:60]}...")
                     if len(pillars) > 3:
-                        print(f"     ... and {len(pillars) - 3} more")
-                print(f"  ⏱️  Total execution time: {total_duration:.2f}s")
-                print(f"{'='*60}\n")
+                        logger.info(f"     ... and {len(pillars) - 3} more")
+                logger.info(f"  ⏱️  Total execution time: {total_duration:.2f}s")
+                logger.info(f"{'='*60}\n")
             else:
                 # Phase 4a - Domain Mapping
                 domains = result.get('research_domains', [])
-                print(f"  🗺️  Identified {len(domains)} research domains")
+                logger.info(f"  🗺️  Identified {len(domains)} research domains")
                 if domains:
-                    print(f"  📋 Domains:")
+                    logger.info(f"  📋 Domains:")
                     for i, domain in enumerate(domains):
-                        print(f"     {i+1}. {domain.get('domain_id', 'N/A')}: {domain.get('domain_name', 'N/A')} [{domain.get('relevance_to_goal', 'N/A')}]")
-                print(f"  ⏱️  Total execution time: {total_duration:.2f}s")
-                print(f"{'='*60}\n")
+                        logger.info(f"     {i+1}. {domain.get('domain_id', 'N/A')}: {domain.get('domain_name', 'N/A')} [{domain.get('relevance_to_goal', 'N/A')}]")
+                logger.info(f"  ⏱️  Total execution time: {total_duration:.2f}s")
+                logger.info(f"{'='*60}\n")
         else:
-            print(f"[Step {step_id}] Total execution time: {total_duration:.2f}s")
+            logger.info(f"[Step {step_id}] Total execution time: {total_duration:.2f}s")
         
         return result
     except json.JSONDecodeError as parse_error:
         if step_id == 4:
-            print(f"  ❌ Failed to parse JSON response: {parse_error}")
-            print(f"  📄 Response preview: {response_text[:200]}...")
-            print(f"{'='*60}\n")
+            logger.error(f"  ❌ Failed to parse JSON response: {parse_error}")
+            logger.info(f"  📄 Response preview: {response_text[:200]}...")
+            logger.info(f"{'='*60}\n")
         else:
             print(f'[Step {step_id}] Failed to parse JSON response: {parse_error}')
         return {'raw_response': response_text, 'parse_error': str(parse_error)}
@@ -559,26 +585,26 @@ def execute_step(session_id):
         input_data = data.get('input')
         global_lens = data.get('globalLens')  # User-configured epistemic lens
 
-        print(f'\n=== Executing Step {step_id} (Session: {session_id[:8]}...) ===')
-        print(f'Agent: {agent_config.get("name")}')
-        print(f"User Prompt (truncated): {str(input_data)[:200]}...")
+        logger.info(f'\n=== Executing Step {step_id} (Session: {session_id[:8]}...) ===')
+        logger.info(f'Agent: {agent_config.get("name")}')
+        logger.info(f"User Prompt (truncated): {str(input_data)[:200]}...")
 
         result = execute_single_item(step_id, agent_config, input_data, global_lens)
 
-        print(f"\nResponse received ({len(str(result))} chars)")
-        print(f"Parsed JSON keys: {list(result.keys())}")
+        logger.info(f"\nResponse received ({len(str(result))} chars)")
+        logger.info(f"Parsed JSON keys: {list(result.keys())}")
 
         # Save step output to database
         try:
             state_key = f'step_{step_id}_output'
             db.save_session_state(session_id, state_key, result)
         except Exception as e:
-            print(f"Warning: Failed to save step output to database: {e}")
+            logger.warning(f"Warning: Failed to save step output to database: {e}")
 
         return jsonify(result)
 
     except Exception as error:
-        print(f'Error executing step: {error}')
+        logger.error(f'Error executing step: {error}')
         error_details = str(error)
         
         # Extract more details from OpenAI errors if available
@@ -689,24 +715,24 @@ def execute_step_batch(session_id):
                     )
                     
                     if step_id == 4:
-                        print(f"\n{'─'*60}")
-                        print(f"✅ PROGRESS: {phase_label} ({progress_pct:.1f}% overall)")
-                        print(f"⏱️  Elapsed: {elapsed/60:.1f} min | Avg: {avg_time_per_item:.1f}s/item")
+                        logger.info(f"\n{'─'*60}")
+                        logger.info(f"✅ PROGRESS: {phase_label} ({progress_pct:.1f}% overall)")
+                        logger.info(f"⏱️  Elapsed: {elapsed/60:.1f} min | Avg: {avg_time_per_item:.1f}s/item")
                         if remaining_items > 0:
-                            print(f"⏳ ETA: {eta_minutes:.1f} min ({remaining_items} items remaining)")
-                        print(f"{'─'*60}")
+                            logger.info(f"⏳ ETA: {eta_minutes:.1f} min ({remaining_items} items remaining)")
+                        logger.info(f"{'─'*60}")
                     else:
-                        print(f"✓ Item {idx + 1}/{len(items)} completed ({completed}/{len(items)} total)")
+                        logger.info(f"✓ Item {idx + 1}/{len(items)} completed ({completed}/{len(items)} total)")
                         
                 except Exception as item_error:
                     if step_id == 4:
-                        print(f"\n{'─'*60}")
-                        print(f"❌ FAILED: Item {idx + 1}/{len(items)}")
-                        print(f"Error: {item_error}")
-                        print(f"Progress: {phase_label} ({progress_pct:.1f}% overall)")
-                        print(f"{'─'*60}")
+                        logger.info(f"\n{'─'*60}")
+                        logger.info(f"❌ FAILED: Item {idx + 1}/{len(items)}")
+                        logger.error(f"Error: {item_error}")
+                        logger.info(f"Progress: {phase_label} ({progress_pct:.1f}% overall)")
+                        logger.info(f"{'─'*60}")
                     else:
-                        print(f"✗ Item {idx + 1}/{len(items)} failed: {item_error}")
+                        logger.info(f"✗ Item {idx + 1}/{len(items)} failed: {item_error}")
                     
                     results[idx] = {
                         'success': False,
@@ -730,16 +756,16 @@ def execute_step_batch(session_id):
         total_batch_time = time.time() - batch_start_time
         
         if step_id == 4:
-            print(f"\n{'#'*70}")
-            print(f"### BATCH COMPLETE: Step {step_id}")
-            print(f"{'#'*70}")
-            print(f"✅ Successful: {successful_count}/{len(items)}")
-            print(f"❌ Failed: {failed_count}/{len(items)}")
-            print(f"⏱️  Total time: {total_batch_time/60:.1f} minutes")
-            print(f"📊 Average: {total_batch_time/len(items):.1f}s per item")
-            print(f"{'#'*70}\n")
+            logger.info(f"\n{'#'*70}")
+            logger.info(f"### BATCH COMPLETE: Step {step_id}")
+            logger.info(f"{'#'*70}")
+            logger.info(f"✅ Successful: {successful_count}/{len(items)}")
+            logger.info(f"❌ Failed: {failed_count}/{len(items)}")
+            logger.info(f"⏱️  Total time: {total_batch_time/60:.1f} minutes")
+            logger.info(f"📊 Average: {total_batch_time/len(items):.1f}s per item")
+            logger.info(f"{'#'*70}\n")
         else:
-            print(f"\n=== Batch Complete: {successful_count}/{len(items)} successful ===")
+            logger.info(f"\n=== Batch Complete: {successful_count}/{len(items)} successful ===")
 
         _clear_progress(session_id, step_id)  # Clean up progress store
 
@@ -755,12 +781,12 @@ def execute_step_batch(session_id):
             state_key = f'step_{step_id}_batch'
             db.save_session_state(session_id, state_key, batch_summary)
         except Exception as e:
-            print(f"Warning: Failed to save batch results to database: {e}")
+            logger.warning(f"Warning: Failed to save batch results to database: {e}")
 
         return jsonify(batch_summary)
-    
+
     except Exception as error:
-        print(f'Error in batch execution: {error}')
+        logger.error(f'Error in batch execution: {error}', exc_info=True)
         try:
             _clear_progress(session_id, step_id)  # Clean up on error too
         except:
@@ -793,7 +819,7 @@ def prepare_user_prompt(step_id, input_data):
             if not q0_text:
                 q0_text = input_data.get('goal', '')
         
-        print(f"\nStep 2 Debug: Q0 = {q0_text[:100] if q0_text else 'None'}...")
+        logger.info(f"\nStep 2 Debug: Q0 = {q0_text[:100] if q0_text else 'None'}...")
         return f"Q0: {q0_text}\n\nGenerate the Goal Pillars and Bridge Lexicon."
     
     # STEP 3: INPUT: Q_0 string, G data (one by one) | OUTPUT: JSON with RA for each G
@@ -812,7 +838,7 @@ def prepare_user_prompt(step_id, input_data):
             goals = step2_data.get('goals', [])
             goal = goals[0] if goals else {}
         
-        print(f"\nStep 3 Debug: Processing goal {goal.get('id', 'unknown')}")
+        logger.info(f"\nStep 3 Debug: Processing goal {goal.get('id', 'unknown')}")
         
         return f"""Q0: {q0_text}
 
@@ -836,11 +862,11 @@ Generate Requirement Atoms for this specific goal pillar."""
         
         spvs = bridge_lexicon.get('system_properties', [])
         
-        print(f"\nStep 4 Debug:")
-        print(f"  Q0: {q0_reference[:50] if q0_reference else 'N/A'}...")
-        print(f"  Target Goal: {target_goal.get('id', 'N/A')}")
-        print(f"  Requirement Atoms: {len(requirement_atoms)}")
-        print(f"  SPVs: {len(spvs)}")
+        logger.info(f"\nStep 4 Debug:")
+        logger.info(f"  Q0: {q0_reference[:50] if q0_reference else 'N/A'}...")
+        logger.info(f"  Target Goal: {target_goal.get('id', 'N/A')}")
+        logger.info(f"  Requirement Atoms: {len(requirement_atoms)}")
+        logger.info(f"  SPVs: {len(spvs)}")
         
         return f"""Q0 Reference: {q0_reference}
 
@@ -887,12 +913,12 @@ Generate Scientific Pillars (S-Nodes) for 2026 that are specifically relevant to
         
         goal_id = goal.get('id', '')
         
-        print(f"\nStep 5 Debug (NEW MODE - Evaluate G-S Links):")
-        print(f"  Processing Goal: {goal_id}")
-        print(f"  RAs found: {len(ras)}")
-        print(f"  Scientific Pillars (S-Nodes for this Goal): {len(scientific_pillars)}")
-        print(f"  Bridge Lexicon FCCs: {len(bridge_lexicon.get('failure_channels', []))}")
-        print(f"  Bridge Lexicon SPVs: {len(bridge_lexicon.get('system_properties', []))}")
+        logger.info(f"\nStep 5 Debug (NEW MODE - Evaluate G-S Links):")
+        logger.info(f"  Processing Goal: {goal_id}")
+        logger.info(f"  RAs found: {len(ras)}")
+        logger.info(f"  Scientific Pillars (S-Nodes for this Goal): {len(scientific_pillars)}")
+        logger.info(f"  Bridge Lexicon FCCs: {len(bridge_lexicon.get('failure_channels', []))}")
+        logger.info(f"  Bridge Lexicon SPVs: {len(bridge_lexicon.get('system_properties', []))}")
         
         # Determine mode based on whether S-nodes are goal-specific
         mode_hint = "goal_specific" if scientific_pillars else "general_toolkit"
@@ -959,9 +985,9 @@ Perform strategic evaluation and classification of the G-S links."""
                     'gap': pillar.get('gap_analysis', '')
                 })
 
-        print(f"\nStep 6 Debug: Processing Goal {goal_id}")
-        print(f"  - Scientific pillars: {len(scientific_pillars)}")
-        print(f"  - Relationship summary: {len(relationship_summary)} samples")
+        logger.info(f"\nStep 6 Debug: Processing Goal {goal_id}")
+        logger.info(f"  - Scientific pillars: {len(scientific_pillars)}")
+        logger.info(f"  - Relationship summary: {len(relationship_summary)} samples")
 
         q0_ref = input_data.get('Q0_reference', '')
         
@@ -1040,8 +1066,8 @@ Remember: Use {goal_id} in ALL L3 question IDs!"""
             goal_s_data = step5_data.get(goal_id, {})
             scientific_pillars = goal_s_data.get('scientific_pillars', [])
         
-        print(f"\nStep 7 Debug: Processing L3 question: {l3_question.get('id', 'unknown')}")
-        print(f"  Parent Goal: {goal_id}, RAs: {len(ras)}, S-nodes: {len(scientific_pillars)}")
+        logger.info(f"\nStep 7 Debug: Processing L3 question: {l3_question.get('id', 'unknown')}")
+        logger.info(f"  Parent Goal: {goal_id}, RAs: {len(ras)}, S-nodes: {len(scientific_pillars)}")
         
         q0_ref = input_data.get('Q0_reference', '')
         
@@ -1104,8 +1130,8 @@ Generate Instantiation Hypotheses (IHs) for this L3 question. All hypotheses mus
         
         q0_ref = input_data.get('Q0_reference', '')
         
-        print(f"\nStep 8 Debug: Processing L3 question {l3_question.get('id', 'unknown')}")
-        print(f"  Parent Goal: {goal.get('id', 'unknown')}, RAs: {len(ras)}, IHs: {len(ihs)}")
+        logger.info(f"\nStep 8 Debug: Processing L3 question {l3_question.get('id', 'unknown')}")
+        logger.info(f"  Parent Goal: {goal.get('id', 'unknown')}, RAs: {len(ras)}, IHs: {len(ihs)}")
         
         return f"""Master Project Question (Q0):
 {q0_ref}
@@ -1159,8 +1185,8 @@ Generate L4 Tactical Questions that discriminate between these hypotheses for th
         
         q0_ref = input_data.get('Q0_reference', '')
         
-        print(f"\nStep 9 Debug: Processing L4 question {l4_question.get('id', 'unknown')}")
-        print(f"  RAs: {len(ras)}, S-nodes: {len(scientific_pillars)}")
+        logger.info(f"\nStep 9 Debug: Processing L4 question {l4_question.get('id', 'unknown')}")
+        logger.info(f"  RAs: {len(ras)}, S-nodes: {len(scientific_pillars)}")
         
         return f"""Master Project Question (Q0):
 {q0_ref}
@@ -1182,8 +1208,8 @@ Generate L5 mechanistic sub-questions and L6 experiment-ready tasks (with S-I-M-
         l4_question = input_data.get('l4_question', {})
         l6_tasks = input_data.get('l6_tasks', [])
         
-        print(f"\nStep 10 Debug: Processing L4 {l4_question.get('id', 'unknown')}")
-        print(f"  L6 tasks: {len(l6_tasks)}")
+        logger.info(f"\nStep 10 Debug: Processing L4 {l4_question.get('id', 'unknown')}")
+        logger.info(f"  L6 tasks: {len(l6_tasks)}")
         
         return f"""MASTER QUESTION (Q0):
 {q0_text}
@@ -1323,7 +1349,7 @@ def improve_node(session_id):
                     yield f"data: {json.dumps({'token': token})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
-            print(f"[Node Improvement] Error: {e}")
+            logger.info(f"[Node Improvement] Error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return Response(
@@ -1385,7 +1411,7 @@ INSTRUCTIONS:
             "content": msg.get("content", "")
         })
 
-    print(f"\n[Node Chat] Model: {model}, Nodes: {len(selected_nodes)}, History: {len(messages_history)} messages")
+    logger.info(f"\n[Node Chat] Model: {model}, Nodes: {len(selected_nodes)}, History: {len(messages_history)} messages")
 
     def generate():
         try:
@@ -1410,7 +1436,7 @@ INSTRUCTIONS:
                     yield f"data: {json.dumps({'token': token})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
-            print(f"[Node Chat] Error: {e}")
+            logger.info(f"[Node Chat] Error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return Response(
@@ -1440,17 +1466,17 @@ if IS_PRODUCTION and os.path.isdir(DIST_DIR):
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 3001))
     
-    print(f"\n🚀 OMEGA-POINT Server running on port {port}")
-    print(f"📡 API endpoint: http://localhost:{port}/api")
-    print(f"🔌 API Provider: {API_PROVIDER}")
-    print(f"🌍 Mode: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
+    logger.info(f"\n🚀 OMEGA-POINT Server running on port {port}")
+    logger.info(f"📡 API endpoint: http://localhost:{port}/api")
+    logger.info(f"🔌 API Provider: {API_PROVIDER}")
+    logger.info(f"🌍 Mode: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
     if IS_PRODUCTION:
-        print(f"📁 Serving frontend from: {os.path.abspath(DIST_DIR)}")
+        logger.info(f"📁 Serving frontend from: {os.path.abspath(DIST_DIR)}")
     if API_PROVIDER == 'openrouter':
         key_status = '✓ Configured' if os.getenv('OPENROUTER_API_KEY') else '✗ Missing'
-        print(f"🔑 OpenRouter API Key: {key_status}")
+        logger.info(f"🔑 OpenRouter API Key: {key_status}")
     else:
         key_status = '✓ Configured' if os.getenv('OPENAI_API_KEY') else '✗ Missing'
-        print(f"🔑 OpenAI API Key: {key_status}")
+        logger.info(f"🔑 OpenAI API Key: {key_status}")
     
     app.run(host='0.0.0.0', port=port, debug=not IS_PRODUCTION)

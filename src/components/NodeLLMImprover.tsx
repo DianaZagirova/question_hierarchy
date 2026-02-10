@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Send, Check, RotateCcw, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './ui/Button';
+import { Select } from './ui/Select';
 import { streamNodeImprovement } from '@/lib/api';
 
 interface NodeLLMImproverProps {
@@ -339,18 +340,18 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
               <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">
                 Model
               </label>
-              <select
+              <Select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
                 disabled={isGenerating}
-                className="w-full bg-secondary/30 border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all disabled:opacity-50"
+                className="bg-secondary/30 border-border/50 focus:border-primary focus:ring-primary/30 transition-all disabled:opacity-50"
               >
                 {availableModels.map(model => (
                   <option key={model.value} value={model.value}>
                     {model.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             {/* Temperature Slider */}

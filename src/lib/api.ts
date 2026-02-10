@@ -2,7 +2,10 @@ import axios from 'axios';
 import { AgentConfig } from '@/types';
 import { sessionManager } from './sessionManager';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Production (Docker): VITE_API_URL="" -> use empty string for same-origin relative URLs
+// Development: VITE_API_URL from .env or default to http://localhost:3002
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_URL = envApiUrl === '' ? '' : (envApiUrl || 'http://localhost:3002');
 
 const api = axios.create({
   baseURL: API_URL,

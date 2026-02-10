@@ -137,3 +137,39 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Cross-browser select styling fixes */
+select {
+  /* Remove default appearance in all browsers */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  /* Ensure consistent background */
+  background-color: hsl(var(--background));
+  background-image: none;
+
+  /* Consistent text rendering */
+  color: hsl(var(--foreground));
+
+  /* Consistent cursor */
+  cursor: pointer;
+}
+
+/* Firefox specific fixes */
+select::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+/* Safari/iOS specific fixes */
+select:focus {
+  outline: none;
+}
+
+/* Prevent iOS zoom on focus */
+@media screen and (max-width: 768px) {
+  select {
+    font-size: 16px !important;
+  }
+}

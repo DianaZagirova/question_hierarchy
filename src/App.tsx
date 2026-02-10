@@ -10,6 +10,7 @@ import { GraphVisualizationWrapper } from './components/GraphVisualizationWrappe
 import { ParticleBackground } from './components/ParticleBackground';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
+import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
 import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff } from 'lucide-react';
 import { sessionManager } from './lib/sessionManager';
@@ -263,7 +264,7 @@ function App() {
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                   Epistemic Lens (Optional)
                 </label>
-                <select
+                <Select
                   value={lensKey}
                   onChange={(e) => {
                     const key = e.target.value;
@@ -283,7 +284,7 @@ function App() {
                       setGlobalLens(editedLensDescriptions[key] || presets[key] || '');
                     }
                   }}
-                  className="w-full bg-secondary/30 border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                  className="bg-secondary/30 border-border/50 focus:border-primary focus:ring-primary/30 transition-all"
                 >
                   <option value="">No specific focus</option>
                   <option value="dca">Distributed Consensus Architecture</option>
@@ -292,7 +293,7 @@ function App() {
                   <option value="re">Reliability Engineering</option>
                   <option value="ccs">Cybernetic Control Systems</option>
                   <option value="custom">Custom Lens...</option>
-                </select>
+                </Select>
 
                 {/* Editable description for preset lenses */}
                 {lensKey && lensKey !== 'custom' && (
@@ -473,10 +474,9 @@ function App() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <select
+                    <Select
                       value={selectedGoalId || ''}
                       onChange={(e) => setSelectedGoalId(e.target.value || null)}
-                      className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
                     >
                       <option value="">🌐 All Goals (Batch Mode)</option>
                       {steps[1].output.goals.map((goal: any) => (
@@ -484,7 +484,7 @@ function App() {
                           🎯 {goal.id}: {goal.title}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {selectedGoalId ? (
                       <>
                         <div className="text-xs text-primary font-semibold flex items-center gap-2">
@@ -565,10 +565,9 @@ function App() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <select
+                    <Select
                       value={selectedL3Id || ''}
                       onChange={(e) => setSelectedL3Id(e.target.value || null)}
-                      className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
                     >
                       <option value="">🌐 All L3 Questions (Batch Mode)</option>
                       {steps[5].output.l3_questions.map((l3: any) => (
@@ -576,7 +575,7 @@ function App() {
                           ❓ {l3.id}: {l3.text?.substring(0, 60)}...
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {selectedL3Id ? (
                       <>
                         <div className="text-xs text-accent font-semibold flex items-center gap-2">
@@ -626,10 +625,9 @@ function App() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <select
+                    <Select
                       value={selectedL4Id || ''}
                       onChange={(e) => setSelectedL4Id(e.target.value || null)}
-                      className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
                     >
                       <option value="">🌐 All L4 Questions (Batch Mode)</option>
                       {steps[7].output.l4_questions.map((l4: any) => (
@@ -637,7 +635,7 @@ function App() {
                           🔍 {l4.id}: {l4.text?.substring(0, 60)}...
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {selectedL4Id ? (
                       <>
                         <div className="text-xs text-secondary font-semibold flex items-center gap-2">
