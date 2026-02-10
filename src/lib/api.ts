@@ -30,15 +30,25 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const originalRequest = error.config;
+
+    // Prevent infinite retry loop - only retry once per request
+    if (originalRequest._retryCount) {
+      console.error('Session retry failed, giving up');
+      return Promise.reject(error);
+    }
+
     if (
       error.response?.status === 401 &&
       error.response?.data?.error === 'Invalid session'
     ) {
       // Session expired or invalid, reinitialize
       console.warn('Session expired, reinitializing...');
+      originalRequest._retryCount = 1; // Mark as retried
+
       await sessionManager.initialize();
       // Retry the request with new session
-      return api.request(error.config);
+      return api.request(originalRequest);
     }
     return Promise.reject(error);
   }
