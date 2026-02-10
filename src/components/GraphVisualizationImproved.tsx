@@ -717,13 +717,13 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         </div>
       )}
 
-      {/* Chat Toggle Button - Top right, below Graph Stats */}
+      {/* Chat Toggle Button - Bottom left */}
       {!zenMode && (
         <button
           onClick={() => setChatOpen(!chatOpen)}
           className={`
-            absolute top-36 right-4 z-20 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg
-            font-semibold text-sm shadow-lg transition-all duration-200 w-[180px]
+            absolute bottom-4 left-4 z-20 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
+            font-semibold text-sm shadow-lg transition-all duration-200
             ${chatOpen
               ? 'bg-primary/30 border-primary/60 text-primary hover:bg-primary/40'
               : 'bg-card/95 border-border/50 text-foreground hover:bg-card hover:border-primary/40'
