@@ -12,7 +12,7 @@ import { ParticleBackground } from './components/ParticleBackground';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
-import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson } from 'lucide-react';
+import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2 } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
@@ -401,11 +401,34 @@ function App() {
         {/* Content */}
         {activeTab === 'split' && (
           <div ref={containerRef} className="flex gap-0 h-[800px] relative">
-            <div 
+            <div
               style={{ width: `${splitRatio}%` }}
               className="overflow-auto bg-card/50 backdrop-blur-sm rounded-l-lg shadow-lg border border-border/30 p-4 select-text"
             >
-              <h2 className="text-lg font-bold mb-4 gradient-text">Pipeline Steps</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold gradient-text">Pipeline Steps</h2>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const stepsWithData = steps.filter(s => s.status === 'completed' || s.status === 'error');
+                    if (stepsWithData.length === 0) {
+                      alert('No data to clear');
+                      return;
+                    }
+                    if (confirm(`Clear all data from ${stepsWithData.length} step(s)? This will reset all completed steps to pending.`)) {
+                      stepsWithData.forEach(step => clearStep(step.id));
+                    }
+                  }}
+                  disabled={!steps.some(s => s.status === 'completed' || s.status === 'error')}
+                  className="relative group border-rose-500/50 bg-gradient-to-r from-rose-500/10 to-red-500/10 text-rose-400 hover:from-rose-500/20 hover:to-red-500/20 hover:border-rose-400 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                  title="Clear all data from all steps"
+                >
+                  <div className="absolute inset-0 rounded-md bg-gradient-to-r from-rose-500/0 via-rose-500/5 to-rose-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <Trash2 size={14} className="mr-1.5 relative z-10 group-hover:scale-110 transition-transform duration-200" />
+                  <span className="relative z-10 font-semibold">Clear All Data</span>
+                </Button>
+              </div>
               
               {/* Single Goal Selector */}
               {steps[1]?.output?.goals && steps[1].output.goals.length > 0 && (
@@ -704,16 +727,42 @@ function App() {
         )}
 
         {activeTab === 'pipeline' && (
-          <PipelineView
-            steps={steps}
-            agents={agents}
-            onRunStep={handleRunStep}
-            onRunStep4Phase={handleRunStep4Phase}
-            onSkipStep={skipStep}
-            onClearStep={clearStep}
-            onAbortStep={handleAbortStep}
-            onEditOutput={handleEditOutput}
-          />
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold gradient-text">Pipeline Steps</h2>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const stepsWithData = steps.filter(s => s.status === 'completed' || s.status === 'error');
+                  if (stepsWithData.length === 0) {
+                    alert('No data to clear');
+                    return;
+                  }
+                  if (confirm(`Clear all data from ${stepsWithData.length} step(s)? This will reset all completed steps to pending.`)) {
+                    stepsWithData.forEach(step => clearStep(step.id));
+                  }
+                }}
+                disabled={!steps.some(s => s.status === 'completed' || s.status === 'error')}
+                className="relative group border-rose-500/50 bg-gradient-to-r from-rose-500/10 to-red-500/10 text-rose-400 hover:from-rose-500/20 hover:to-red-500/20 hover:border-rose-400 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                title="Clear all data from all steps"
+              >
+                <div className="absolute inset-0 rounded-md bg-gradient-to-r from-rose-500/0 via-rose-500/5 to-rose-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Trash2 size={14} className="mr-1.5 relative z-10 group-hover:scale-110 transition-transform duration-200" />
+                <span className="relative z-10 font-semibold">Clear All Data</span>
+              </Button>
+            </div>
+            <PipelineView
+              steps={steps}
+              agents={agents}
+              onRunStep={handleRunStep}
+              onRunStep4Phase={handleRunStep4Phase}
+              onSkipStep={skipStep}
+              onClearStep={clearStep}
+              onAbortStep={handleAbortStep}
+              onEditOutput={handleEditOutput}
+            />
+          </div>
         )}
 
         {activeTab === 'graph' && (
