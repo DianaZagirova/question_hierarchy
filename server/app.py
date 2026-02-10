@@ -10,8 +10,28 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from dotenv import load_dotenv
 
+# Import multi-session support modules
+from database import db
+from redis_client import redis_client
+from session_middleware import get_session_id, require_session, with_session, optional_session
+
 # Load environment variables
 load_dotenv()
+
+# Initialize database and Redis connections
+try:
+    db.initialize()
+    print("✓ Database connection established")
+except Exception as e:
+    print(f"⚠ Database initialization failed: {e}")
+    print("  Continuing without database support...")
+
+try:
+    redis_client.initialize()
+    print("✓ Redis connection established")
+except Exception as e:
+    print(f"⚠ Redis initialization failed: {e}")
+    print("  Continuing without Redis support...")
 
 # Max parallel workers for batch execution (configurable via .env)
 MAX_BATCH_WORKERS = int(os.getenv('MAX_BATCH_WORKERS', '15'))
@@ -28,14 +48,47 @@ else:
 CORS(app)
 
 # ─── Thread-safe batch progress store ────────────────────────────────────────
-# Keyed by step_id. Each entry tracks real-time progress for a running batch.
+# Now uses Redis for cross-worker coordination with session-scoped keys
+# Fallback to in-memory store if Redis is unavailable
 _progress_lock = threading.Lock()
-_progress_store: dict = {}  # step_id -> { completed, total, successful, failed, elapsed, eta, items: [...] }
+_progress_store: dict = {}  # Fallback: session_id:step_id -> { ... }
 
-def _update_progress(step_id, completed, total, successful, failed, elapsed, eta, latest_item=None):
-    """Thread-safe update of batch progress for a step."""
+def _update_progress(session_id, step_id, completed, total, successful, failed, elapsed, eta, latest_item=None):
+    """Update batch progress for a session+step (Redis primary, in-memory fallback)."""
+    # Try Redis first
+    try:
+        if redis_client.client:
+            # Get existing items from Redis
+            existing = redis_client.get_progress(session_id, step_id)
+            items = existing.get('items', []) if existing else []
+
+            # Add new item
+            if latest_item:
+                items.append(latest_item)
+                if len(items) > 20:
+                    items = items[-20:]
+
+            # Update Redis
+            redis_client.update_progress(
+                session_id=session_id,
+                step_id=step_id,
+                completed=completed,
+                total=total,
+                successful=successful,
+                failed=failed,
+                elapsed=round(elapsed, 1),
+                eta=round(eta, 1),
+                percent=round((completed / total) * 100, 1) if total > 0 else 0,
+                items=items
+            )
+            return
+    except Exception as e:
+        print(f"Redis progress update failed, using fallback: {e}")
+
+    # Fallback to in-memory store
     with _progress_lock:
-        entry = _progress_store.get(step_id, {'items': []})
+        key = f"{session_id}:{step_id}"
+        entry = _progress_store.get(key, {'items': []})
         entry.update({
             'step_id': step_id,
             'completed': completed,
@@ -49,27 +102,65 @@ def _update_progress(step_id, completed, total, successful, failed, elapsed, eta
         })
         if latest_item:
             entry['items'].append(latest_item)
-            # Keep only last 20 items to avoid memory bloat
             if len(entry['items']) > 20:
                 entry['items'] = entry['items'][-20:]
-        _progress_store[step_id] = entry
+        _progress_store[key] = entry
 
-def _clear_progress(step_id):
-    with _progress_lock:
-        _progress_store.pop(step_id, None)
+def _clear_progress(session_id, step_id):
+    """Clear progress for a session+step"""
+    # Try Redis first
+    try:
+        if redis_client.client:
+            redis_client.clear_progress(session_id, step_id)
+            return
+    except Exception as e:
+        print(f"Redis progress clear failed, using fallback: {e}")
 
-def _get_progress(step_id):
+    # Fallback to in-memory store
     with _progress_lock:
-        return _progress_store.get(step_id, None)
+        key = f"{session_id}:{step_id}"
+        _progress_store.pop(key, None)
+
+def _get_progress(session_id, step_id):
+    """Get progress for a session+step"""
+    # Try Redis first
+    try:
+        if redis_client.client:
+            progress = redis_client.get_progress(session_id, step_id)
+            if progress:
+                # Add metadata for compatibility
+                progress['step_id'] = step_id
+                progress['timestamp'] = time.time()
+                return progress
+    except Exception as e:
+        print(f"Redis progress get failed, using fallback: {e}")
+
+    # Fallback to in-memory store
+    with _progress_lock:
+        key = f"{session_id}:{step_id}"
+        return _progress_store.get(key, None)
 
 @app.route('/api/progress/<int:step_id>', methods=['GET'])
 def stream_progress(step_id):
     """SSE endpoint: streams real-time batch progress for a given step."""
+    # Extract session_id from query param (SSE can't use custom headers)
+    session_id = request.args.get('session_id')
+
+    # Validate session
+    if not session_id or not db.is_valid_session(session_id):
+        def error_stream():
+            yield f"data: {json.dumps({'error': 'Invalid session'})}\n\n"
+        return Response(
+            error_stream(),
+            mimetype='text/event-stream',
+            headers={'Cache-Control': 'no-cache'}
+        )
+
     def generate():
         last_completed = -1
         idle_count = 0
         while True:
-            progress = _get_progress(step_id)
+            progress = _get_progress(session_id, step_id)
             if progress and progress.get('completed', 0) != last_completed:
                 last_completed = progress['completed']
                 idle_count = 0
@@ -95,6 +186,114 @@ def stream_progress(step_id):
             'Connection': 'keep-alive',
         }
     )
+
+# ─── Session Management Endpoints ─────────────────────────────────────────────
+
+@app.route('/api/session/new', methods=['POST'])
+def create_session():
+    """Create a new user session and return session_id"""
+    try:
+        metadata = request.json or {}
+        session_id = db.create_session(metadata=metadata)
+
+        response = jsonify({
+            'session_id': session_id,
+            'created': True
+        })
+
+        # Set HTTP-only cookie for browser clients
+        response.set_cookie(
+            'session_id',
+            session_id,
+            httponly=True,
+            max_age=7 * 24 * 60 * 60,  # 7 days
+            samesite='Lax'
+        )
+
+        return response
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/session/validate', methods=['GET'])
+def validate_session():
+    """Validate existing session or create a new one"""
+    session_id = get_session_id()
+
+    if session_id and db.is_valid_session(session_id):
+        # Valid session, update access time
+        db.update_session_access(session_id)
+        return jsonify({
+            'session_id': session_id,
+            'valid': True
+        })
+    else:
+        # Invalid or missing session, create new one
+        try:
+            new_session_id = db.create_session()
+            response = jsonify({
+                'session_id': new_session_id,
+                'valid': False,
+                'created': True
+            })
+
+            # Set HTTP-only cookie
+            response.set_cookie(
+                'session_id',
+                new_session_id,
+                httponly=True,
+                max_age=7 * 24 * 60 * 60,
+                samesite='Lax'
+            )
+
+            return response
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/session/state', methods=['GET'])
+@with_session(db)
+def get_session_state(session_id):
+    """Retrieve full session state from database"""
+    try:
+        state_key = request.args.get('key')
+        state_data = db.get_session_state(session_id, state_key)
+
+        if state_data is None and state_key:
+            return jsonify({'error': 'State not found'}), 404
+
+        return jsonify({
+            'session_id': session_id,
+            'state': state_data or {}
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/session/state', methods=['PUT'])
+@with_session(db)
+def save_session_state(session_id):
+    """Save session state to database"""
+    try:
+        data = request.json or {}
+
+        # Support both single key-value and multiple keys
+        if 'state_key' in data and 'state_data' in data:
+            # Single key-value
+            db.save_session_state(session_id, data['state_key'], data['state_data'])
+        else:
+            # Multiple keys (e.g., {'app_state': {...}, 'step_4': {...}})
+            for key, value in data.items():
+                db.save_session_state(session_id, key, value)
+
+        return jsonify({
+            'session_id': session_id,
+            'saved': True
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ─── End Session Management Endpoints ─────────────────────────────────────────
 
 def interpolate_prompt(agent_config, global_lens=None):
     """Interpolate placeholders in agent system prompts with actual values.
@@ -350,7 +549,8 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
         return {'raw_response': response_text, 'parse_error': str(parse_error)}
 
 @app.route('/api/execute-step', methods=['POST'])
-def execute_step():
+@with_session(db)
+def execute_step(session_id):
     """Execute a single pipeline step"""
     try:
         data = request.json
@@ -359,14 +559,21 @@ def execute_step():
         input_data = data.get('input')
         global_lens = data.get('globalLens')  # User-configured epistemic lens
 
-        print(f'\n=== Executing Step {step_id} ===')
+        print(f'\n=== Executing Step {step_id} (Session: {session_id[:8]}...) ===')
         print(f'Agent: {agent_config.get("name")}')
         print(f"User Prompt (truncated): {str(input_data)[:200]}...")
 
         result = execute_single_item(step_id, agent_config, input_data, global_lens)
-        
+
         print(f"\nResponse received ({len(str(result))} chars)")
         print(f"Parsed JSON keys: {list(result.keys())}")
+
+        # Save step output to database
+        try:
+            state_key = f'step_{step_id}_output'
+            db.save_session_state(session_id, state_key, result)
+        except Exception as e:
+            print(f"Warning: Failed to save step output to database: {e}")
 
         return jsonify(result)
 
@@ -387,10 +594,11 @@ def execute_step():
         }), 500
 
 @app.route('/api/execute-step-batch', methods=['POST'])
-def execute_step_batch():
+@with_session(db)
+def execute_step_batch(session_id):
     """
     Execute a step multiple times with different inputs in parallel.
-    
+
     NOTE: Flask's development server doesn't detect client disconnections,
     so if the frontend aborts, the backend will continue processing until
     all tasks complete. This is expected behavior for the dev server.
@@ -403,19 +611,19 @@ def execute_step_batch():
         items = data.get('items', [])
         phase_info = data.get('phase_info', {})  # Get phase information for Step 4
         global_lens = data.get('globalLens')  # User-configured epistemic lens
-        
+
         print(f'\n{"#"*70}')
-        print(f'### BATCH EXECUTION: Step {step_id} - {agent_config.get("name")}')
+        print(f'### BATCH EXECUTION: Step {step_id} - {agent_config.get("name")} (Session: {session_id[:8]}...)')
         print(f'{"#"*70}')
         print(f'📦 Total items to process: {len(items)}')
-        
+
         # Adjust max workers — maximize parallelism for speed
         # Capped by MAX_BATCH_WORKERS env var (default 15)
         max_workers = min(len(items), MAX_BATCH_WORKERS)
         print(f'⚡ Processing {len(items)} items in PARALLEL with {max_workers} workers (MAX_BATCH_WORKERS={MAX_BATCH_WORKERS})...')
-        
+
         results = [None] * len(items)  # Pre-allocate results list
-        _clear_progress(step_id)  # Reset progress for this step
+        _clear_progress(session_id, step_id)  # Reset progress for this session+step
         
         # Process items in parallel using ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -432,7 +640,7 @@ def execute_step_batch():
             batch_start_time = time.time()
             
             # Initialize progress
-            _update_progress(step_id, 0, len(items), 0, 0, 0, 0)
+            _update_progress(session_id, step_id, 0, len(items), 0, 0, 0, 0)
             
             for future in as_completed(future_to_idx):
                 idx = future_to_idx[future]
@@ -474,7 +682,7 @@ def execute_step_batch():
                     
                     # Update real-time progress via SSE store
                     _update_progress(
-                        step_id, completed, len(items),
+                        session_id, step_id, completed, len(items),
                         successful_so_far, failed_so_far,
                         elapsed, eta_seconds,
                         latest_item={'index': idx, 'success': True}
@@ -509,7 +717,7 @@ def execute_step_batch():
                     
                     # Update real-time progress via SSE store
                     _update_progress(
-                        step_id, completed, len(items),
+                        session_id, step_id, completed, len(items),
                         successful_so_far, failed_so_far,
                         elapsed, eta_seconds,
                         latest_item={'index': idx, 'success': False, 'error': str(item_error)}
@@ -532,19 +740,31 @@ def execute_step_batch():
             print(f"{'#'*70}\n")
         else:
             print(f"\n=== Batch Complete: {successful_count}/{len(items)} successful ===")
-        
-        _clear_progress(step_id)  # Clean up progress store
-        
-        return jsonify({
+
+        _clear_progress(session_id, step_id)  # Clean up progress store
+
+        # Save batch results to database
+        batch_summary = {
             'batch_results': completed_results,
             'total_processed': len(completed_results),
             'successful': successful_count,
-            'failed': len(completed_results) - successful_count
-        })
+            'failed': len(completed_results) - successful_count,
+            'completed_at': datetime.now().isoformat()
+        }
+        try:
+            state_key = f'step_{step_id}_batch'
+            db.save_session_state(session_id, state_key, batch_summary)
+        except Exception as e:
+            print(f"Warning: Failed to save batch results to database: {e}")
+
+        return jsonify(batch_summary)
     
     except Exception as error:
         print(f'Error in batch execution: {error}')
-        _clear_progress(step_id)  # Clean up on error too
+        try:
+            _clear_progress(session_id, step_id)  # Clean up on error too
+        except:
+            pass  # session_id/step_id might not be defined if error happened early
         return jsonify({
             'error': str(error),
             'details': 'Batch execution failed'
@@ -984,7 +1204,8 @@ Be brutally critical — do NOT force unification if the tasks are fundamentally
 # NODE CHAT: Chat with LLM about selected graph nodes
 # ============================================================
 @app.route('/api/improve-node', methods=['POST'])
-def improve_node():
+@with_session(db)
+def improve_node(session_id):
     """Stream an LLM response to improve a node's data.
 
     Takes the current node data, context nodes, Q0, goal, lens, and returns
@@ -1116,7 +1337,8 @@ def improve_node():
     )
 
 @app.route('/api/node-chat', methods=['POST'])
-def node_chat():
+@with_session(db)
+def node_chat(session_id):
     """Stream a chat response about selected graph nodes.
 
     Always includes Q0, goal, and lens in the system context.

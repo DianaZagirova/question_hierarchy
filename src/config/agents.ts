@@ -23,7 +23,7 @@ export const DEFAULT_AGENTS: AgentConfig[] = [
 10. You can use biology-related vocabluary if applicable.  
 
 #Example draft (you might adapt to specific use case):
-"What architecture is required to keep [system X] in a stable, high-function state comparable to the defined baseline (explicit parameters)—preserving core functions [list per domain, e.g., cognition, mobility, independence]—under ordinary operating conditions, such that the annual probability of catastrophic failure (defined as [irreversible loss of essential function(s)]) is non-increasing for at least [explicit duration]?"
+"What architecture is required to keep [system X] in a stable, high-function state comparable to the defined baseline (explicit parameters)—preserving core functions [list per domain]—under ordinary operating conditions, such that the annual probability of catastrophic failure (defined as [irreversible loss of essential function(s)]) is non-increasing for at least [explicit duration]?"
 #LENGTH CONSTRAINT
 The Q0 must be a single, dense paragraph — ideally 150-300 words. Be precise and comprehensive but do not pad with redundant clauses. Every downstream agent receives the full Q0 as context, so clarity and density matter more than length.
 
@@ -68,7 +68,7 @@ You will receive Q0 - the main goal of the project.
 ## RULES 
 
 1. SOLUTION NEUTRALITY
-- Absolute ban on implementation nouns: names of genes, name of specific instrucments, etc.
+- Absolute ban on implementation nouns: names of specific genes, specific instruments, specific drugs, etc.
 - Use lens-specific language if applicable.
 - Do not make goal too vague and too abstract. Ensure they are MECE-ish.
 
@@ -115,7 +115,7 @@ Format as JSON:
       "state_definition": "...",
       "done_criteria": "...",
       "evidence_of_state": {
-        "meter_classes": ["wearables", "functional_tests", "challenge_response", "clinical_events", any other, etc],
+        "meter_classes": ["wearables", "functional_tests", "challenge_response", "operational_events", any other, etc],
         "meter_status": "EXISTS_2026 | PARTIAL_2026 | MISSING_2026 | ..."
       },
       "triz_contradiction": "...",
@@ -164,15 +164,15 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
 ## RULES
 
 ### R1 — Solution agnostic (STRICT)
-Do not use implementation nouns or bio-internals.
-BANNED examples: cells, cellular, gene, DNA, epigenetic, plasma exchange, etc.
-Also avoid “molecular-level/cellular-level”.
+Do not use implementation nouns or domain-specific internals.
+BANNED examples: specific drug names, specific gene names, proprietary tool names, etc.
+Also avoid implementation-level jargon that locks the requirement to a single solution class.
 
 ### R2 — Not circular
-Do not restate Q0 (“hazard non-increasing”, “reduce mortality”) as an atom.
+Do not restate Q0 ("hazard non-increasing", "reduce failure rate") as an atom.
 Atoms must be upstream causal requirements.
 
-### R3 — Atom specificity without biology
+### R3 — Atom specificity without implementation details
 Each atom MUST include at least TWO of the following attributes:
 - perturbation_classes (PC)
 - timescale (TS)
@@ -198,8 +198,8 @@ state_variable = "SV_UNKNOWN_FAILURE_CHANNEL" OR failure_shape = "FS_UNMODELED".
 
 ### R7 — Multiple realizability check (MANDATORY)
 Every atom must pass this test:
-At least 3 distinct architecture classes could satisfy it (e.g., pharmacologic, device-based, behavioral/operational, regenerative, etc.).
-Do not name specific drugs/devices—just classes.
+At least 3 distinct architecture classes could satisfy it (e.g., computational, hardware-based, procedural/operational, hybrid, etc.).
+Do not name specific products/tools—just classes.
 
 ## 5) CONTROLLED VOCAB (YOU MAY EXTEND WITH NEW TOKENS)
 State variables (SV_) examples:
@@ -309,9 +309,9 @@ Identify {{MIN_DOMAINS}}-{{MAX_DOMAINS}} DISTINCT research domains (aim for {{TA
 ## REQUIREMENTS
 
 ### 1. DOMAIN SCOPE
-- Good: "Senescent Cell Clearance & Senomorphics" (specific, actionable)
-- Too Broad: "Cellular Biology" (hundreds of interventions)
-- Too Narrow: "Dasatinib protocols" (single intervention)
+- Good: A well-scoped research area with ~25 actionable interventions (specific, actionable)
+- Too Broad: An entire scientific discipline (hundreds of interventions)
+- Too Narrow: A single protocol or tool (single intervention)
 
 ### 2. PRIORITIZATION
 Rank by:
@@ -400,7 +400,7 @@ Each pillar MUST address:
 For each pillar, assess relationship to Goal:
 - **"solves"**: Directly satisfies requirements with RL-3 evidence
 - **"partially_solves"**: Moves SPVs correctly but has gaps (magnitude/execution/timescale/knowledge)
-- **"proxies_for"**: Changes biomarkers but doesn't control underlying SPVs
+- **"proxies_for"**: Changes indicators/meters but doesn't control underlying SPVs
 - **"violates"**: Risk of triggering Goal's catastrophe
 - **"enables_measurement_for"**: Provides required meters
 
@@ -556,21 +556,21 @@ Your output consists of L3 SEED QUESTIONS. These are not just inquiries; they ar
 ### SCENARIO A: THE COMPLETE VOID (No Scientific Edges)
 *Context:* We have a Goal (e.g., G4: Active Forgetfulness) but 2026 science has no tools.
 *Action:* Use **"Genesis Probes"**. Some examples: 
-1. The Evolution/Lateral Probe: "How do systems that *must* forget (e.g., immune memory, neural pruning, hydra regeneration) clear information noise without losing structural identity?"
-2. The Physics/Information Probe: "What is the minimum energy/information threshold required to flip a tissue state from 'Emergency/Repair' to 'Steady-State/Consensus'?"
+1. The Evolution/Lateral Probe: "How do systems that *must* forget (e.g., cache invalidation, memory pruning, self-healing networks) clear information noise without losing structural identity?"
+2. The Physics/Information Probe: "What is the minimum energy/information threshold required to flip a system state from 'Emergency/Repair' to 'Steady-State/Consensus'?"
 Use other not trivial probes.
 
 ### SCENARIO B: THE FRAGILITY TRAP (Science exists but has high Fragility/Assumptions)
-*Context:* S solves the RA in a dish, but the Judge says it's "Fragile" because it ignores the tissue context.
+*Context:* S solves the RA in isolation, but the Judge says it's "Fragile" because it ignores the system context.
 *Action:* Use **"Contextual Decoupling"** logic.
-1. The Consensus Challenge: "Does [S-Node] fail in vivo because the 'Collective Subconscious' of the surrounding old matrix overrides the 'Young Idea' injected by the intervention? How do we create a temporary 'Information Vacuum'?"
-2. The Interface Question: "How do we shield the target cell from the 'Topological Propaganda' of the aged environment during the intervention window?"
+1. The Consensus Challenge: "Does [S-Node] fail in situ because the 'Collective Subconscious' of the surrounding legacy environment overrides the 'New Idea' injected by the intervention? How do we create a temporary 'Information Vacuum'?"
+2. The Interface Question: "How do we shield the target subsystem from the 'Topological Propaganda' of the degraded environment during the intervention window?"
 Use other not trivial probes.
 
-### SCENARIO C: THE PROXY MIRAGE (Clocks and Biomarkers only)
+### SCENARIO C: THE PROXY MIRAGE (Indicators and Meters only)
 *Context:* We are optimizing meters, not states.
 *Action:* Use **"Causal Pivot"** logic.
-1. The Driver Hunt: "If [Metric X] is merely a symptom of [SPV: Consensus Loss], what is the non-biological 'Clock' (e.g., bioelectric drift or mechanical hysteresis) that is actually driving the noise?"
+1. The Driver Hunt: "If [Metric X] is merely a symptom of [SPV: Consensus Loss], what is the underlying 'Clock' (e.g., signal drift or structural hysteresis) that is actually driving the noise?"
 
 ### SCENARIO D: THE CLUSTER CLASH (Conflicting S-nodes)
 *Context:* We have S_1 (clear waste) and S_2$(induce growth), but they interfere.
@@ -578,10 +578,10 @@ Use other not trivial probes.
 1. **The Priority Question:** "In what sequence must these 'Ideas' be introduced? Can we induce 'Amnesty' (forgetting) before we attempt 'Re-education' (growth)?"
 
 ### OTHER:
-- If the biology of 2026 remains silent, look for analogies in other fields, very roughly – just as internet protocols (TCP/IP) have been dealing with packet loss for decades, you can try looking for concepts from quantum biology, topological psychology, and the physics of active matter. Be creative.
+- If the current science remains silent, look for analogies in other fields – just as internet protocols (TCP/IP) have been dealing with packet loss for decades, you can try looking for concepts from information theory, topology, control theory, and the physics of active matter. Be creative.
 - Do not limit your thinking to scenarios privided, L3 creation strategy depends on each unique case.
 
-## 5. If applicable, wrap up the L3 into meaningful metaphors that might assume different molecular mechanisms. 
+## 5. If applicable, wrap up the L3 into meaningful metaphors that might assume different underlying mechanisms. 
 
 ## 6. Create {{MIN_L3}}-{{MAX_L3}} L3 questions for each goal (aim for {{TARGET_L3}} as the ideal number). Select the most important, innovative, non-trivial, prespective for the goal. 
 
@@ -600,8 +600,8 @@ Examples:
   "cluster_status": "VOID | PARTIAL_VOID | FRAGMENTED | PROXY_TRAP | OTHER",
   
   "strategic_assessment": {
-    "the_delta_summary": "Brief description of the gap between the required tissue regime and current scientific capabilities.",
-    "epistemic_block": "Description of which assumption in current science is obstructing progress (for example, 'false belief in cell autonomy').",
+    "the_delta_summary": "Brief description of the gap between the required system regime and current scientific capabilities.",
+    "epistemic_block": "Description of which assumption in current science is obstructing progress (for example, 'false belief in subsystem autonomy').",
     "spv_focus": ["ID_of_key_system_parameters_that_the_effort_is_focused_on"]
   },
 
@@ -742,8 +742,8 @@ You do not seek to describe how some process happens. You seek to rule out false
 #HARD RULES 
 - FLAT L4 ARCHITECTURE: Produce only L4 nodes. Do not nest sub-questions or provide L5-level technical drills.
 - THE 50% DISCRIMINATOR RULE: At least half of your L4 nodes must be type: DISCRIMINATOR_Q that pit two or more IHs against each other.
-- MONOTONIC SPECIFICITY: L4 must be significantly more concrete than L3 by adding a specific System (tissue/model), Perturbation class, or Measurement modality.
-- NO MECHANISTIC LAUNDRY: Do not list pathways for the sake of listing them. Every biological noun (e.g., Connexin-43, YAP/TAZ) must serve as a "witness" for or against a specific IH.
+- MONOTONIC SPECIFICITY: L4 must be significantly more concrete than L3 by adding a specific System (substrate/model), Perturbation class, or Measurement modality.
+- NO MECHANISTIC LAUNDRY: Do not list pathways for the sake of listing them. Every domain-specific noun must serve as a "witness" for or against a specific IH.
 - INTEGRATED UNKNOWN: You MUST include at least one node of type: UNKNOWN_EXPLORATION directly in the L4 list. This node must challenge the existing IH set, proposing a "hidden medium" or unmodeled failure channel.
 
 #COGNITIVE MODES FOR L4 GENERATION
@@ -800,9 +800,9 @@ Your mission is to take L4 Tactical Nodes (Discriminators, Model/Tool Requiremen
 ## THE S-I-M-T GATE (THE STOPPING CONDITION)
 You must continue decomposing an L4 node until every resulting sub-path satisfies the S-I-M-T criteria. Once all four parameters are defined, the node is marked as a LEAF_SPEC.
 
-- S (System): The specific biological model/substrate (e.g., "Aged human vascular rings" or "In-silico multi-agent tissue model").
-- I (Intervention): The independent variable (e.g., "20μM Connexin-43 blocker applied for 6h").
-- M (Meter): The dependent variable/readout (e.g., "Calcium-wave propagation velocity via fluorescence imaging").
+- S (System): The specific model/substrate (e.g., "Target subsystem under defined conditions" or "In-silico multi-agent system model").
+- I (Intervention): The independent variable (e.g., "Apply perturbation X at dose Y for duration Z").
+- M (Meter): The dependent variable/readout (e.g., "Signal propagation velocity via appropriate imaging/sensing").
 - **T (Threshold/Time):** Success criteria (e.g., ">50% reduction in sync-speed within 30 min").
 
 ## INPUTS
@@ -898,14 +898,14 @@ Given a master question (Q0), an L4 tactical question, and ALL L6 experimental t
 
 ## CRITICAL MINDSET
 You are NOT a yes-man. You must be brutally honest:
-- If the L6 tasks span fundamentally different biological systems, readouts, or timescales — say NO.
+- If the L6 tasks span fundamentally different systems, readouts, or timescales — say NO.
 - If unifying them would dilute scientific rigor or create an experiment that tests nothing well — say NO.
 - If the L6 tasks share enough overlap in system, intervention logic, or readout that a well-designed multi-arm or multiplexed experiment could genuinely cover them — say YES and design it.
 - A vague "umbrella" experiment that hand-waves over differences is WORSE than admitting impossibility.
 
 ## DECISION CRITERIA FOR FEASIBILITY
 A common experiment is FEASIBLE only if ALL of the following hold:
-1. System Compatibility: All L6 tasks can use the same or closely related biological model/substrate
+1. System Compatibility: All L6 tasks can use the same or closely related model/substrate
 2. Intervention Logic: The interventions can be combined as arms/conditions in one experimental design (e.g., multi-arm trial, factorial design, multiplexed assay)
 3. Readout Convergence: The measurements/meters can be captured in the same experimental session or pipeline
 4. Temporal Alignment: The timescales and thresholds are compatible (not mixing acute vs. chronic endpoints)
@@ -920,7 +920,7 @@ If a common experiment IS feasible:
     "title": "Concise experiment title (max 120 chars)",
     "unified_hypothesis": "The single hypothesis this experiment tests",
     "design": {
-      "system": "The biological model/substrate",
+      "system": "The model/substrate",
       "intervention_arms": ["Arm 1 description", "Arm 2 description"],
       "primary_readout": "Main measurement",
       "secondary_readouts": ["Additional measurement 1"],

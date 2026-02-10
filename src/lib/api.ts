@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { AgentConfig } from '@/types';
+import { sessionManager } from './sessionManager';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -9,6 +10,36 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Add request interceptor to inject session ID
+api.interceptors.request.use(
+  (config) => {
+    const sessionId = sessionManager.getSessionId();
+    if (sessionId) {
+      config.headers['X-Session-ID'] = sessionId;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add response interceptor to handle session errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (
+      error.response?.status === 401 &&
+      error.response?.data?.error === 'Invalid session'
+    ) {
+      // Session expired or invalid, reinitialize
+      console.warn('Session expired, reinitializing...');
+      await sessionManager.initialize();
+      // Retry the request with new session
+      return api.request(error.config);
+    }
+    return Promise.reject(error);
+  }
+);
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
@@ -129,7 +160,9 @@ export const subscribeBatchProgress = (
   onProgress: (progress: BatchProgress) => void,
   onDone?: () => void,
 ): (() => void) => {
-  const url = `${API_URL}/api/progress/${stepId}`;
+  // Include session_id as query parameter (SSE can't use custom headers)
+  const sessionId = sessionManager.getSessionId();
+  const url = `${API_URL}/api/progress/${stepId}?session_id=${sessionId}`;
   const eventSource = new EventSource(url);
 
   eventSource.onmessage = (event) => {
@@ -183,10 +216,14 @@ export const streamNodeChat = (
   onError?: (error: string) => void,
 ): (() => void) => {
   const controller = new AbortController();
+  const sessionId = sessionManager.getSessionId();
 
   fetch(`${API_URL}/api/node-chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(sessionId && { 'X-Session-ID': sessionId }),
+    },
     body: JSON.stringify(params),
     signal: controller.signal,
   })
@@ -264,10 +301,14 @@ export const streamNodeImprovement = (
   onError?: (error: string) => void,
 ): (() => void) => {
   const controller = new AbortController();
+  const sessionId = sessionManager.getSessionId();
 
   fetch(`${API_URL}/api/improve-node`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(sessionId && { 'X-Session-ID': sessionId }),
+    },
     body: JSON.stringify(params),
     signal: controller.signal,
   })

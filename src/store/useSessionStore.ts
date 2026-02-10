@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { Session } from '@/types';
+import { sessionManager } from '@/lib/sessionManager';
+import { stateSync } from '@/lib/stateSync';
 
 const SESSION_INDEX_KEY = 'omega-point-sessions';
 const SESSION_DATA_PREFIX = 'omega-point-session-';
@@ -124,6 +126,42 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (sessionData) {
       localStorage.setItem(LEGACY_STORAGE_KEY, sessionData);
     }
+
+    // ─── Server Migration Logic ───────────────────────────────────────
+    // Check if localStorage data has been migrated to server
+    const migrated = localStorage.getItem('migrated_to_server');
+    if (!migrated) {
+      console.log('[SessionStore] Starting migration to server...');
+
+      // Migrate in background (don't block initialization)
+      (async () => {
+        try {
+          // Initialize session with server
+          await sessionManager.initialize();
+
+          // Upload existing localStorage state to server
+          const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+          if (legacyRaw) {
+            try {
+              const legacyData = JSON.parse(legacyRaw);
+              if (legacyData.state) {
+                await stateSync.saveToServer(legacyData.state);
+                console.log('[SessionStore] ✓ Migration complete - state uploaded to server');
+              }
+            } catch (parseError) {
+              console.error('[SessionStore] Failed to parse legacy data for migration:', parseError);
+            }
+          }
+
+          // Mark as migrated
+          localStorage.setItem('migrated_to_server', 'true');
+        } catch (error) {
+          console.error('[SessionStore] Migration to server failed:', error);
+          // Continue with localStorage-only mode
+        }
+      })();
+    }
+    // ─── End Server Migration Logic ───────────────────────────────────
 
     set({ sessions, activeSessionId: activeId });
     return activeId;

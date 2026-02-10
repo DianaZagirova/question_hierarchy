@@ -9,10 +9,43 @@
 # ============================================================
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: omega-point-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: omegapoint
+      POSTGRES_USER: omegapoint
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omegapoint"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: omega-point-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   omega-point:
     build: .
     container_name: omega-point
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "${PORT:-3002}:${PORT:-3002}"
     env_file:
@@ -23,3 +56,9 @@ services:
       - HOST=0.0.0.0
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-300}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://omegapoint:changeme@postgres:5432/omegapoint}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+
+volumes:
+  postgres_data:
+    driver: local

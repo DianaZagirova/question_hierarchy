@@ -29,7 +29,8 @@ COPY server/requirements.txt /app/server/requirements.txt
 RUN pip install --no-cache-dir -r /app/server/requirements.txt
 
 # Copy server code
-COPY server/app.py /app/server/app.py
+COPY server/*.py /app/server/
+COPY server/init.sql /app/server/init.sql
 
 # Copy built frontend from Stage 1
 COPY --from=frontend /app/dist /app/dist
