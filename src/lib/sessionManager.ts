@@ -31,6 +31,7 @@ class SessionManager {
         // Validate with server
         const response = await axios.get(`${API_URL}/api/session/validate`, {
           headers: {
+            'Content-Type': 'application/json',
             'X-Session-ID': storedSessionId,
           },
         });
@@ -54,7 +55,11 @@ class SessionManager {
       }
 
       // No stored session or validation failed, create new one
-      const response = await axios.post(`${API_URL}/api/session/new`);
+      const response = await axios.post(`${API_URL}/api/session/new`, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       if (response.data.session_id) {
         const sessionId = response.data.session_id as string;
         this.sessionId = sessionId;
@@ -90,7 +95,11 @@ class SessionManager {
    */
   async createNewSession(): Promise<string> {
     try {
-      const response = await axios.post(`${API_URL}/api/session/new`);
+      const response = await axios.post(`${API_URL}/api/session/new`, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       if (response.data.session_id) {
         const sessionId = response.data.session_id as string;
         this.sessionId = sessionId;

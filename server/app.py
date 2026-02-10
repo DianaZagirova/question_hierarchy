@@ -208,7 +208,8 @@ def stream_progress(step_id):
 def create_session():
     """Create a new user session and return session_id"""
     try:
-        metadata = request.json or {}
+        # Use get_json(silent=True) to handle missing Content-Type gracefully
+        metadata = request.get_json(silent=True) or {}
         session_id = db.create_session(metadata=metadata)
 
         response = jsonify({
