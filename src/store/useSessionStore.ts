@@ -121,9 +121,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Create new session on server
       const newSession = await sessionApi.createUserSession(name || `Session ${state.sessions.length + 1}`);
 
-      // Update local state
-      const updatedSessions = [...state.sessions, newSession];
-      set({ sessions: updatedSessions, activeSessionId: newSession.id });
+      // CRITICAL: Set active session ID in localStorage ONLY, not in Zustand state
+      // Setting it in Zustand state would trigger auto-save which would save old data to new session
       setActiveSessionId(newSession.id);
 
       // CRITICAL: Clear Zustand's localStorage before reload to prevent data leakage
@@ -132,6 +131,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       console.log('[SessionStore] Cleared Zustand localStorage for new session');
 
       // Reload to start with clean state
+      // The new session will be loaded from server on initialize()
       window.location.reload();
 
       return newSession.id;
@@ -149,28 +149,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Save current session
       await state.saveCurrentToSession();
 
-      // Load target session data
-      const sessionData = await sessionApi.getUserSessionData(sessionId);
-
-      // Update active session
+      // CRITICAL: Set active session ID in localStorage ONLY, not in Zustand state
+      // Setting it in Zustand state would trigger auto-save which could save wrong data
       setActiveSessionId(sessionId);
-      set({ activeSessionId: sessionId });
 
       // CRITICAL: Clear Zustand's localStorage before reload to prevent data leakage
       // This ensures we load the correct session data from server, not stale localStorage
       localStorage.removeItem('omega-point-storage');
       console.log('[SessionStore] Cleared Zustand localStorage before session switch');
 
-      // Apply session data or reset to defaults
-      if (sessionData) {
-        await stateSync.loadFromObject(sessionData);
-      } else {
-        // New session with no data - reset to defaults
-        console.log('[SessionStore] Switching to session with no data, resetting to defaults');
-        await stateSync.resetToDefault();
-      }
-
       // Reload to apply new state
+      // The target session will be loaded from server on initialize()
       window.location.reload();
     } catch (error) {
       console.error('[SessionStore] Failed to switch session:', error);

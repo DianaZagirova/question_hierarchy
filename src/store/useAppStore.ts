@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppState, AgentConfig, PipelineStep, ProjectVersion } from '@/types';
 import { DEFAULT_AGENTS } from '@/config/agents';
-import { stateSync } from '@/lib/stateSync';
 
 interface AppStore extends AppState {
   // Actions
@@ -96,11 +95,17 @@ export const useAppStore = create<AppStore>()(
           ),
         }));
 
-        // Sync to server when step is completed
+        // Sync to user session when step is completed
         if (status === 'completed') {
-          console.log(`[Store] Step ${stepId} completed, syncing to server...`);
-          stateSync.syncNow(get()).catch((error) => {
-            console.error('[Store] Failed to sync step completion to server:', error);
+          console.log(`[Store] Step ${stepId} completed, syncing to user session...`);
+          // Import useSessionStore dynamically to avoid circular dependency
+          import('./useSessionStore').then(({ useSessionStore }) => {
+            const saveCurrentToSession = useSessionStore.getState().saveCurrentToSession;
+            if (saveCurrentToSession) {
+              saveCurrentToSession().catch((error) => {
+                console.error('[Store] Failed to sync step completion to user session:', error);
+              });
+            }
           });
         }
       },

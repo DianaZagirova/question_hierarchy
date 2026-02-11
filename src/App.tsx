@@ -15,7 +15,6 @@ import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
 import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info } from 'lucide-react';
 import { sessionManager } from './lib/sessionManager';
-import { stateSync } from './lib/stateSync';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
@@ -59,17 +58,11 @@ function App() {
         // Initialize session manager
         await sessionManager.initialize();
 
-        // Load state from server
-        const serverState = await stateSync.loadFromServer();
-        if (serverState) {
-          // Merge server state with local state (server takes precedence)
-          useAppStore.setState(serverState);
-          console.log('[App] State loaded from server');
-        }
-
-        // Start auto-sync (save state to server every 30 seconds)
-        stateSync.startAutoSync(() => useAppStore.getState());
-        console.log('[App] Auto-sync started');
+        // IMPORTANT: stateSync auto-sync is DISABLED
+        // Reason: stateSync saves to main session state (/api/session/state)
+        // which conflicts with user sessions (/api/user-sessions/{id})
+        // User session auto-save is handled by useSessionStore instead
+        console.log('[App] Session initialized - user sessions active');
       } catch (error) {
         console.error('[App] Failed to initialize session:', error);
         // Continue with local-only mode
@@ -77,11 +70,6 @@ function App() {
     };
 
     initializeSession();
-
-    // Cleanup on unmount
-    return () => {
-      stateSync.stopAutoSync();
-    };
   }, []);
 
   // File I/O handlers
