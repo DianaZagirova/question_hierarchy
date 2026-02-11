@@ -126,6 +126,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ sessions: updatedSessions, activeSessionId: newSession.id });
       setActiveSessionId(newSession.id);
 
+      // CRITICAL: Clear Zustand's localStorage before reload to prevent data leakage
+      // This ensures the new session starts fresh without old session data
+      localStorage.removeItem('omega-point-storage');
+      console.log('[SessionStore] Cleared Zustand localStorage for new session');
+
       // Reload to start with clean state
       window.location.reload();
 
@@ -150,6 +155,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Update active session
       setActiveSessionId(sessionId);
       set({ activeSessionId: sessionId });
+
+      // CRITICAL: Clear Zustand's localStorage before reload to prevent data leakage
+      // This ensures we load the correct session data from server, not stale localStorage
+      localStorage.removeItem('omega-point-storage');
+      console.log('[SessionStore] Cleared Zustand localStorage before session switch');
 
       // Apply session data or reset to defaults
       if (sessionData) {
