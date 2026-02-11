@@ -115,8 +115,11 @@ function App() {
   const { initialize: initSessions, updateActiveSessionMeta, saveCurrentToSession } = useSessionStore();
 
   useEffect(() => {
-    initSessions();
-  }, []);
+    // Initialize sessions (async)
+    initSessions().catch((error) => {
+      console.error('[App] Session initialization failed:', error);
+    });
+  }, [initSessions]);
 
   // Auto-save session meta when goal changes
   useEffect(() => {
@@ -146,7 +149,7 @@ function App() {
   const teamPower = enabledAgents.reduce((sum) => sum + 100, 0);
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-hidden">
+    <div className="app-main-container min-h-screen bg-background text-foreground overflow-hidden">
       <ParticleBackground />
       
       {/* Header */}
@@ -456,7 +459,7 @@ function App() {
         )}
 
         {activeTab === 'split' && (
-          <div ref={containerRef} className="flex gap-0 h-[800px] relative">
+          <div ref={containerRef} className="flex gap-0 split-view-container relative">
             <div
               style={{ width: `${splitRatio}%` }}
               className="overflow-auto bg-card/50 backdrop-blur-sm rounded-l-lg shadow-lg border border-border/30 p-4 select-text"
@@ -826,7 +829,7 @@ function App() {
         )}
 
         {activeTab === 'graph' && (
-          <div className="h-[800px] bg-card/50 backdrop-blur-sm rounded-lg shadow-lg border border-border/30 overflow-hidden">
+          <div className="graph-view-container bg-card/50 backdrop-blur-sm rounded-lg shadow-lg border border-border/30 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border/30">
               <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
               <button

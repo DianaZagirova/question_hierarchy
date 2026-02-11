@@ -20,11 +20,30 @@ Base = declarative_base()
 # SQLAlchemy Models
 # ============================================================
 
+class User(Base):
+    """User accounts for session binding"""
+    __tablename__ = 'users'
+
+    user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), unique=True)
+    username = Column(String(100))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_login_at = Column(DateTime)
+    user_metadata = Column(JSONB, default={})
+
+    # Relationships
+    sessions = relationship("Session", back_populates="user")
+
+    def __repr__(self):
+        return f"<User {self.user_id}:{self.email}>"
+
+
 class Session(Base):
     """Session metadata and lifecycle information"""
     __tablename__ = 'sessions'
 
     session_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete='CASCADE'))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_accessed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
@@ -32,6 +51,7 @@ class Session(Base):
     is_active = Column(Boolean, default=True)
 
     # Relationships
+    user = relationship("User", back_populates="sessions")
     states = relationship("SessionState", back_populates="session", cascade="all, delete-orphan")
     versions = relationship("SessionVersion", back_populates="session", cascade="all, delete-orphan")
 
@@ -108,8 +128,19 @@ class DB:
         self.session_factory = sessionmaker(bind=self.engine)
         self.Session = scoped_session(self.session_factory)
 
-        # Create tables if they don't exist
-        Base.metadata.create_all(self.engine)
+        # Create tables if they don't exist (idempotent)
+        # Note: init.sql also creates tables, so conflicts are expected
+        try:
+            Base.metadata.create_all(self.engine, checkfirst=True)
+        except Exception as e:
+            # Tables already exist from init.sql - this is expected and safe
+            import logging
+            logger = logging.getLogger(__name__)
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.info("✓ Database tables already initialized (by init.sql)")
+            else:
+                # Unexpected error - log but continue
+                logger.warning(f"Database table creation issue (continuing): {e}")
 
     def get_session(self):
         """Get a new database session"""

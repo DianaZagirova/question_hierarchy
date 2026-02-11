@@ -36,8 +36,20 @@
   * {
     @apply border-border;
   }
+
+  html {
+    height: 100%;
+    /* Safari-specific viewport height */
+    height: -webkit-fill-available;
+  }
+
   body {
     @apply bg-background text-foreground;
+    height: 100%;
+    min-height: 100vh;
+    /* Safari-specific viewport height */
+    min-height: -webkit-fill-available;
+    position: relative;
   }
 }
 
@@ -129,15 +141,6 @@
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
 /* Cross-browser select styling fixes */
 select {
   /* Remove default appearance in all browsers */
@@ -171,5 +174,39 @@ select:focus {
 @media screen and (max-width: 768px) {
   select {
     font-size: 16px !important;
+  }
+}
+
+/* Safari-specific viewport fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Target Safari specifically */
+  body {
+    min-height: -webkit-fill-available;
+  }
+
+  html {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Ensure proper height calculation for main container */
+.app-main-container {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Dynamic height for split view - accounts for header and padding */
+.split-view-container,
+.graph-view-container {
+  height: calc(100vh - 280px); /* 280px = header + padding + tabs + goal card */
+  max-height: calc(100vh - 280px);
+}
+
+/* Safari-specific adjustments */
+@supports (-webkit-touch-callout: none) {
+  .split-view-container,
+  .graph-view-container {
+    height: calc(-webkit-fill-available - 280px);
+    max-height: calc(-webkit-fill-available - 280px);
   }
 }

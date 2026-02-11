@@ -8,11 +8,28 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
+-- Users Table (optional for future authentication)
+-- Stores user accounts for session binding
+-- ============================================================
+CREATE TABLE IF NOT EXISTS users (
+    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE,
+    username VARCHAR(100),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_login_at TIMESTAMP,
+    user_metadata JSONB DEFAULT '{}'
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- ============================================================
 -- Sessions Table
 -- Stores session metadata and lifecycle information
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sessions (
     session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,  -- Optional user binding
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_accessed_at TIMESTAMP NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '7 days'),

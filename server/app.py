@@ -62,6 +62,24 @@ else:
 
 CORS(app)
 
+# ─── Helper Functions ─────────────────────────────────────────────────────────
+
+def set_secure_cookie(response, key, value, max_age=None):
+    """
+    Set a secure cookie with production-ready settings
+    In production: secure=True (HTTPS only), samesite='Strict'
+    In development: secure=False, samesite='Lax'
+    """
+    response.set_cookie(
+        key,
+        value,
+        httponly=True,
+        secure=IS_PRODUCTION,  # HTTPS only in production
+        samesite='Strict' if IS_PRODUCTION else 'Lax',
+        max_age=max_age or (7 * 24 * 60 * 60)  # 7 days default
+    )
+    return response
+
 # ─── Thread-safe batch progress store ────────────────────────────────────────
 # Now uses Redis for cross-worker coordination with session-scoped keys
 # Fallback to in-memory store if Redis is unavailable
@@ -217,14 +235,8 @@ def create_session():
             'created': True
         })
 
-        # Set HTTP-only cookie for browser clients
-        response.set_cookie(
-            'session_id',
-            session_id,
-            httponly=True,
-            max_age=7 * 24 * 60 * 60,  # 7 days
-            samesite='Lax'
-        )
+        # Set secure HTTP-only cookie for browser clients
+        set_secure_cookie(response, 'session_id', session_id)
 
         return response
     except Exception as e:
@@ -254,14 +266,8 @@ def validate_session():
                 'created': True
             })
 
-            # Set HTTP-only cookie
-            response.set_cookie(
-                'session_id',
-                new_session_id,
-                httponly=True,
-                max_age=7 * 24 * 60 * 60,
-                samesite='Lax'
-            )
+            # Set secure HTTP-only cookie
+            set_secure_cookie(response, 'session_id', new_session_id)
 
             return response
         except Exception as e:
@@ -312,6 +318,382 @@ def save_session_state(session_id):
     except Exception as e:
         logger.error(f"Error saving session state: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+# ─── User Session Management (UI Sessions) ────────────────────────────────────
+
+@app.route('/api/user-sessions', methods=['GET'])
+@with_session(db)
+def list_user_sessions(session_id):
+    """Get all user sessions (UI sessions) for the current browser session"""
+    try:
+        # Retrieve sessions list from state
+        sessions_data = db.get_session_state(session_id, 'user_sessions')
+
+        if sessions_data is None:
+            # No sessions yet, return empty list
+            return jsonify({'sessions': []})
+
+        return jsonify({'sessions': sessions_data.get('sessions', [])})
+    except Exception as e:
+        logger.error(f"Error listing user sessions: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-sessions', methods=['POST'])
+@with_session(db)
+def create_user_session(session_id):
+    """Create a new user session (UI session)"""
+    try:
+        data = request.json or {}
+        user_session_name = data.get('name', 'New Session')
+
+        # Get existing sessions
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        # Create new session
+        import uuid
+        new_session = {
+            'id': f"s-{int(time.time())}-{uuid.uuid4().hex[:6]}",
+            'name': user_session_name,
+            'createdAt': datetime.utcnow().isoformat(),
+            'updatedAt': datetime.utcnow().isoformat(),
+            'goalPreview': ''
+        }
+
+        sessions.append(new_session)
+
+        # Save updated sessions list
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        return jsonify({'session': new_session})
+    except Exception as e:
+        logger.error(f"Error creating user session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-sessions/<user_session_id>', methods=['GET'])
+@with_session(db)
+def get_user_session_data(session_id, user_session_id):
+    """Get data for a specific user session"""
+    try:
+        # Retrieve session data with key pattern
+        session_data = db.get_session_state(session_id, f'user_session_{user_session_id}')
+
+        if session_data is None:
+            return jsonify({'error': 'Session not found'}), 404
+
+        return jsonify({'data': session_data})
+    except Exception as e:
+        logger.error(f"Error getting user session data: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-sessions/<user_session_id>', methods=['PUT'])
+@with_session(db)
+def update_user_session_data(session_id, user_session_id):
+    """Update data for a specific user session"""
+    try:
+        data = request.json or {}
+
+        # Save session data
+        db.save_session_state(session_id, f'user_session_{user_session_id}', data)
+
+        # Update metadata in sessions list
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        for sess in sessions:
+            if sess['id'] == user_session_id:
+                sess['updatedAt'] = datetime.utcnow().isoformat()
+                if 'goalPreview' in data:
+                    sess['goalPreview'] = data['goalPreview'][:80]
+                break
+
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        return jsonify({'saved': True})
+    except Exception as e:
+        logger.error(f"Error updating user session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-sessions/<user_session_id>', methods=['DELETE'])
+@with_session(db)
+def delete_user_session(session_id, user_session_id):
+    """Delete a user session"""
+    try:
+        # Get sessions list
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        # Can't delete if it's the only session
+        if len(sessions) <= 1:
+            return jsonify({'error': 'Cannot delete the last session'}), 400
+
+        # Remove session from list
+        sessions = [s for s in sessions if s['id'] != user_session_id]
+
+        # Save updated list
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        # Note: We could also delete the session data, but keeping it allows recovery
+        # db.save_session_state(session_id, f'user_session_{user_session_id}', None)
+
+        return jsonify({'deleted': True})
+    except Exception as e:
+        logger.error(f"Error deleting user session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-sessions/<user_session_id>/duplicate', methods=['POST'])
+@with_session(db)
+def duplicate_user_session(session_id, user_session_id):
+    """Duplicate a user session"""
+    try:
+        import uuid
+
+        # Get original session data
+        original_data = db.get_session_state(session_id, f'user_session_{user_session_id}')
+        if original_data is None:
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Get sessions list
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        # Find original session metadata
+        original_session = next((s for s in sessions if s['id'] == user_session_id), None)
+        if not original_session:
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Create new session
+        new_session_id = f"s-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+        new_session = {
+            'id': new_session_id,
+            'name': f"{original_session['name']} (copy)",
+            'createdAt': datetime.utcnow().isoformat(),
+            'updatedAt': datetime.utcnow().isoformat(),
+            'goalPreview': original_session.get('goalPreview', '')
+        }
+
+        sessions.append(new_session)
+
+        # Save duplicated data
+        db.save_session_state(session_id, f'user_session_{new_session_id}', original_data)
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        return jsonify({'session': new_session})
+    except Exception as e:
+        logger.error(f"Error duplicating user session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-sessions/<user_session_id>/rename', methods=['PUT'])
+@with_session(db)
+def rename_user_session(session_id, user_session_id):
+    """Rename a user session"""
+    try:
+        data = request.json or {}
+        new_name = data.get('name', 'Unnamed Session')
+
+        # Get sessions list
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        # Update session name
+        for sess in sessions:
+            if sess['id'] == user_session_id:
+                sess['name'] = new_name
+                sess['updatedAt'] = datetime.utcnow().isoformat()
+                break
+
+        # Save updated list
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        return jsonify({'renamed': True})
+    except Exception as e:
+        logger.error(f"Error renaming user session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+# ─── Export/Import Endpoints ───────────────────────────────────────────────────
+
+@app.route('/api/export/all', methods=['GET'])
+@with_session(db)
+def export_all_sessions(session_id):
+    """Export all user sessions and their data as JSON"""
+    try:
+        # Get all sessions
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        # Collect all session data
+        export_data = {
+            'metadata': {
+                'exported_at': datetime.utcnow().isoformat(),
+                'version': '1.0',
+                'total_sessions': len(sessions)
+            },
+            'sessions': []
+        }
+
+        for sess in sessions:
+            # Get session data
+            session_data = db.get_session_state(session_id, f'user_session_{sess["id"]}')
+
+            export_data['sessions'].append({
+                'metadata': sess,
+                'data': session_data
+            })
+
+        return jsonify(export_data)
+    except Exception as e:
+        logger.error(f"Error exporting sessions: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/export/session/<user_session_id>', methods=['GET'])
+@with_session(db)
+def export_single_session(session_id, user_session_id):
+    """Export a single user session as JSON"""
+    try:
+        # Get sessions list to find metadata
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        session_meta = next((s for s in sessions if s['id'] == user_session_id), None)
+        if not session_meta:
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Get session data
+        session_data = db.get_session_state(session_id, f'user_session_{user_session_id}')
+
+        export_data = {
+            'metadata': {
+                'exported_at': datetime.utcnow().isoformat(),
+                'version': '1.0'
+            },
+            'session': {
+                'metadata': session_meta,
+                'data': session_data
+            }
+        }
+
+        return jsonify(export_data)
+    except Exception as e:
+        logger.error(f"Error exporting session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/import/sessions', methods=['POST'])
+@with_session(db)
+def import_sessions(session_id):
+    """Import sessions from JSON export"""
+    try:
+        import_data = request.json or {}
+
+        if 'sessions' not in import_data:
+            return jsonify({'error': 'Invalid import format - missing sessions array'}), 400
+
+        # Get current sessions
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        imported_count = 0
+        imported_sessions = []
+
+        for session_entry in import_data['sessions']:
+            try:
+                session_meta = session_entry.get('metadata', {})
+                session_data = session_entry.get('data', {})
+
+                # Generate new ID to avoid conflicts
+                new_session_id = f"s-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+
+                # Create new session metadata
+                new_session = {
+                    'id': new_session_id,
+                    'name': f"{session_meta.get('name', 'Imported Session')} (imported)",
+                    'createdAt': datetime.utcnow().isoformat(),
+                    'updatedAt': datetime.utcnow().isoformat(),
+                    'goalPreview': session_meta.get('goalPreview', '')
+                }
+
+                sessions.append(new_session)
+
+                # Save session data
+                if session_data:
+                    db.save_session_state(session_id, f'user_session_{new_session_id}', session_data)
+
+                imported_sessions.append(new_session)
+                imported_count += 1
+
+            except Exception as session_error:
+                logger.error(f"Error importing individual session: {session_error}")
+                continue
+
+        # Save updated sessions list
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        return jsonify({
+            'imported': imported_count,
+            'sessions': imported_sessions
+        })
+    except Exception as e:
+        logger.error(f"Error importing sessions: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/import/session', methods=['POST'])
+@with_session(db)
+def import_single_session(session_id):
+    """Import a single session from JSON export"""
+    try:
+        import_data = request.json or {}
+
+        if 'session' not in import_data:
+            return jsonify({'error': 'Invalid import format - missing session object'}), 400
+
+        session_entry = import_data['session']
+        session_meta = session_entry.get('metadata', {})
+        session_data = session_entry.get('data', {})
+
+        # Get current sessions
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        # Generate new ID
+        new_session_id = f"s-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+
+        # Create new session metadata
+        new_session = {
+            'id': new_session_id,
+            'name': f"{session_meta.get('name', 'Imported Session')} (imported)",
+            'createdAt': datetime.utcnow().isoformat(),
+            'updatedAt': datetime.utcnow().isoformat(),
+            'goalPreview': session_meta.get('goalPreview', '')
+        }
+
+        sessions.append(new_session)
+
+        # Save session data
+        if session_data:
+            db.save_session_state(session_id, f'user_session_{new_session_id}', session_data)
+
+        # Save updated sessions list
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        return jsonify({
+            'imported': True,
+            'session': new_session
+        })
+    except Exception as e:
+        logger.error(f"Error importing session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+# ─── End Export/Import Endpoints ───────────────────────────────────────────────
+
+# ─── End User Session Management ───────────────────────────────────────────────
 
 # ─── End Session Management Endpoints ─────────────────────────────────────────
 

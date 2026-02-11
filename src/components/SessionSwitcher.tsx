@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
-import { Plus, ChevronDown, Trash2, Copy, Pencil, Check, X, FolderOpen } from 'lucide-react';
+import { Plus, ChevronDown, Trash2, Copy, Pencil, Check, X, FolderOpen, Download, Upload } from 'lucide-react';
+import * as sessionApi from '@/lib/sessionApi';
 
 export const SessionSwitcher: React.FC = () => {
   const { sessions, activeSessionId, createSession, switchSession, renameSession, deleteSession, duplicateSession } = useSessionStore();
@@ -9,9 +10,12 @@ export const SessionSwitcher: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [showNewInput, setShowNewInput] = useState(false);
   const [newName, setNewName] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const newInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
@@ -70,6 +74,40 @@ export const SessionSwitcher: React.FC = () => {
   const handleDuplicate = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     duplicateSession(id);
+  };
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const exportData = await sessionApi.exportAllSessions();
+      sessionApi.downloadExportAsFile(exportData, `omega-point-sessions-${Date.now()}.json`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export sessions');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsImporting(true);
+      const importData = await sessionApi.readImportFile(file);
+      const result = await sessionApi.importSessions(importData);
+      alert(`Successfully imported ${result.imported} session(s)`);
+      window.location.reload(); // Reload to show imported sessions
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Failed to import sessions');
+    } finally {
+      setIsImporting(false);
+      if (importInputRef.current) {
+        importInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -170,6 +208,34 @@ export const SessionSwitcher: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+
+          {/* Export/Import */}
+          <div className="border-t border-border/40 p-2 bg-secondary/10">
+            <div className="flex gap-2">
+              <button
+                onClick={handleExport}
+                disabled={isExporting}
+                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-50"
+                title="Export all sessions"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {isExporting ? 'Exporting...' : 'Export'}
+              </button>
+
+              <label className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 rounded transition-colors cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                {isImporting ? 'Importing...' : 'Import'}
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleImport}
+                  disabled={isImporting}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
 
           {/* New session */}

@@ -130,6 +130,35 @@ class StateSync {
   isAutoSyncActive(): boolean {
     return this.syncInterval !== null;
   }
+
+  /**
+   * Load state from a plain object (used during session switching)
+   * @param state - The state object to apply
+   */
+  async loadFromObject(state: any): Promise<void> {
+    if (!state) {
+      console.warn('[StateSync] No state to load');
+      return;
+    }
+
+    try {
+      // Import useAppStore dynamically to avoid circular dependency
+      const { useAppStore } = await import('../store/useAppStore');
+
+      // Apply state to Zustand store
+      useAppStore.setState({
+        currentGoal: state.currentGoal || '',
+        agents: state.agents || [],
+        steps: state.steps || [],
+        versions: state.versions || [],
+      });
+
+      console.log('[StateSync] ✓ State loaded from object');
+    } catch (error) {
+      console.error('[StateSync] Failed to load state from object:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

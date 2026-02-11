@@ -2,30 +2,13 @@ import { create } from 'zustand';
 import { Session } from '@/types';
 import { sessionManager } from '@/lib/sessionManager';
 import { stateSync } from '@/lib/stateSync';
+import * as sessionApi from '@/lib/sessionApi';
 
+// Legacy localStorage keys for migration
 const SESSION_INDEX_KEY = 'omega-point-sessions';
 const SESSION_DATA_PREFIX = 'omega-point-session-';
 const ACTIVE_SESSION_KEY = 'omega-point-active-session';
-
-// Legacy key used by the old single-session store
-const LEGACY_STORAGE_KEY = 'omega-point-storage';
-
-function generateId(): string {
-  return `s-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-}
-
-function loadSessionIndex(): Session[] {
-  try {
-    const raw = localStorage.getItem(SESSION_INDEX_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveSessionIndex(sessions: Session[]) {
-  localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(sessions));
-}
+const MIGRATED_KEY = 'migrated_to_server_v2';
 
 function getActiveSessionId(): string | null {
   return localStorage.getItem(ACTIVE_SESSION_KEY);
@@ -35,281 +18,360 @@ function setActiveSessionId(id: string) {
   localStorage.setItem(ACTIVE_SESSION_KEY, id);
 }
 
-function getSessionStorageKey(sessionId: string): string {
-  return `${SESSION_DATA_PREFIX}${sessionId}`;
-}
-
 interface SessionStore {
   sessions: Session[];
   activeSessionId: string | null;
+  isLoading: boolean;
 
-  // Initialize: migrate legacy data if needed, ensure at least one session exists
-  initialize: () => string;
+  // Initialize: load sessions from server or migrate from localStorage
+  initialize: () => Promise<string>;
 
   // Create a new session and switch to it
-  createSession: (name?: string) => string;
+  createSession: (name?: string) => Promise<string>;
 
   // Switch to a different session (saves current first)
-  switchSession: (sessionId: string) => void;
+  switchSession: (sessionId: string) => Promise<void>;
 
   // Rename a session
-  renameSession: (sessionId: string, newName: string) => void;
+  renameSession: (sessionId: string, newName: string) => Promise<void>;
 
   // Delete a session
-  deleteSession: (sessionId: string) => void;
+  deleteSession: (sessionId: string) => Promise<void>;
 
   // Duplicate a session
-  duplicateSession: (sessionId: string) => string;
+  duplicateSession: (sessionId: string) => Promise<string>;
 
   // Update the goal preview for the active session
-  updateActiveSessionMeta: (goalPreview: string) => void;
+  updateActiveSessionMeta: (goalPreview: string) => Promise<void>;
 
-  // Save current Zustand app state into the active session's storage key
-  saveCurrentToSession: () => void;
+  // Save current Zustand app state into the active session
+  saveCurrentToSession: () => Promise<void>;
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
+  isLoading: false,
 
-  initialize: () => {
-    let sessions = loadSessionIndex();
-    let activeId = getActiveSessionId();
+  initialize: async () => {
+    set({ isLoading: true });
 
-    // If no sessions exist, check for legacy data and migrate
-    if (sessions.length === 0) {
-      const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-      const firstId = generateId();
-      const now = new Date().toISOString();
+    try {
+      // Initialize browser session with server
+      await sessionManager.initialize();
 
-      let goalPreview = '';
-      if (legacyRaw) {
-        try {
-          const legacyData = JSON.parse(legacyRaw);
-          goalPreview = (legacyData.state?.currentGoal || '').substring(0, 80);
-          // Copy legacy data to the new session key
-          localStorage.setItem(getSessionStorageKey(firstId), legacyRaw);
-        } catch {
-          // Corrupted legacy data — start fresh
-        }
+      // Check if we need to migrate from localStorage
+      const alreadyMigrated = localStorage.getItem(MIGRATED_KEY);
+
+      if (!alreadyMigrated) {
+        console.log('[SessionStore] Starting migration from localStorage to server...');
+        await migrateLegacyData();
+        localStorage.setItem(MIGRATED_KEY, 'true');
+        console.log('[SessionStore] ✓ Migration complete');
       }
 
-      const firstSession: Session = {
-        id: firstId,
-        name: goalPreview ? goalPreview.substring(0, 40) || 'Session 1' : 'Session 1',
-        createdAt: now,
-        updatedAt: now,
-        goalPreview,
-      };
+      // Load sessions from server
+      const sessions = await sessionApi.getUserSessions();
 
-      sessions = [firstSession];
-      activeId = firstId;
-      saveSessionIndex(sessions);
-      setActiveSessionId(firstId);
-
-      // Point the Zustand persist store at this session's key
-      if (legacyRaw) {
-        // The legacy key already has the data; copy it to the session key
-        // and also keep it at the legacy key so Zustand can rehydrate
-        localStorage.setItem(getSessionStorageKey(firstId), legacyRaw);
+      // If no sessions exist on server, create first one
+      if (sessions.length === 0) {
+        console.log('[SessionStore] No sessions found, creating first session...');
+        const firstSession = await sessionApi.createUserSession('Session 1');
+        set({ sessions: [firstSession], activeSessionId: firstSession.id, isLoading: false });
+        setActiveSessionId(firstSession.id);
+        return firstSession.id;
       }
+
+      // Determine active session
+      let activeId = getActiveSessionId();
+      if (!activeId || !sessions.find(s => s.id === activeId)) {
+        activeId = sessions[0].id;
+        setActiveSessionId(activeId);
+      }
+
+      // Load active session data
+      const sessionData = await sessionApi.getUserSessionData(activeId);
+      if (sessionData) {
+        // Apply session data to Zustand store
+        await stateSync.loadFromObject(sessionData);
+      }
+
+      set({ sessions, activeSessionId: activeId, isLoading: false });
+      return activeId;
+    } catch (error) {
+      console.error('[SessionStore] Initialization failed:', error);
+      // Fallback to localStorage mode
+      const fallbackId = await initializeFallbackMode();
+      set({ isLoading: false });
+      return fallbackId;
     }
-
-    // If activeId is not in sessions, pick the first one
-    if (!activeId || !sessions.find(s => s.id === activeId)) {
-      activeId = sessions[0].id;
-      setActiveSessionId(activeId);
-    }
-
-    // Point the Zustand persist store at the active session's data
-    const sessionData = localStorage.getItem(getSessionStorageKey(activeId));
-    if (sessionData) {
-      localStorage.setItem(LEGACY_STORAGE_KEY, sessionData);
-    }
-
-    // ─── Server Migration Logic ───────────────────────────────────────
-    // Check if localStorage data has been migrated to server
-    const migrated = localStorage.getItem('migrated_to_server');
-    if (!migrated) {
-      console.log('[SessionStore] Starting migration to server...');
-
-      // Migrate in background (don't block initialization)
-      (async () => {
-        try {
-          // Initialize session with server
-          await sessionManager.initialize();
-
-          // Upload existing localStorage state to server
-          const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-          if (legacyRaw) {
-            try {
-              const legacyData = JSON.parse(legacyRaw);
-              if (legacyData.state) {
-                await stateSync.saveToServer(legacyData.state);
-                console.log('[SessionStore] ✓ Migration complete - state uploaded to server');
-              }
-            } catch (parseError) {
-              console.error('[SessionStore] Failed to parse legacy data for migration:', parseError);
-            }
-          }
-
-          // Mark as migrated
-          localStorage.setItem('migrated_to_server', 'true');
-        } catch (error) {
-          console.error('[SessionStore] Migration to server failed:', error);
-          // Continue with localStorage-only mode
-        }
-      })();
-    }
-    // ─── End Server Migration Logic ───────────────────────────────────
-
-    set({ sessions, activeSessionId: activeId });
-    return activeId;
   },
 
-  createSession: (name?: string) => {
+  createSession: async (name?: string) => {
     const state = get();
 
-    // Save current session first
-    state.saveCurrentToSession();
+    try {
+      // Save current session first
+      await state.saveCurrentToSession();
 
-    const newId = generateId();
-    const now = new Date().toISOString();
-    const sessionName = name || `Session ${state.sessions.length + 1}`;
+      // Create new session on server
+      const newSession = await sessionApi.createUserSession(name || `Session ${state.sessions.length + 1}`);
 
-    const newSession: Session = {
-      id: newId,
-      name: sessionName,
-      createdAt: now,
-      updatedAt: now,
-      goalPreview: '',
-    };
+      // Update local state
+      const updatedSessions = [...state.sessions, newSession];
+      set({ sessions: updatedSessions, activeSessionId: newSession.id });
+      setActiveSessionId(newSession.id);
 
-    // Clear the legacy key so Zustand starts fresh
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
+      // Reload to start with clean state
+      window.location.reload();
 
-    const updatedSessions = [...state.sessions, newSession];
-    saveSessionIndex(updatedSessions);
-    setActiveSessionId(newId);
-
-    set({ sessions: updatedSessions, activeSessionId: newId });
-
-    // Force page reload to reinitialize Zustand with empty state
-    window.location.reload();
-
-    return newId;
+      return newSession.id;
+    } catch (error) {
+      console.error('[SessionStore] Failed to create session:', error);
+      throw error;
+    }
   },
 
-  switchSession: (sessionId: string) => {
+  switchSession: async (sessionId: string) => {
     const state = get();
     if (sessionId === state.activeSessionId) return;
 
-    // Save current session
-    state.saveCurrentToSession();
+    try {
+      // Save current session
+      await state.saveCurrentToSession();
 
-    // Load target session data into the legacy key
-    const targetData = localStorage.getItem(getSessionStorageKey(sessionId));
-    if (targetData) {
-      localStorage.setItem(LEGACY_STORAGE_KEY, targetData);
-    } else {
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
-    }
+      // Load target session data
+      const sessionData = await sessionApi.getUserSessionData(sessionId);
 
-    setActiveSessionId(sessionId);
-    set({ activeSessionId: sessionId });
+      // Update active session
+      setActiveSessionId(sessionId);
+      set({ activeSessionId: sessionId });
 
-    // Reload to rehydrate Zustand from the new data
-    window.location.reload();
-  },
-
-  renameSession: (sessionId: string, newName: string) => {
-    const state = get();
-    const updatedSessions = state.sessions.map(s =>
-      s.id === sessionId ? { ...s, name: newName, updatedAt: new Date().toISOString() } : s
-    );
-    saveSessionIndex(updatedSessions);
-    set({ sessions: updatedSessions });
-  },
-
-  deleteSession: (sessionId: string) => {
-    const state = get();
-    if (state.sessions.length <= 1) return; // Can't delete the last session
-
-    const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
-    localStorage.removeItem(getSessionStorageKey(sessionId));
-    saveSessionIndex(updatedSessions);
-
-    // If deleting the active session, switch to the first remaining one
-    if (sessionId === state.activeSessionId) {
-      const newActiveId = updatedSessions[0].id;
-      const targetData = localStorage.getItem(getSessionStorageKey(newActiveId));
-      if (targetData) {
-        localStorage.setItem(LEGACY_STORAGE_KEY, targetData);
-      } else {
-        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      // Apply session data
+      if (sessionData) {
+        await stateSync.loadFromObject(sessionData);
       }
-      setActiveSessionId(newActiveId);
-      set({ sessions: updatedSessions, activeSessionId: newActiveId });
+
+      // Reload to apply new state
       window.location.reload();
-    } else {
+    } catch (error) {
+      console.error('[SessionStore] Failed to switch session:', error);
+      throw error;
+    }
+  },
+
+  renameSession: async (sessionId: string, newName: string) => {
+    const state = get();
+
+    try {
+      await sessionApi.renameUserSession(sessionId, newName);
+
+      // Update local state
+      const updatedSessions = state.sessions.map(s =>
+        s.id === sessionId ? { ...s, name: newName, updatedAt: new Date().toISOString() } : s
+      );
       set({ sessions: updatedSessions });
+    } catch (error) {
+      console.error('[SessionStore] Failed to rename session:', error);
+      throw error;
     }
   },
 
-  duplicateSession: (sessionId: string) => {
+  deleteSession: async (sessionId: string) => {
     const state = get();
-    const sourceSession = state.sessions.find(s => s.id === sessionId);
-    if (!sourceSession) return sessionId;
 
-    // Save current first if duplicating the active session
-    if (sessionId === state.activeSessionId) {
-      state.saveCurrentToSession();
+    if (state.sessions.length <= 1) {
+      throw new Error('Cannot delete the last session');
     }
 
-    const newId = generateId();
-    const now = new Date().toISOString();
+    try {
+      await sessionApi.deleteUserSession(sessionId);
 
-    const newSession: Session = {
-      id: newId,
-      name: `${sourceSession.name} (copy)`,
-      createdAt: now,
-      updatedAt: now,
-      goalPreview: sourceSession.goalPreview,
-    };
+      // Update local state
+      const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
 
-    // Copy session data
-    const sourceData = localStorage.getItem(getSessionStorageKey(sessionId));
-    if (sourceData) {
-      localStorage.setItem(getSessionStorageKey(newId), sourceData);
+      // If deleting active session, switch to first remaining one
+      if (sessionId === state.activeSessionId) {
+        const newActiveId = updatedSessions[0].id;
+        const sessionData = await sessionApi.getUserSessionData(newActiveId);
+
+        setActiveSessionId(newActiveId);
+        set({ sessions: updatedSessions, activeSessionId: newActiveId });
+
+        if (sessionData) {
+          await stateSync.loadFromObject(sessionData);
+        }
+
+        window.location.reload();
+      } else {
+        set({ sessions: updatedSessions });
+      }
+    } catch (error) {
+      console.error('[SessionStore] Failed to delete session:', error);
+      throw error;
     }
-
-    const updatedSessions = [...state.sessions, newSession];
-    saveSessionIndex(updatedSessions);
-    set({ sessions: updatedSessions });
-
-    return newId;
   },
 
-  updateActiveSessionMeta: (goalPreview: string) => {
+  duplicateSession: async (sessionId: string) => {
+    const state = get();
+
+    try {
+      // Save current session if duplicating active one
+      if (sessionId === state.activeSessionId) {
+        await state.saveCurrentToSession();
+      }
+
+      // Duplicate on server
+      const newSession = await sessionApi.duplicateUserSession(sessionId);
+
+      // Update local state
+      const updatedSessions = [...state.sessions, newSession];
+      set({ sessions: updatedSessions });
+
+      return newSession.id;
+    } catch (error) {
+      console.error('[SessionStore] Failed to duplicate session:', error);
+      throw error;
+    }
+  },
+
+  updateActiveSessionMeta: async (goalPreview: string) => {
     const state = get();
     if (!state.activeSessionId) return;
 
-    const updatedSessions = state.sessions.map(s =>
-      s.id === state.activeSessionId
-        ? { ...s, goalPreview: goalPreview.substring(0, 80), updatedAt: new Date().toISOString() }
-        : s
-    );
-    saveSessionIndex(updatedSessions);
-    set({ sessions: updatedSessions });
+    try {
+      // Update locally
+      const updatedSessions = state.sessions.map(s =>
+        s.id === state.activeSessionId
+          ? { ...s, goalPreview: goalPreview.substring(0, 80), updatedAt: new Date().toISOString() }
+          : s
+      );
+      set({ sessions: updatedSessions });
+
+      // Update on server (save with goalPreview)
+      const currentState = await getCurrentZustandState();
+      await sessionApi.updateUserSessionData(state.activeSessionId, {
+        ...currentState,
+        goalPreview: goalPreview.substring(0, 80),
+      });
+    } catch (error) {
+      console.error('[SessionStore] Failed to update session meta:', error);
+    }
   },
 
-  saveCurrentToSession: () => {
+  saveCurrentToSession: async () => {
     const state = get();
     if (!state.activeSessionId) return;
 
-    const currentData = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (currentData) {
-      localStorage.setItem(getSessionStorageKey(state.activeSessionId), currentData);
+    try {
+      const currentState = await getCurrentZustandState();
+      await sessionApi.updateUserSessionData(state.activeSessionId, currentState);
+      console.log('[SessionStore] Session saved to server');
+    } catch (error) {
+      console.error('[SessionStore] Failed to save session:', error);
     }
   },
 }));
+
+// ─── Helper Functions ──────────────────────────────────────────────────────
+
+/**
+ * Get current state from Zustand store
+ */
+async function getCurrentZustandState(): Promise<any> {
+  // Import useAppStore dynamically to avoid circular dependency
+  const { useAppStore } = await import('./useAppStore');
+  const state = useAppStore.getState();
+
+  return {
+    currentGoal: state.currentGoal,
+    agents: state.agents,
+    steps: state.steps,
+    versions: state.versions,
+  };
+}
+
+/**
+ * Migrate legacy localStorage data to server
+ */
+async function migrateLegacyData() {
+  try {
+    // Load legacy sessions from localStorage
+    const legacySessionsRaw = localStorage.getItem(SESSION_INDEX_KEY);
+    if (!legacySessionsRaw) {
+      console.log('[Migration] No legacy sessions found');
+      return;
+    }
+
+    const legacySessions = JSON.parse(legacySessionsRaw);
+    console.log(`[Migration] Found ${legacySessions.length} sessions to migrate`);
+
+    for (const legacySession of legacySessions) {
+      try {
+        // Create session on server
+        const newSession = await sessionApi.createUserSession(legacySession.name);
+        console.log(`[Migration] Created session: ${newSession.name}`);
+
+        // Load session data from localStorage
+        const sessionDataKey = `${SESSION_DATA_PREFIX}${legacySession.id}`;
+        const sessionDataRaw = localStorage.getItem(sessionDataKey);
+
+        if (sessionDataRaw) {
+          const sessionData = JSON.parse(sessionDataRaw);
+
+          // Extract state from wrapped format
+          const state = sessionData.state || sessionData;
+
+          // Upload to server
+          await sessionApi.updateUserSessionData(newSession.id, state);
+          console.log(`[Migration] Migrated data for: ${newSession.name}`);
+        }
+      } catch (error) {
+        console.error(`[Migration] Failed to migrate session ${legacySession.name}:`, error);
+      }
+    }
+
+    console.log('[Migration] ✓ All sessions migrated successfully');
+  } catch (error) {
+    console.error('[Migration] Migration failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fallback to localStorage-only mode if server is unavailable
+ */
+async function initializeFallbackMode(): Promise<string> {
+  console.warn('[SessionStore] Falling back to localStorage mode');
+
+  const legacySessionsRaw = localStorage.getItem(SESSION_INDEX_KEY);
+  let sessions: Session[] = [];
+  let activeId: string | null = getActiveSessionId();
+
+  if (legacySessionsRaw) {
+    sessions = JSON.parse(legacySessionsRaw);
+  }
+
+  if (sessions.length === 0) {
+    // Create first session
+    const firstId = `s-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const firstSession: Session = {
+      id: firstId,
+      name: 'Session 1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      goalPreview: '',
+    };
+    sessions = [firstSession];
+    activeId = firstId;
+    localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(sessions));
+    setActiveSessionId(firstId);
+  }
+
+  if (!activeId || !sessions.find(s => s.id === activeId)) {
+    activeId = sessions[0].id;
+    setActiveSessionId(activeId);
+  }
+
+  return activeId;
+}

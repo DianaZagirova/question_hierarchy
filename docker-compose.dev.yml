@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: omega-point-postgres-dev
+    environment:
+      POSTGRES_USER: omegapoint
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword123}
+      POSTGRES_DB: omegapoint
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omegapoint"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - omega-net-dev
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: omega-point-redis-dev
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    volumes:
+      - redis_data_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - omega-net-dev
+
+  # Backend API (Development mode with auto-reload)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: backend-dev
+    container_name: omega-point-backend-dev
+    env_file:
+      - .env.dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - DATABASE_URL=postgresql://omegapoint:${DB_PASSWORD:-devpassword123}@postgres:5432/omegapoint
+      - REDIS_URL=redis://redis:6379/0
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    ports:
+      - "3003:3003"
+    volumes:
+      # Mount source code for hot reloading
+      - ./server:/app/server:ro
+      # Mount .env for live config updates
+      - ./.env.dev:/app/.env:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - omega-net-dev
+    command: python /app/server/app.py
+
+  # Frontend (Vite dev server with HMR)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: frontend-dev
+    container_name: omega-point-frontend-dev
+    environment:
+      - VITE_API_URL=http://localhost:3003
+      - NODE_ENV=development
+    ports:
+      - "5173:5173"  # Vite default dev port
+    volumes:
+      # Mount source code for HMR
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./index.html:/app/index.html:ro
+      - ./vite.config.ts:/app/vite.config.ts:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./tsconfig.node.json:/app/tsconfig.node.json:ro
+      - ./tailwind.config.js:/app/tailwind.config.js:ro
+      - ./postcss.config.js:/app/postcss.config.js:ro
+      # Don't mount node_modules (use container's version)
+      - /app/node_modules
+    networks:
+      - omega-net-dev
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  postgres_data_dev:
+    driver: local
+  redis_data_dev:
+    driver: local
+
+networks:
+  omega-net-dev:
+    driver: bridge
