@@ -94,6 +94,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (sessionData) {
         // Apply session data to Zustand store
         await stateSync.loadFromObject(sessionData);
+      } else {
+        // New session with no data - reset to defaults
+        console.log('[SessionStore] New session with no data, resetting to defaults');
+        await stateSync.resetToDefault();
       }
 
       set({ sessions, activeSessionId: activeId, isLoading: false });
@@ -147,9 +151,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       setActiveSessionId(sessionId);
       set({ activeSessionId: sessionId });
 
-      // Apply session data
+      // Apply session data or reset to defaults
       if (sessionData) {
         await stateSync.loadFromObject(sessionData);
+      } else {
+        // New session with no data - reset to defaults
+        console.log('[SessionStore] Switching to session with no data, resetting to defaults');
+        await stateSync.resetToDefault();
       }
 
       // Reload to apply new state

@@ -159,6 +159,38 @@ class StateSync {
       throw error;
     }
   }
+
+  /**
+   * Reset app state to default empty values
+   * Used when creating a new session or switching to a session with no data
+   */
+  async resetToDefault(): Promise<void> {
+    try {
+      // Import useAppStore dynamically to avoid circular dependency
+      const { useAppStore } = await import('../store/useAppStore');
+
+      // Call the store's resetToDefaults action to properly initialize everything
+      const resetToDefaults = useAppStore.getState().resetToDefaults;
+      if (resetToDefaults) {
+        resetToDefaults();
+        console.log('[StateSync] ✓ State reset to defaults using store action');
+      } else {
+        // Fallback: manually reset key fields
+        useAppStore.setState({
+          currentGoal: '',
+          versions: [],
+          currentVersionId: null,
+          selectedGoalId: null,
+          selectedL3Id: null,
+          selectedL4Id: null,
+        });
+        console.log('[StateSync] ✓ State reset to defaults (fallback)');
+      }
+    } catch (error) {
+      console.error('[StateSync] Failed to reset state:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

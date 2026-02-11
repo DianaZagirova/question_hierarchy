@@ -12,6 +12,7 @@ export const SessionSwitcher: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const newInputRef = useRef<HTMLInputElement>(null);
@@ -58,9 +59,20 @@ export const SessionSwitcher: React.FC = () => {
     setEditingId(null);
   };
 
-  const handleCreateSession = () => {
+  const handleCreateSession = async () => {
     const name = newName.trim() || undefined;
-    createSession(name);
+    try {
+      setIsCreating(true);
+      await createSession(name);
+      // Page will reload after successful creation
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      alert('Failed to create session. Please try again.');
+    } finally {
+      setIsCreating(false);
+      setShowNewInput(false);
+      setNewName('');
+    }
   };
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
@@ -247,17 +259,19 @@ export const SessionSwitcher: React.FC = () => {
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCreateSession();
+                    if (e.key === 'Enter' && !isCreating) handleCreateSession();
                     if (e.key === 'Escape') { setShowNewInput(false); setNewName(''); }
                   }}
                   placeholder="Session name (optional)"
-                  className="flex-1 min-w-0 px-2 py-1 text-xs bg-background border border-border/60 rounded focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/40"
+                  disabled={isCreating}
+                  className="flex-1 min-w-0 px-2 py-1 text-xs bg-background border border-border/60 rounded focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
                   onClick={handleCreateSession}
-                  className="px-2 py-1 text-xs font-semibold rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+                  disabled={isCreating}
+                  className="px-2 py-1 text-xs font-semibold rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Create
+                  {isCreating ? 'Creating...' : 'Create'}
                 </button>
                 <button
                   onClick={() => { setShowNewInput(false); setNewName(''); }}

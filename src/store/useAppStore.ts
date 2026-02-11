@@ -157,11 +157,14 @@ export const useAppStore = create<AppStore>()(
 
       resetToDefaults: () => {
         set({
-          agents: DEFAULT_AGENTS,
-          steps: initialSteps,
+          agents: [...DEFAULT_AGENTS],
+          steps: initialSteps.map(step => ({ ...step })),
           currentGoal: '',
           versions: [],
           currentVersionId: null,
+          selectedGoalId: null,
+          selectedL3Id: null,
+          selectedL4Id: null,
         });
       },
 

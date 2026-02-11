@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Layers, RotateCcw, Info, Target, ListChecks, Microscope, Lightbulb, FlaskConical, Workflow } from 'lucide-react';
+import { Search, Filter, Layers, RotateCcw, Info, Target, ListChecks, Microscope, Lightbulb, FlaskConical, Workflow, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -13,6 +13,9 @@ interface GraphControlsProps {
   onResetView: () => void;
   layoutMode: 'hierarchical' | 'force' | 'radial';
   onLayoutChange: (mode: 'hierarchical' | 'force' | 'radial') => void;
+  chatOpen?: boolean;
+  onChatToggle?: () => void;
+  chatNodeCount?: number;
 }
 
 const LAYERS = [
@@ -138,6 +141,9 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
   onResetView,
   layoutMode,
   onLayoutChange,
+  chatOpen,
+  onChatToggle,
+  chatNodeCount,
 }) => {
   const [infoHover, setInfoHover] = useState<string | null>(null);
 
@@ -231,7 +237,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
         </div>
       </div>
 
-      {/* Column 2: Collapse / Expand / Reset */}
+      {/* Column 2: Collapse / Expand / Reset / Node Chat */}
       <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[120px] flex flex-col gap-1.5">
         <Button size="sm" variant="outline" onClick={onExpandAll} className="w-full h-8 text-xs">
           Expand All
@@ -243,6 +249,29 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
           <RotateCcw size={12} className="mr-1.5" />
           Reset
         </Button>
+        {onChatToggle && (
+          <>
+            <div className="border-t border-border/30 my-1" />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onChatToggle}
+              className={`w-full h-8 text-xs flex items-center justify-center gap-1.5 ${
+                chatOpen
+                  ? 'border-primary/60 text-primary bg-primary/10 hover:bg-primary/20'
+                  : 'hover:border-primary/40'
+              }`}
+            >
+              <MessageSquare size={12} />
+              <span>Chat</span>
+              {chatNodeCount && chatNodeCount > 0 && (
+                <span className="ml-0.5 px-1 py-0.5 rounded-full bg-primary/30 text-primary text-[9px] font-bold leading-none">
+                  {chatNodeCount}
+                </span>
+              )}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

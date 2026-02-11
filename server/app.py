@@ -69,13 +69,17 @@ def set_secure_cookie(response, key, value, max_age=None):
     Set a secure cookie with production-ready settings
     In production: secure=True (HTTPS only), samesite='Strict'
     In development: secure=False, samesite='Lax'
+    For localhost: secure=False (even in production mode, for local testing)
     """
+    # Check if request is from localhost (for local testing)
+    is_localhost = request.host.startswith('localhost') or request.host.startswith('127.0.0.1')
+
     response.set_cookie(
         key,
         value,
         httponly=True,
-        secure=IS_PRODUCTION,  # HTTPS only in production
-        samesite='Strict' if IS_PRODUCTION else 'Lax',
+        secure=IS_PRODUCTION and not is_localhost,  # Disable secure for localhost
+        samesite='Lax' if is_localhost else ('Strict' if IS_PRODUCTION else 'Lax'),
         max_age=max_age or (7 * 24 * 60 * 60)  # 7 days default
     )
     return response

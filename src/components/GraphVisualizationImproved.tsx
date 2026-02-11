@@ -18,7 +18,7 @@ import { renderNodeDetails } from './StepOutputViewer';
 import { NodeChat } from './NodeChat';
 import { NodeDataEditor } from './NodeDataEditor';
 import { NodeLLMImprover } from './NodeLLMImprover';
-import { MessageSquare, Edit3, Sparkles, Minimize2, Maximize2, X } from 'lucide-react';
+import { Edit3, Sparkles, Minimize2, Maximize2, X } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
 interface GraphVisualizationImprovedProps {
@@ -592,6 +592,9 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
               onResetView={handleResetView}
               layoutMode={layoutMode}
               onLayoutChange={setLayoutMode}
+              chatOpen={chatOpen}
+              onChatToggle={() => setChatOpen(!chatOpen)}
+              chatNodeCount={chatNodes.length}
             />
           </Panel>
         )}
@@ -717,30 +720,6 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         </div>
       )}
 
-      {/* Chat Toggle Button - Bottom left */}
-      {!zenMode && (
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className={`
-            absolute bottom-4 left-4 z-20 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-            font-semibold text-sm shadow-lg transition-all duration-200
-            ${chatOpen
-              ? 'bg-primary/30 border-primary/60 text-primary hover:bg-primary/40'
-              : 'bg-card/95 border-border/50 text-foreground hover:bg-card hover:border-primary/40'
-            }
-            border backdrop-blur-sm hover:scale-105
-          `}
-          title="Chat with multiple nodes using AI"
-        >
-        <MessageSquare className="w-4 h-4" />
-        <span>Node Chat</span>
-        {chatNodes.length > 0 && (
-          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/30 text-primary text-[10px] font-bold">
-            {chatNodes.length}
-          </span>
-        )}
-      </button>
-      )}
 
       {/* Node Chat Panel */}
       <NodeChat

@@ -3,7 +3,7 @@
  * Communicates with PostgreSQL backend instead of localStorage
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface UserSession {
   id: string;
