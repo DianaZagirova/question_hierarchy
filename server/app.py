@@ -1743,9 +1743,11 @@ def improve_node(session_id):
         stream_with_context(generate()),
         mimetype='text/event-stream',
         headers={
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
             'X-Accel-Buffering': 'no',
             'Connection': 'keep-alive',
+            'Transfer-Encoding': 'chunked',
+            'Content-Type': 'text/event-stream; charset=utf-8',
         }
     )
 
@@ -1830,9 +1832,11 @@ INSTRUCTIONS:
         stream_with_context(generate()),
         mimetype='text/event-stream',
         headers={
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
             'X-Accel-Buffering': 'no',
             'Connection': 'keep-alive',
+            'Transfer-Encoding': 'chunked',
+            'Content-Type': 'text/event-stream; charset=utf-8',
         }
     )
 
