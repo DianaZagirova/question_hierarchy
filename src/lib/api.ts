@@ -12,6 +12,9 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Generous timeout for long-running batch operations (10 minutes)
+  // Individual steps have their own backend timeouts (3-6 minutes)
+  timeout: 600000, // 10 minutes in milliseconds
 });
 
 // Add request interceptor to inject session ID

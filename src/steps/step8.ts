@@ -55,7 +55,20 @@ export async function runStep8(
   batchResult.batch_results.forEach((result: any) => {
     if (result.success && result.data) {
       const l4s = result.data.l4_questions || result.data.child_nodes_L4 || [];
-      allL4Questions.push(...l4s);
+      // Use item_index to find the corresponding input item
+      const itemIdx = result.item_index !== undefined ? result.item_index : 0;
+      const inputItem = items[itemIdx];
+      const parentL3Id = inputItem?.l3_question?.id;
+      const parentGoalId = inputItem?.parent_goal?.id;
+
+      // Enrich each L4 question with parent relationship metadata
+      const enrichedL4s = l4s.map((l4: any) => ({
+        ...l4,
+        parent_l3_id: parentL3Id,
+        parent_goal_id: parentGoalId,
+      }));
+
+      allL4Questions.push(...enrichedL4s);
     }
   });
 

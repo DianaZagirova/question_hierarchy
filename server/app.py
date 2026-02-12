@@ -861,13 +861,20 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
     if "JSON" not in system_prompt and "json" not in system_prompt:
         system_prompt += "\n\nIMPORTANT: You must respond with valid JSON only."
 
-    # Step-specific timeout settings (Step 4 needs more time for domain scans)
+    # Step-specific timeout settings
+    # Steps with many nodes need more time and token capacity
     if step_id == 4:
         timeout_seconds = 300  # 5 minutes for Step 4 (domain specialist)
         max_tokens = 32000  # Allow larger responses for Step 4
         logger.info(f"  Timeout: {timeout_seconds}s")
         logger.info(f"  Max tokens: {max_tokens}")
-    elif step_id in [6, 7, 8, 9]:  # L3, IH, L4, L5 steps
+    elif step_id == 9:
+        timeout_seconds = 360  # 6 minutes for Step 9 (L5/L6 generation with hierarchies)
+        max_tokens = 32000  # Large token budget for drill-down hierarchies
+    elif step_id == 10:
+        timeout_seconds = 300  # 5 minutes for Step 10 (convergence analysis across many L6 tasks)
+        max_tokens = 28000
+    elif step_id in [6, 7, 8]:  # L3, IH, L4 steps
         timeout_seconds = 240  # 4 minutes
         max_tokens = 28000
     else:
@@ -1538,10 +1545,10 @@ Instantiation Hypotheses (for this L3):
 Generate L4 Tactical Questions that discriminate between these hypotheses for this specific L3 question. All tactical questions must serve the Master Project Question (Q0) above."""
     
     # STEP 9: INPUT: 1 L4 question + context | OUTPUT: L5/L6 tasks for that L4
+    # NOTE: L4 and later nodes do NOT receive S-nodes (step5), only RAs (step3)
     elif step_id == 9:
         step3_data = input_data.get('step3', {}) if isinstance(input_data, dict) else {}
-        step5_data = input_data.get('step5', {}) if isinstance(input_data, dict) else {}
-        
+
         # Check if this is a batch call with single L4 question
         if 'l4_question' in input_data:
             l4_question = input_data['l4_question']
@@ -1550,7 +1557,20 @@ Generate L4 Tactical Questions that discriminate between these hypotheses for th
             step8_data = input_data.get('step8', {}) if isinstance(input_data, dict) else {}
             l4_questions = step8_data.get('l4_questions', step8_data.get('child_nodes_L4', []))
             l4_question = l4_questions[0] if l4_questions else {}
-        
+
+        # Debug: Log raw input data structure
+        logger.info(f"\n{'='*60}")
+        logger.info(f"[Step 9 Debug] L4 question: {l4_question.get('id', 'unknown')}")
+        logger.info(f"[Step 9 Debug] L4 parent_l3_id: {l4_question.get('parent_l3_id', 'N/A')}")
+        logger.info(f"[Step 9 Debug] L4 parent_goal_id: {l4_question.get('parent_goal_id', 'N/A')}")
+        logger.info(f"[Step 9 Debug] input_data keys: {list(input_data.keys()) if isinstance(input_data, dict) else 'N/A'}")
+        logger.info(f"[Step 9 Debug] step3_data type: {type(step3_data).__name__}")
+        if isinstance(step3_data, dict):
+            logger.info(f"[Step 9 Debug] step3_data keys: {list(step3_data.keys())}")
+        elif isinstance(step3_data, list):
+            logger.info(f"[Step 9 Debug] step3_data length: {len(step3_data)}")
+        logger.info(f"{'='*60}")
+
         # Get RAs — now goal-specific (list) or legacy (dict keyed by goal ID)
         ras = []
         if isinstance(step3_data, list):
@@ -1559,21 +1579,11 @@ Generate L4 Tactical Questions that discriminate between these hypotheses for th
             for value in step3_data.values():
                 if isinstance(value, list):
                     ras.extend(value)
-        
-        # Get goal-specific S-nodes from step5
-        scientific_pillars = []
-        if isinstance(step5_data, dict):
-            for goal_id, goal_data in step5_data.items():
-                if isinstance(goal_data, dict):
-                    scientific_pillars.extend(goal_data.get('scientific_pillars', []))
-        
-        # Build S-node summary for prompt
-        s_node_summary = [{'id': s.get('id'), 'title': s.get('title'), 'relationship_to_goal': s.get('relationship_to_goal')} for s in scientific_pillars[:10]]
-        
+
         q0_ref = input_data.get('Q0_reference', '')
-        
+
         logger.info(f"\nStep 9 Debug: Processing L4 question {l4_question.get('id', 'unknown')}")
-        logger.info(f"  RAs: {len(ras)}, S-nodes: {len(scientific_pillars)}")
+        logger.info(f"  RAs: {len(ras)}")
         
         return f"""Master Project Question (Q0):
 {q0_ref}
@@ -1583,9 +1593,6 @@ L4 Tactical Question:
 
 Requirement Atoms (for parent Goal):
 {json.dumps(ras[:3], indent=2)}
-
-Scientific Reality (S-nodes for parent Goal):
-{json.dumps(s_node_summary, indent=2)}
 
 Generate L5 mechanistic sub-questions and L6 experiment-ready tasks (with S-I-M-T parameters) for this specific L4 question."""
     

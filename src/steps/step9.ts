@@ -4,7 +4,7 @@
 
 import { PipelineStep, AgentConfig } from '@/types';
 import { executeStepBatch } from '@/lib/api';
-import { extractL4Questions, extractStep4ForGoal, fullQ0 } from '@/lib/pipelineHelpers';
+import { extractL4Questions, fullQ0 } from '@/lib/pipelineHelpers';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Step9');
@@ -31,12 +31,11 @@ export async function runStep9(
     const parentL3Id = l4q.parent_l3_id || l4q.l3_question_id;
     const parentL3 = allL3s.find((l3: any) => l3.id === parentL3Id);
     const parentGoalId = parentL3?.parent_goal_id || parentL3?.target_goal_id || l4q.parent_goal_id;
-    const goalStep4Data = parentGoalId ? extractStep4ForGoal(steps, parentGoalId) : null;
+    // Note: L4 and later nodes do NOT receive S-nodes (step5) - only RAs (step3)
     return {
       Q0_reference: fullQ0(steps),
       l4_question: l4q,
       step3: parentGoalId ? (step3Output?.[parentGoalId] || []) : [],
-      step5: parentGoalId && goalStep4Data ? { [parentGoalId]: goalStep4Data } : steps[4]?.output,
       goal: currentGoal,
     };
   });
