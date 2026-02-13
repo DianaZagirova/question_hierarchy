@@ -697,6 +697,82 @@ def import_single_session(session_id):
 
 # ─── End Export/Import Endpoints ───────────────────────────────────────────────
 
+# ─── Default Agent Configs ─────────────────────────────────────────────────────
+
+@app.route('/api/default-agents', methods=['GET'])
+def get_default_agents():
+    """Return default agent configurations (parsed from agents.ts at startup)"""
+    import re
+    try:
+        # Try both possible paths
+        agents_path = None
+        for p in ['src/config/agents.ts', '/app/src/config/agents.ts']:
+            import os
+            if os.path.exists(p):
+                agents_path = p
+                break
+
+        if not agents_path:
+            return jsonify({'error': 'agents.ts not found'}), 404
+
+        with open(agents_path) as f:
+            content = f.read()
+
+        agents = []
+        blocks = content.split('\n  {')
+
+        for block in blocks[1:]:
+            agent = {}
+            id_m = re.search(r"id:\s*'([^']+)'", block)
+            name_m = re.search(r"name:\s*'([^']+)'", block)
+            model_m = re.search(r"model:\s*'([^']+)'", block)
+            temp_m = re.search(r"temperature:\s*([\d.]+)", block)
+            enabled_m = re.search(r"enabled:\s*(true|false)", block)
+            desc_m = re.search(r"description:\s*'([^']*)'", block)
+            prompt_m = re.search(r'systemPrompt:\s*`(.*?)`', block, re.DOTALL)
+            nc_m = re.search(r'nodeCount:\s*\{[^}]*default:\s*(\d+)[^}]*min:\s*(\d+)[^}]*max:\s*(\d+)', block)
+
+            if id_m and name_m:
+                agent = {
+                    'id': id_m.group(1),
+                    'name': name_m.group(1),
+                    'model': model_m.group(1) if model_m else 'gpt-4.1',
+                    'temperature': float(temp_m.group(1)) if temp_m else 0.4,
+                    'enabled': enabled_m.group(1) == 'true' if enabled_m else True,
+                    'description': desc_m.group(1) if desc_m else '',
+                    'systemPrompt': prompt_m.group(1) if prompt_m else '',
+                    'settings': {},
+                }
+                if nc_m:
+                    agent['settings']['nodeCount'] = {
+                        'default': int(nc_m.group(1)),
+                        'min': int(nc_m.group(2)),
+                        'max': int(nc_m.group(3)),
+                    }
+                agents.append(agent)
+
+        # Map to step IDs for convenience
+        step_map = {
+            'agent-initiator': 1,
+            'agent-immortalist': 2,
+            'agent-requirement-engineer': 3,
+            'agent-domain-mapper': '4a',
+            'agent-biologist': '4b',
+            'agent-judge': 5,
+            'agent-l3-explorer': 6,
+            'agent-instantiator': 7,
+            'agent-explorer': 8,
+            'agent-tactical-engineer': 9,
+            'agent-common-l6-synthesizer': 10,
+        }
+        for a in agents:
+            a['stepId'] = step_map.get(a['id'])
+
+        return jsonify({'agents': agents, 'total': len(agents)})
+    except Exception as e:
+        logger.error(f"Error reading agent configs: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 # ─── Community Sessions ────────────────────────────────────────────────────────
 
 @app.route('/api/community-sessions', methods=['GET'])
