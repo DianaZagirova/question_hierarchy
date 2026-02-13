@@ -34,6 +34,8 @@ COPY server/init.sql /app/server/init.sql
 
 # Copy built frontend from Stage 1
 COPY --from=frontend /app/dist /app/dist
+COPY src/config/agents.ts /app/src/config/agents.ts
+COPY src/config/agents_neutral.ts /app/src/config/agents_neutral.ts
 
 # Environment defaults (override via docker-compose or docker run -e)
 ENV PYTHONUNBUFFERED=1 \
