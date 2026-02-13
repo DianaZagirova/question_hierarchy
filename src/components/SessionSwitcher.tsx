@@ -79,7 +79,11 @@ export const SessionSwitcher: React.FC = () => {
   const handleClone = async (communityId: string) => {
     try {
       setCloningId(communityId);
-      await sessionApi.cloneCommunitySession(communityId);
+      const newSession = await sessionApi.cloneCommunitySession(communityId);
+      // Switch to the cloned session immediately and reload
+      if (newSession?.id) {
+        switchSession(newSession.id);
+      }
       window.location.reload();
     } catch (error) {
       console.error('Failed to clone session:', error);
@@ -399,7 +403,8 @@ export const SessionSwitcher: React.FC = () => {
                   communitySessionsList.map((cs) => (
                     <div
                       key={cs.id}
-                      className="flex items-center gap-2 px-3 py-2.5 hover:bg-secondary/40 border-l-2 border-l-transparent transition-colors group"
+                      onClick={() => handleClone(cs.id)}
+                      className="flex items-center gap-2 px-3 py-2.5 hover:bg-secondary/40 border-l-2 border-l-transparent transition-colors group cursor-pointer"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-foreground truncate">{cs.name}</div>
@@ -420,14 +425,9 @@ export const SessionSwitcher: React.FC = () => {
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleClone(cs.id)}
-                        disabled={cloningId === cs.id}
-                        className="shrink-0 px-2.5 py-1 text-[10px] font-semibold rounded bg-accent/15 text-accent hover:bg-accent/25 transition-colors disabled:opacity-50"
-                        title="Clone to My Sessions"
-                      >
-                        {cloningId === cs.id ? '...' : 'Clone'}
-                      </button>
+                      <span className={`shrink-0 px-2.5 py-1 text-[10px] font-semibold rounded bg-accent/15 text-accent transition-colors ${cloningId === cs.id ? 'opacity-50' : 'group-hover:bg-accent/25'}`}>
+                        {cloningId === cs.id ? 'Opening...' : 'Open'}
+                      </span>
                     </div>
                   ))
                 )}
