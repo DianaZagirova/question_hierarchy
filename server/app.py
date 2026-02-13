@@ -697,6 +697,118 @@ def import_single_session(session_id):
 
 # ─── End Export/Import Endpoints ───────────────────────────────────────────────
 
+# ─── Community Sessions ────────────────────────────────────────────────────────
+
+@app.route('/api/community-sessions', methods=['GET'])
+def list_community_sessions():
+    """List all published community sessions (no auth required)"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        sessions, total = db.list_community_sessions(limit=limit, offset=offset)
+        return jsonify({'sessions': sessions, 'total': total})
+    except Exception as e:
+        logger.error(f"Error listing community sessions: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/community-sessions/<community_id>', methods=['GET'])
+def get_community_session(community_id):
+    """Get full community session data (for cloning)"""
+    try:
+        result = db.get_community_session(community_id)
+        if not result:
+            return jsonify({'error': 'Community session not found'}), 404
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting community session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/community-sessions/<community_id>/clone', methods=['POST'])
+@with_session(db)
+def clone_community_session(session_id, community_id):
+    """Clone a community session into the current user's sessions"""
+    try:
+        import uuid as uuid_mod
+
+        # Get community session data
+        community = db.get_community_session(community_id)
+        if not community:
+            return jsonify({'error': 'Community session not found'}), 404
+
+        # Get current user sessions
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+
+        # Create new local session from community data
+        new_session_id = f"s-{int(time.time())}-{uuid_mod.uuid4().hex[:6]}"
+        new_session = {
+            'id': new_session_id,
+            'name': f"{community['name']}",
+            'createdAt': datetime.utcnow().isoformat(),
+            'updatedAt': datetime.utcnow().isoformat(),
+            'goalPreview': community.get('goalPreview', ''),
+            'clonedFrom': community_id,
+        }
+
+        sessions.append(new_session)
+
+        # Save session data
+        if community.get('data'):
+            db.save_session_state(session_id, f'user_session_{new_session_id}', community['data'])
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+
+        # Increment clone counter
+        db.increment_community_clone_count(community_id)
+
+        return jsonify({'session': new_session})
+    except Exception as e:
+        logger.error(f"Error cloning community session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-sessions/<user_session_id>/publish', methods=['POST'])
+@with_session(db)
+def publish_user_session(session_id, user_session_id):
+    """Publish a user session to the community"""
+    try:
+        data = request.json or {}
+        author = data.get('author', 'Anonymous')
+        tags = data.get('tags', [])
+
+        # Get session metadata
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+        session_meta = next((s for s in sessions if s['id'] == user_session_id), None)
+
+        if not session_meta:
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Get session data
+        session_data = db.get_session_state(session_id, f'user_session_{user_session_id}')
+        if not session_data:
+            return jsonify({'error': 'Session has no data'}), 400
+
+        # Publish to community
+        community_id = f"c-{user_session_id}"
+        db.publish_community_session(
+            community_id=community_id,
+            name=session_meta.get('name', 'Unnamed Session'),
+            author=author,
+            goal_preview=session_meta.get('goalPreview', ''),
+            session_data=session_data,
+            browser_session_id=session_id,
+            tags=tags,
+        )
+
+        return jsonify({'published': True, 'communityId': community_id})
+    except Exception as e:
+        logger.error(f"Error publishing session: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+# ─── End Community Sessions ────────────────────────────────────────────────────
+
 # ─── End User Session Management ───────────────────────────────────────────────
 
 # ─── End Session Management Endpoints ─────────────────────────────────────────

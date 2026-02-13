@@ -143,6 +143,56 @@ export async function renameUserSession(userSessionId: string, newName: string):
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Community Sessions
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface CommunitySession {
+  id: string;
+  name: string;
+  author: string;
+  goalPreview: string;
+  publishedAt: string;
+  tags: string[];
+  cloneCount: number;
+}
+
+/**
+ * List all community sessions
+ */
+export async function listCommunitySessions(limit = 50, offset = 0): Promise<{ sessions: CommunitySession[]; total: number }> {
+  const response = await fetch(`${API_BASE}/api/community-sessions?limit=${limit}&offset=${offset}`);
+  if (!response.ok) throw new Error('Failed to fetch community sessions');
+  return await response.json();
+}
+
+/**
+ * Clone a community session into user's sessions
+ */
+export async function cloneCommunitySession(communityId: string): Promise<UserSession> {
+  const response = await fetch(`${API_BASE}/api/community-sessions/${communityId}/clone`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!response.ok) throw new Error('Failed to clone community session');
+  const data = await response.json();
+  return data.session;
+}
+
+/**
+ * Publish a user session to community
+ */
+export async function publishSession(userSessionId: string, author?: string, tags?: string[]): Promise<{ published: boolean; communityId: string }> {
+  const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}/publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ author: author || 'Anonymous', tags: tags || [] }),
+  });
+  if (!response.ok) throw new Error('Failed to publish session');
+  return await response.json();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Export/Import Functions
 // ═══════════════════════════════════════════════════════════════════════════
 

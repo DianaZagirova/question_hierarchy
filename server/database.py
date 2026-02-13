@@ -81,6 +81,35 @@ class SessionState(Base):
         return f"<SessionState {self.session_id}:{self.state_key}>"
 
 
+class CommunitySession(Base):
+    """Published sessions visible to all users"""
+    __tablename__ = 'community_sessions'
+
+    id = Column(String(100), primary_key=True)  # matches user_session id format
+    name = Column(String(500), nullable=False)
+    author = Column(String(200), default='Anonymous')
+    goal_preview = Column(String(500), default='')
+    session_data = Column(JSONB, nullable=False, default={})
+    published_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    source_browser_session = Column(UUID(as_uuid=True), nullable=True)  # which browser session published it
+    tags = Column(JSONB, default=[])
+    clone_count = Column(Integer, default=0)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'author': self.author,
+            'goalPreview': self.goal_preview,
+            'publishedAt': self.published_at.isoformat() if self.published_at else None,
+            'tags': self.tags or [],
+            'cloneCount': self.clone_count or 0,
+        }
+
+    def __repr__(self):
+        return f"<CommunitySession {self.id}:{self.name}>"
+
+
 class SessionVersion(Base):
     """Saved snapshots of session state"""
     __tablename__ = 'session_versions'
@@ -301,6 +330,97 @@ class DB:
             ).delete()
             session.commit()
             return deleted
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    # ─── Community Sessions ───────────────────────────────────────────────
+
+    def list_community_sessions(self, limit=50, offset=0):
+        """Get all published community sessions, newest first"""
+        session = self.get_session()
+        try:
+            results = session.query(CommunitySession).order_by(
+                CommunitySession.published_at.desc()
+            ).offset(offset).limit(limit).all()
+            total = session.query(CommunitySession).count()
+            return [r.to_dict() for r in results], total
+        finally:
+            session.close()
+
+    def get_community_session(self, community_id: str):
+        """Get full community session with data"""
+        session = self.get_session()
+        try:
+            result = session.query(CommunitySession).filter(
+                CommunitySession.id == community_id
+            ).first()
+            if not result:
+                return None
+            d = result.to_dict()
+            d['data'] = result.session_data
+            return d
+        finally:
+            session.close()
+
+    def publish_community_session(self, community_id: str, name: str, author: str,
+                                   goal_preview: str, session_data: dict,
+                                   browser_session_id: str = None, tags: list = None):
+        """Publish a session to community"""
+        session = self.get_session()
+        try:
+            existing = session.query(CommunitySession).filter(
+                CommunitySession.id == community_id
+            ).first()
+            if existing:
+                existing.name = name
+                existing.author = author
+                existing.goal_preview = goal_preview
+                existing.session_data = session_data
+                existing.published_at = datetime.utcnow()
+                existing.tags = tags or []
+            else:
+                cs = CommunitySession(
+                    id=community_id,
+                    name=name,
+                    author=author,
+                    goal_preview=goal_preview,
+                    session_data=session_data,
+                    source_browser_session=uuid.UUID(browser_session_id) if browser_session_id else None,
+                    tags=tags or [],
+                )
+                session.add(cs)
+            session.commit()
+            return True
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def increment_community_clone_count(self, community_id: str):
+        """Increment clone counter"""
+        session = self.get_session()
+        try:
+            session.query(CommunitySession).filter(
+                CommunitySession.id == community_id
+            ).update({'clone_count': CommunitySession.clone_count + 1})
+            session.commit()
+        except Exception as e:
+            session.rollback()
+        finally:
+            session.close()
+
+    def delete_community_session(self, community_id: str):
+        """Delete a community session"""
+        session = self.get_session()
+        try:
+            session.query(CommunitySession).filter(
+                CommunitySession.id == community_id
+            ).delete()
+            session.commit()
         except Exception as e:
             session.rollback()
             raise e
