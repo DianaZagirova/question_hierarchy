@@ -701,30 +701,35 @@ def import_single_session(session_id):
 
 @app.route('/api/default-agents', methods=['GET'])
 def get_default_agents():
-    """Return default agent configurations (parsed from agents.ts at startup)"""
-    import re
+    """Return default agent configurations (parsed from agents.ts)"""
+    import os, re
     try:
-        # Try both possible paths
-        agents_path = None
-        for p in ['src/config/agents.ts', '/app/src/config/agents.ts']:
-            import os
-            if os.path.exists(p):
-                agents_path = p
-                break
-
+        agents_path = next(
+            (p for p in ['src/config/agents.ts', '/app/src/config/agents.ts'] if os.path.exists(p)),
+            None
+        )
         if not agents_path:
             return jsonify({'error': 'agents.ts not found'}), 404
 
         with open(agents_path) as f:
             content = f.read()
 
-        agents = []
-        blocks = content.split('\n  {')
+        # Extract each agent block by matching id: '...' through to the next id: or end
+        # Find all agent id positions, then slice content between them
+        id_positions = [m.start() for m in re.finditer(r"id:\s*'agent-", content)]
+        if not id_positions:
+            raise ValueError("No agent blocks found in agents.ts")
 
-        for block in blocks[1:]:
-            agent = {}
+        agents = []
+        for i, pos in enumerate(id_positions):
+            end = id_positions[i + 1] if i + 1 < len(id_positions) else len(content)
+            block = content[pos:end]
+
             id_m = re.search(r"id:\s*'([^']+)'", block)
             name_m = re.search(r"name:\s*'([^']+)'", block)
+            if not (id_m and name_m):
+                continue
+
             model_m = re.search(r"model:\s*'([^']+)'", block)
             temp_m = re.search(r"temperature:\s*([\d.]+)", block)
             enabled_m = re.search(r"enabled:\s*(true|false)", block)
@@ -732,24 +737,23 @@ def get_default_agents():
             prompt_m = re.search(r'systemPrompt:\s*`(.*?)`', block, re.DOTALL)
             nc_m = re.search(r'nodeCount:\s*\{[^}]*default:\s*(\d+)[^}]*min:\s*(\d+)[^}]*max:\s*(\d+)', block)
 
-            if id_m and name_m:
-                agent = {
-                    'id': id_m.group(1),
-                    'name': name_m.group(1),
-                    'model': model_m.group(1) if model_m else 'gpt-4.1',
-                    'temperature': float(temp_m.group(1)) if temp_m else 0.4,
-                    'enabled': enabled_m.group(1) == 'true' if enabled_m else True,
-                    'description': desc_m.group(1) if desc_m else '',
-                    'systemPrompt': prompt_m.group(1) if prompt_m else '',
-                    'settings': {},
+            agent = {
+                'id': id_m.group(1),
+                'name': name_m.group(1),
+                'model': model_m.group(1) if model_m else 'gpt-4.1',
+                'temperature': float(temp_m.group(1)) if temp_m else 0.4,
+                'enabled': enabled_m.group(1) == 'true' if enabled_m else True,
+                'description': desc_m.group(1) if desc_m else '',
+                'systemPrompt': prompt_m.group(1) if prompt_m else '',
+                'settings': {},
+            }
+            if nc_m:
+                agent['settings']['nodeCount'] = {
+                    'default': int(nc_m.group(1)),
+                    'min': int(nc_m.group(2)),
+                    'max': int(nc_m.group(3)),
                 }
-                if nc_m:
-                    agent['settings']['nodeCount'] = {
-                        'default': int(nc_m.group(1)),
-                        'min': int(nc_m.group(2)),
-                        'max': int(nc_m.group(3)),
-                    }
-                agents.append(agent)
+            agents.append(agent)
 
         # Map to step IDs for convenience
         step_map = {

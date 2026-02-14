@@ -5,6 +5,7 @@ Handles PostgreSQL connections, session management, and state persistence
 
 import os
 import uuid
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, ForeignKey, UniqueConstraint
@@ -12,6 +13,8 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 from sqlalchemy.sql import func
+
+logger = logging.getLogger(__name__)
 
 # SQLAlchemy Base
 Base = declarative_base()
@@ -29,7 +32,7 @@ class User(Base):
     username = Column(String(100))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_login_at = Column(DateTime)
-    user_metadata = Column(JSONB, default={})
+    user_metadata = Column(JSONB, default=dict)
 
     # Relationships
     sessions = relationship("Session", back_populates="user")
@@ -47,7 +50,7 @@ class Session(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_accessed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
-    session_metadata = Column(JSONB, default={})
+    session_metadata = Column(JSONB, default=dict)
     is_active = Column(Boolean, default=True)
 
     # Relationships
@@ -66,7 +69,7 @@ class SessionState(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(UUID(as_uuid=True), ForeignKey('sessions.session_id', ondelete='CASCADE'), nullable=False)
     state_key = Column(String(50), nullable=False)
-    state_data = Column(JSONB, nullable=False, default={})
+    state_data = Column(JSONB, nullable=False, default=dict)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
@@ -89,10 +92,10 @@ class CommunitySession(Base):
     name = Column(String(500), nullable=False)
     author = Column(String(200), default='Anonymous')
     goal_preview = Column(String(500), default='')
-    session_data = Column(JSONB, nullable=False, default={})
+    session_data = Column(JSONB, nullable=False, default=dict)
     published_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     source_browser_session = Column(UUID(as_uuid=True), nullable=True)  # which browser session published it
-    tags = Column(JSONB, default=[])
+    tags = Column(JSONB, default=list)
     clone_count = Column(Integer, default=0)
 
     def to_dict(self):
@@ -117,7 +120,7 @@ class SessionVersion(Base):
     version_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(UUID(as_uuid=True), ForeignKey('sessions.session_id', ondelete='CASCADE'), nullable=False)
     version_name = Column(String(200), nullable=False)
-    snapshot_data = Column(JSONB, nullable=False, default={})
+    snapshot_data = Column(JSONB, nullable=False, default=dict)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Relationships
@@ -211,7 +214,8 @@ class DB:
                 Session.expires_at > datetime.utcnow()
             ).first()
             return result is not None
-        except (ValueError, Exception):
+        except (ValueError, Exception) as e:
+            logger.warning(f"Session validation failed: {e}")
             return False
         finally:
             session.close()
@@ -262,7 +266,8 @@ class DB:
                     SessionState.session_id == session_uuid
                 ).all()
                 return {r.state_key: r.state_data for r in results}
-        except (ValueError, Exception):
+        except (ValueError, Exception) as e:
+            logger.warning(f"Failed to get session state: {e}")
             return None
         finally:
             session.close()
@@ -410,6 +415,7 @@ class DB:
             session.commit()
         except Exception as e:
             session.rollback()
+            logger.error(f"Error incrementing clone count for {community_id}: {e}")
         finally:
             session.close()
 
