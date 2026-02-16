@@ -200,8 +200,12 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
 
     if (step.status === 'completed' || step.status === 'running' || step.status === 'skipped') return false;
     if (index === 0) return true; // First step can always run if not completed
-    const previousStep = steps[index - 1];
-    return previousStep.status === 'completed' || previousStep.status === 'skipped';
+    // All preceding steps must be completed or skipped (handles chains like Step 6 needing 2,3,4 done)
+    for (let i = 0; i < index; i++) {
+      const prev = steps[i];
+      if (prev.status !== 'completed' && prev.status !== 'skipped') return false;
+    }
+    return true;
   };
 
   return (
