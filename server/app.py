@@ -1056,21 +1056,21 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
     # Step-specific timeout settings
     # Steps with many nodes need more time and token capacity
     if step_id == 4:
-        timeout_seconds = 300  # 5 minutes for Step 4 (domain specialist)
+        timeout_seconds = 600  # 10 minutes for Step 4 (domain specialist)
         max_tokens = 32000  # Allow larger responses for Step 4
         logger.info(f"  Timeout: {timeout_seconds}s")
         logger.info(f"  Max tokens: {max_tokens}")
     elif step_id == 9:
-        timeout_seconds = 360  # 6 minutes for Step 9 (L5/L6 generation with hierarchies)
+        timeout_seconds = 600  # 10 minutes for Step 9 (L5/L6 generation with hierarchies)
         max_tokens = 32000  # Large token budget for drill-down hierarchies
     elif step_id == 10:
-        timeout_seconds = 300  # 5 minutes for Step 10 (convergence analysis across many L6 tasks)
+        timeout_seconds = 600  # 10 minutes for Step 10 (convergence analysis across many L6 tasks)
         max_tokens = 28000
     elif step_id in [6, 7, 8]:  # L3, IH, L4 steps
-        timeout_seconds = 240  # 4 minutes
+        timeout_seconds = 360  # 6 minutes
         max_tokens = 28000
     else:
-        timeout_seconds = 180  # 3 minutes for other steps
+        timeout_seconds = 360  # 6 minutes for other steps
         max_tokens = 24000
 
     if step_id == 4:
@@ -1094,12 +1094,30 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
         timeout=timeout_seconds,
     )
     
-    # OpenRouter supports extra headers for tracking
+    # OpenRouter supports extra headers for tracking + provider routing
     if API_PROVIDER == 'openrouter':
         api_kwargs['extra_headers'] = {
             'HTTP-Referer': 'https://omega-point.local',
             'X-Title': 'Omega Point Pipeline',
         }
+        # Throughput-priority routing: pick the fastest available provider
+        api_kwargs['extra_body'] = {
+            'provider': {
+                'sort': 'throughput',
+            },
+        }
+        # Prompt caching: Anthropic models need explicit cache_control breakpoints
+        # OpenAI models get automatic caching for prompts >1024 tokens (no code needed)
+        if 'anthropic' in model.lower() or 'claude' in model.lower():
+            api_kwargs['messages'] = [
+                {
+                    "role": "system",
+                    "content": [
+                        {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}
+                    ]
+                },
+                {"role": "user", "content": user_prompt}
+            ]
     
     completion = client.chat.completions.create(**api_kwargs)
 
@@ -1382,6 +1400,161 @@ def execute_step_batch(session_id):
             'details': 'Batch execution failed'
         }), 500
 
+@app.route('/api/execute-step4-pipeline', methods=['POST'])
+@with_session(db)
+def execute_step4_pipeline(session_id):
+    """
+    Pipelined Step 4 execution: overlaps Phase 4a (domain mapping) and Phase 4b
+    (domain scans) per goal for maximum throughput.
+
+    As each goal's domain mapping completes, its domain scans start immediately
+    without waiting for other goals' mappings.
+
+    Timeline illustration (3 goals):
+      Goal1: [4a] ──→ [4b-D1] [4b-D2] [4b-D3]
+      Goal2: [  4a  ] ──→ [4b-D1] [4b-D2]
+      Goal3: [    4a    ] ──→ [4b-D1] [4b-D2] [4b-D3] [4b-D4]
+    """
+    try:
+        data = request.json
+        goal_items = data.get('goal_items', [])
+        domain_mapper_agent = data.get('domain_mapper_agent')
+        domain_specialist_agent = data.get('domain_specialist_agent')
+        global_lens = data.get('globalLens')
+
+        num_goals = len(goal_items)
+        logger.info(f"\n{'#'*70}")
+        logger.info(f"### PIPELINED Step 4: {num_goals} goal(s) (Session: {session_id[:8]}...)")
+        logger.info(f"{'#'*70}")
+
+        max_workers = min(num_goals * 5, MAX_BATCH_WORKERS)
+        logger.info(f"⚡ Pipeline workers: {max_workers} (MAX_BATCH_WORKERS={MAX_BATCH_WORKERS})")
+
+        # --- Progress tracking (thread-safe) ---
+        _clear_progress(session_id, 4)
+        progress_lock = threading.Lock()
+        # Weight: 4a item = 1 unit, 4b item = 3 units (scans take longer)
+        PHASE_4A_WEIGHT = 1
+        PHASE_4B_WEIGHT = 3
+        total_units = num_goals * PHASE_4A_WEIGHT  # grows as domains are discovered
+        completed_units = 0
+        successful_count = 0
+        failed_count = 0
+        batch_start = time.time()
+
+        def _emit_progress():
+            """Push current progress to SSE store (must hold progress_lock)."""
+            elapsed = time.time() - batch_start
+            pct = (completed_units / max(total_units, 1)) * 100
+            avg = elapsed / max(completed_units, 1)
+            remaining = total_units - completed_units
+            eta = avg * remaining
+            _update_progress(session_id, 4, completed_units, total_units,
+                             successful_count, failed_count, elapsed, eta)
+
+        # --- Results storage ---
+        goal_results = {}  # goal_idx -> { 'mapping': ..., 'scans': { domain_id: ... } }
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # ── Submit all Phase 4a tasks ──
+            phase4a_futures = {}
+            for idx, item in enumerate(goal_items):
+                future = executor.submit(
+                    execute_single_item, 4, domain_mapper_agent, item, global_lens
+                )
+                phase4a_futures[future] = idx
+
+            # ── As each 4a completes, immediately submit its 4b scans ──
+            phase4b_futures = {}
+
+            for future in as_completed(phase4a_futures):
+                goal_idx = phase4a_futures[future]
+                goal_item = goal_items[goal_idx]
+
+                try:
+                    mapping_result = future.result()
+                    goal_results[goal_idx] = {'mapping': mapping_result, 'scans': {}}
+
+                    domains = mapping_result.get('research_domains', [])
+                    logger.info(
+                        f"  ✅ Goal {goal_idx+1}/{num_goals}: 4a done → "
+                        f"{len(domains)} domains, submitting 4b scans immediately"
+                    )
+
+                    with progress_lock:
+                        completed_units += PHASE_4A_WEIGHT
+                        successful_count += 1
+                        total_units += len(domains) * PHASE_4B_WEIGHT
+                        _emit_progress()
+
+                    # Submit 4b scans for this goal's domains
+                    for domain in domains:
+                        scan_item = {**goal_item, 'target_domain': domain}
+                        scan_future = executor.submit(
+                            execute_single_item, 4, domain_specialist_agent,
+                            scan_item, global_lens
+                        )
+                        phase4b_futures[scan_future] = (goal_idx, domain)
+
+                except Exception as e:
+                    logger.error(f"  ❌ Goal {goal_idx+1}/{num_goals}: 4a FAILED — {e}")
+                    goal_results[goal_idx] = {'mapping_error': str(e), 'scans': {}}
+                    with progress_lock:
+                        completed_units += PHASE_4A_WEIGHT
+                        failed_count += 1
+                        _emit_progress()
+
+            # ── Collect Phase 4b results ──
+            for future in as_completed(phase4b_futures):
+                goal_idx, domain = phase4b_futures[future]
+                domain_id = domain.get('domain_id', f'unknown_{id(domain)}')
+
+                try:
+                    scan_result = future.result()
+                    if goal_idx in goal_results:
+                        goal_results[goal_idx]['scans'][domain_id] = scan_result
+                    with progress_lock:
+                        completed_units += PHASE_4B_WEIGHT
+                        successful_count += 1
+                        _emit_progress()
+                    logger.info(f"  ✅ Goal {goal_idx+1} / domain '{domain_id}': 4b scan done")
+                except Exception as e:
+                    if goal_idx in goal_results:
+                        goal_results[goal_idx]['scans'][domain_id] = {'error': str(e)}
+                    with progress_lock:
+                        completed_units += PHASE_4B_WEIGHT
+                        failed_count += 1
+                        _emit_progress()
+                    logger.error(f"  ❌ Goal {goal_idx+1} / domain '{domain_id}': 4b FAILED — {e}")
+
+        elapsed = time.time() - batch_start
+        logger.info(f"\n{'#'*70}")
+        logger.info(f"### PIPELINE COMPLETE: Step 4")
+        logger.info(f"  ✅ Successful: {successful_count}")
+        logger.info(f"  ❌ Failed: {failed_count}")
+        logger.info(f"  ⏱️  Total: {elapsed/60:.1f} min")
+        logger.info(f"{'#'*70}\n")
+
+        _clear_progress(session_id, 4)
+
+        return jsonify({
+            'success': True,
+            'goal_results': {str(k): v for k, v in goal_results.items()},
+            'total_goals': num_goals,
+            'elapsed_seconds': elapsed,
+            'successful': successful_count,
+            'failed': failed_count,
+        })
+
+    except Exception as e:
+        logger.error(f"Step 4 Pipeline error: {e}", exc_info=True)
+        try:
+            _clear_progress(session_id, 4)
+        except:
+            pass
+        return jsonify({'error': str(e), 'details': 'Step 4 pipeline failed'}), 500
+
+
 def prepare_user_prompt(step_id, input_data):
     """Prepare user prompt based on step ID and input data"""
     
@@ -1440,6 +1613,7 @@ Generate Requirement Atoms for this specific goal pillar."""
         target_goal = input_data.get('target_goal', {})
         requirement_atoms = input_data.get('requirement_atoms', [])
         bridge_lexicon = input_data.get('bridge_lexicon', {})
+        target_domain = input_data.get('target_domain', None)
         
         # Fallback to old structure if new properties not found
         if not bridge_lexicon:
@@ -1453,7 +1627,28 @@ Generate Requirement Atoms for this specific goal pillar."""
         logger.info(f"  Target Goal: {target_goal.get('id', 'N/A')}")
         logger.info(f"  Requirement Atoms: {len(requirement_atoms)}")
         logger.info(f"  SPVs: {len(spvs)}")
+        if target_domain:
+            logger.info(f"  Target Domain: {target_domain.get('domain_id', 'N/A')} — {target_domain.get('domain_name', 'N/A')}")
         
+        # Phase 4b: domain-specific deep scan (target_domain present)
+        if target_domain:
+            return f"""Q0 Reference: {q0_reference}
+
+Target Goal (G):
+{json.dumps(target_goal, indent=2)}
+
+Requirement Atoms (RAs) for this Goal:
+{json.dumps(requirement_atoms, indent=2)}
+
+Bridge Lexicon (System Property Variables):
+{json.dumps(bridge_lexicon, indent=2)}
+
+Target Research Domain to scan:
+{json.dumps(target_domain, indent=2)}
+
+Generate Scientific Pillars (S-Nodes) for 2026 from THIS SPECIFIC RESEARCH DOMAIN that are relevant to the goal and can affect the required system properties. Focus your analysis on the domain specified above."""
+        
+        # Phase 4a: domain mapping (no target_domain)
         return f"""Q0 Reference: {q0_reference}
 
 Target Goal (G):
@@ -1927,6 +2122,22 @@ def improve_node(session_id):
                     'HTTP-Referer': 'https://omega-point.local',
                     'X-Title': 'Omega Point Node Improvement',
                 }
+                api_kwargs['extra_body'] = {
+                    'provider': {
+                        'sort': 'throughput',
+                    },
+                }
+                # Prompt caching for Anthropic models
+                if 'anthropic' in resolved.lower() or 'claude' in resolved.lower():
+                    api_kwargs['messages'] = [
+                        {
+                            "role": "system",
+                            "content": [
+                                {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}
+                            ]
+                        },
+                        {"role": "user", "content": user_prompt}
+                    ]
 
             stream = client.chat.completions.create(**api_kwargs)
             for chunk in stream:
@@ -2016,6 +2227,21 @@ INSTRUCTIONS:
                     'HTTP-Referer': 'https://omega-point.local',
                     'X-Title': 'Omega Point Node Chat',
                 }
+                api_kwargs['extra_body'] = {
+                    'provider': {
+                        'sort': 'throughput',
+                    },
+                }
+                # Prompt caching for Anthropic models: cache the system message
+                if 'anthropic' in resolved.lower() or 'claude' in resolved.lower():
+                    # Tag the first (system) message with cache_control
+                    if api_messages and api_messages[0].get('role') == 'system':
+                        api_messages[0] = {
+                            "role": "system",
+                            "content": [
+                                {"type": "text", "text": api_messages[0]['content'], "cache_control": {"type": "ephemeral"}}
+                            ]
+                        }
 
             stream = client.chat.completions.create(**api_kwargs)
             for chunk in stream:

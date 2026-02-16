@@ -3,7 +3,7 @@
  * Extracted from App.tsx to keep the component focused on rendering.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { createAbortController, abortStep, cleanupAbortController, executeStep } from '@/lib/api';
 import { validateStepOutput } from '@/lib/validateStepOutput';
@@ -40,15 +40,28 @@ export function usePipelineExecution(context: PipelineContext) {
 
   const { selectedGoalId, selectedL3Id, selectedL4Id, globalLens } = context;
 
+  // Generation counter per step — prevents stale abort handlers from overwriting status
+  const stepGeneration = useRef<Record<number, number>>({});
+  // Guard against concurrent execution of the same step
+  const runningGuard = useRef<Set<number>>(new Set());
+
   // ─── Main step runner ───────────────────────────────────────────────
   const handleRunStep = useCallback(
     async (stepId: number) => {
+      // Prevent concurrent execution of the same step (double-click guard)
+      if (runningGuard.current.has(stepId)) return;
+      runningGuard.current.add(stepId);
+
+      const gen = (stepGeneration.current[stepId] || 0) + 1;
+      stepGeneration.current[stepId] = gen;
+
       const step = steps.find((s) => s.id === stepId);
-      if (!step) return;
+      if (!step) { runningGuard.current.delete(stepId); return; }
 
       const agent = agents.find((a) => a.id === step.agentId);
       if (!agent || !agent.enabled) {
         updateStepStatus(stepId, 'error', null, 'Agent is disabled');
+        runningGuard.current.delete(stepId);
         return;
       }
 
@@ -120,13 +133,18 @@ export function usePipelineExecution(context: PipelineContext) {
         }
         cleanupAbortController(stepId);
       } catch (error: any) {
-        if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
-          updateStepStatus(stepId, 'pending');
-        } else {
-          log.error(`Step ${stepId} failed:`, error.message);
-          updateStepStatus(stepId, 'error', null, error.message || 'Unknown error occurred');
+        // Only update status if this is still the latest generation for this step
+        if (stepGeneration.current[stepId] === gen) {
+          if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+            updateStepStatus(stepId, 'pending');
+          } else {
+            log.error(`Step ${stepId} failed:`, error.message);
+            updateStepStatus(stepId, 'error', null, error.message || 'Unknown error occurred');
+          }
         }
         cleanupAbortController(stepId);
+      } finally {
+        runningGuard.current.delete(stepId);
       }
     },
     [steps, agents, currentGoal, selectedGoalId, selectedL3Id, selectedL4Id, globalLens, updateStepStatus, updateStep4Phase]
@@ -136,9 +154,24 @@ export function usePipelineExecution(context: PipelineContext) {
   const handleAbortStep = useCallback(
     (stepId: number) => {
       abortStep(stepId);
+      runningGuard.current.delete(stepId);
       updateStepStatus(stepId, 'pending');
     },
     [updateStepStatus]
+  );
+
+  // ─── Retry a running step (abort + re-run) ─────────────────────────
+  const handleRetryStep = useCallback(
+    async (stepId: number) => {
+      // Abort the current execution
+      abortStep(stepId);
+      runningGuard.current.delete(stepId);
+      // Small delay to let the abort propagate through the promise chain
+      await new Promise((r) => setTimeout(r, 150));
+      // Re-run
+      handleRunStep(stepId);
+    },
+    [handleRunStep]
   );
 
   // ─── Run Step 4 phase independently ────────────────────────────────
@@ -285,6 +318,7 @@ export function usePipelineExecution(context: PipelineContext) {
   return {
     handleRunStep,
     handleAbortStep,
+    handleRetryStep,
     handleRunStep4Phase,
     handleRunStepForSingleGoal,
   };

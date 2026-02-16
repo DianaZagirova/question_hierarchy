@@ -4,7 +4,7 @@
  */
 
 import { PipelineStep, AgentConfig } from '@/types';
-import { executeStepBatch } from '@/lib/api';
+import { executeStepBatch, executeStep4Pipeline } from '@/lib/api';
 import {
   extractGoals,
   minimalGoal,
@@ -42,16 +42,18 @@ export async function runStep4(
   const { goals, error } = extractGoals(steps, selectedGoalId);
   if (error) throw new Error(error);
 
-  // ===== PHASE 4a: DOMAIN MAPPING =====
-  log.info(`Phase 4a: Domain Mapping for ${goals.length} goal(s)`);
-  callbacks.updateStepStatus(4, 'running', { phase: '4a_domain_mapping', progress: 0 });
-
   const domainMapperAgent = findAgent(agents, 'agent-domain-mapper');
   if (!domainMapperAgent) {
     throw new Error('Domain Mapper agent not found. Try resetting to defaults or clearing browser cache.');
   }
 
-  const domainMappingItems = goals.map((goal: any) => {
+  const domainSpecialistAgent = findAgent(agents, 'agent-biologist');
+  if (!domainSpecialistAgent) {
+    throw new Error('Domain Specialist (agent-biologist) not found. Try resetting to defaults.');
+  }
+
+  // Build goal items (used by both pipelined and fallback paths)
+  const goalItems = goals.map((goal: any) => {
     const ras = step3Output?.[goal.id] || [];
     return {
       Q0_reference: fullQ0(steps),
@@ -62,113 +64,60 @@ export async function runStep4(
     };
   });
 
-  const domainMappingResult = await executeStepBatch(
-    4, domainMapperAgent, domainMappingItems, signal, globalLens, { phase: '4a' }
+  // ===== PIPELINED EXECUTION (4a→4b overlapped per goal) =====
+  log.info(`Step 4 Pipeline: ${goals.length} goal(s), overlapping 4a→4b per goal`);
+  callbacks.updateStepStatus(4, 'running', { phase: 'pipeline', progress: 0 });
+
+  const pipelineResult = await executeStep4Pipeline(
+    goalItems, domainMapperAgent, domainSpecialistAgent, signal, globalLens
   );
 
+  if (!pipelineResult.success) {
+    throw new Error(pipelineResult.error || 'Pipeline execution failed');
+  }
+
+  // ===== TRANSFORM PIPELINE RESPONSE TO EXPECTED OUTPUT FORMAT =====
   const domainsByGoal: Record<string, any> = {};
-  let totalDomainsIdentified = 0;
-
-  domainMappingResult.batch_results.forEach((result: any, idx: number) => {
-    const goalId = goals[idx].id;
-    if (result.success && result.data) {
-      domainsByGoal[goalId] = result.data;
-      totalDomainsIdentified += (result.data.research_domains || []).length;
-    } else {
-      log.warn(`Phase 4a: Goal ${goalId} failed —`, result.error);
-    }
-  });
-
-  log.info(`Phase 4a complete: ${totalDomainsIdentified} domains across ${Object.keys(domainsByGoal).length} goals`);
-  callbacks.updateStep4Phase('phase4a_domain_mapping', domainsByGoal);
-
-  // ===== PHASE 4b: DOMAIN-SPECIFIC SCANS =====
-  let filteredDomainsByGoal = domainsByGoal;
-  if (selectedGoalId) {
-    filteredDomainsByGoal = {};
-    if (domainsByGoal[selectedGoalId]) {
-      filteredDomainsByGoal[selectedGoalId] = domainsByGoal[selectedGoalId];
-    } else {
-      throw new Error(`Selected goal ${selectedGoalId} has no domain mapping`);
-    }
-  }
-
-  log.info(`Phase 4b: Domain Scans for ${Object.keys(filteredDomainsByGoal).length} goal(s)`);
-  callbacks.updateStepStatus(4, 'running', {
-    phase: '4b_domain_scans',
-    progress: 50,
-    domain_mapping: filteredDomainsByGoal,
-  });
-
-  const domainSpecialistAgent = findAgent(agents, 'agent-biologist');
-  if (!domainSpecialistAgent) {
-    throw new Error('Domain Specialist (agent-biologist) not found. Try resetting to defaults.');
-  }
-
-  const allDomainScanItems: any[] = [];
-  Object.entries(filteredDomainsByGoal).forEach(([goalId, domainData]: [string, any]) => {
-    const goal = goals.find((g: any) => g.id === goalId);
-    const domains = domainData.research_domains || [];
-    const ras = step3Output?.[goalId] || [];
-
-    domains.forEach((domain: any) => {
-      allDomainScanItems.push({
-        Q0_reference: fullQ0(steps),
-        target_goal: minimalGoal(goal),
-        requirement_atoms: minimalRAs(ras),
-        bridge_lexicon: filterSPVsForGoal(goal, filteredBridgeLexicon.system_properties),
-        target_domain: domain,
-        goal: currentGoal,
-      });
-    });
-  });
-
-  log.info(`Phase 4b: Executing ${allDomainScanItems.length} parallel domain scans`);
-
-  const domainScanResult = await executeStepBatch(
-    4, domainSpecialistAgent, allDomainScanItems, signal, globalLens, { phase: '4b' }
-  );
-
   const domainScansByGoal: Record<string, any> = {};
+  const finalOutput: Record<string, any> = {};
   let totalSNodes = 0;
 
-  domainScanResult.batch_results.forEach((result: any, idx: number) => {
-    const item = allDomainScanItems[idx];
-    const goalId = item.target_goal.id;
-    const domainId = item.target_domain.domain_id;
+  Object.entries(pipelineResult.goal_results).forEach(([idxStr, result]: [string, any]) => {
+    const goalIdx = parseInt(idxStr, 10);
+    const goalId = goals[goalIdx]?.id;
+    if (!goalId) return;
 
-    if (result.success && result.data) {
-      if (!domainScansByGoal[goalId]) domainScansByGoal[goalId] = { domains: {} };
-      domainScansByGoal[goalId].domains[domainId] = result.data;
-      totalSNodes += result.data.scientific_pillars?.length || 0;
-    } else {
-      log.warn(`Phase 4b: ${domainId} for goal ${goalId} failed —`, result.error);
+    // Phase 4a mapping
+    if (result.mapping && !result.mapping_error) {
+      domainsByGoal[goalId] = result.mapping;
+    }
+
+    // Phase 4b scans
+    if (result.scans) {
+      domainScansByGoal[goalId] = { domains: result.scans };
+
+      const allSNodes: any[] = [];
+      Object.values(result.scans).forEach((scan: any) => {
+        if (scan && !scan.error) {
+          allSNodes.push(...(scan.scientific_pillars || []));
+        }
+      });
+
+      finalOutput[goalId] = {
+        domain_mapping: result.mapping,
+        raw_domain_scans: { domains: result.scans },
+        scientific_pillars: allSNodes,
+      };
+      totalSNodes += allSNodes.length;
     }
   });
 
-  log.info(`Phase 4b complete: ${totalSNodes} S-nodes from ${domainScanResult.successful} scans`);
+  // Update phase data for the UI
+  callbacks.updateStep4Phase('phase4a_domain_mapping', domainsByGoal);
   callbacks.updateStep4Phase('phase4b_domain_scans', domainScansByGoal);
 
-  // ===== FINALIZE OUTPUT =====
-  const finalOutput: Record<string, any> = {};
-  let totalFinalSNodes = 0;
-
-  Object.entries(domainScansByGoal).forEach(([goalId, data]: [string, any]) => {
-    const domainScans = data.domains || {};
-    const allSNodes: any[] = [];
-    Object.values(domainScans).forEach((scan: any) => {
-      allSNodes.push(...(scan.scientific_pillars || []));
-    });
-
-    finalOutput[goalId] = {
-      domain_mapping: domainsByGoal[goalId],
-      raw_domain_scans: data,
-      scientific_pillars: allSNodes,
-    };
-    totalFinalSNodes += allSNodes.length;
-  });
-
-  log.info(`Step 4 complete: ${totalFinalSNodes} S-nodes across ${Object.keys(finalOutput).length} goals`);
+  log.info(`Step 4 pipeline complete: ${totalSNodes} S-nodes across ${Object.keys(finalOutput).length} goals`);
+  log.info(`  Elapsed: ${(pipelineResult.elapsed_seconds / 60).toFixed(1)} min`);
   return finalOutput;
 }
 

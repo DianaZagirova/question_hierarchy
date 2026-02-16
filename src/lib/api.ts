@@ -114,18 +114,36 @@ export const executeStepBatch = async (
   globalLens?: string,
   phaseInfo?: { phase: '4a' | '4b' }
 ): Promise<any> => {
-  return withRetry(async () => {
-    const response = await api.post('/api/execute-step-batch', {
-      stepId,
-      agentConfig,
-      items,
-      globalLens,
-      phase_info: phaseInfo,
-    }, {
-      signal,
-    });
-    return response.data;
-  }, signal);
+  // No withRetry for batch operations: the server handles per-item errors internally,
+  // and retrying the whole batch would reset server-side progress to 0%.
+  const response = await api.post('/api/execute-step-batch', {
+    stepId,
+    agentConfig,
+    items,
+    globalLens,
+    phase_info: phaseInfo,
+  }, {
+    signal,
+  });
+  return response.data;
+};
+
+export const executeStep4Pipeline = async (
+  goalItems: any[],
+  domainMapperAgent: AgentConfig,
+  domainSpecialistAgent: AgentConfig,
+  signal?: AbortSignal,
+  globalLens?: string,
+): Promise<any> => {
+  const response = await api.post('/api/execute-step4-pipeline', {
+    goal_items: goalItems,
+    domain_mapper_agent: domainMapperAgent,
+    domain_specialist_agent: domainSpecialistAgent,
+    globalLens,
+  }, {
+    signal,
+  });
+  return response.data;
 };
 
 export const createAbortController = (stepId: number): AbortController => {

@@ -14,6 +14,7 @@ interface PipelineViewProps {
   onSkipStep: (stepId: number) => void;
   onClearStep: (stepId: number) => void;
   onAbortStep: (stepId: number) => void;
+  onRetryStep?: (stepId: number) => void;
   onRunStep4Phase?: (phase: '4a' | '4b') => void;
   onEditOutput?: (stepId: number, newOutput: any) => void;
 }
@@ -62,7 +63,7 @@ const STEP_IO: Record<number, { inputs: string[]; outputs: string[] }> = {
   },
 };
 
-export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRunStep, onSkipStep, onClearStep, onAbortStep, onRunStep4Phase, onEditOutput }) => {
+export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRunStep, onSkipStep, onClearStep, onAbortStep, onRetryStep, onRunStep4Phase, onEditOutput }) => {
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [agentInfoStep, setAgentInfoStep] = useState<number | null>(null);
   const [editingStep, setEditingStep] = useState<number | null>(null);
@@ -71,15 +72,34 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
   const [batchProgress, setBatchProgress] = useState<Record<number, BatchProgress>>({});
   const sseCleanupRefs = useRef<Record<number, () => void>>({});
 
+  // Track whether any step is currently running (global lock for Run/Regenerate buttons)
+  const isAnyStepRunning = steps.some((s) => s.status === 'running');
+
   // Subscribe to SSE progress for running batch steps (steps 3-10 use batching)
   useEffect(() => {
     const batchStepIds = [3, 4, 6, 7, 8, 9, 10];
     steps.forEach((step) => {
       if (step.status === 'running' && batchStepIds.includes(step.id) && !sseCleanupRefs.current[step.id]) {
+        // Clear stale progress from previous run before subscribing
+        setBatchProgress((prev) => {
+          if (prev[step.id]) {
+            const next = { ...prev };
+            delete next[step.id];
+            return next;
+          }
+          return prev;
+        });
         const cleanup = subscribeBatchProgress(
           step.id,
           (progress) => {
-            setBatchProgress((prev) => ({ ...prev, [step.id]: progress }));
+            setBatchProgress((prev) => {
+              const existing = prev[step.id];
+              // Enforce monotonic progress: never let percent go backward
+              if (existing && progress.percent < existing.percent) {
+                return { ...prev, [step.id]: { ...progress, percent: existing.percent, completed: Math.max(progress.completed, existing.completed) } };
+              }
+              return { ...prev, [step.id]: progress };
+            });
           },
           () => {
             // On done/disconnect, remove from active subscriptions
@@ -288,7 +308,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                     <Button
                       size="sm"
                       onClick={() => onRunStep(step.id)}
-                      disabled={step.status === 'running'}
+                      disabled={isAnyStepRunning}
                     >
                       <Play size={16} className="mr-1" />
                       Run
@@ -297,6 +317,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                       size="sm"
                       variant="outline"
                       onClick={() => onSkipStep(step.id)}
+                      disabled={isAnyStepRunning}
                     >
                       <SkipForward size={16} className="mr-1" />
                       Skip
@@ -304,15 +325,30 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                   </>
                 )}
                 {step.status === 'running' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onAbortStep(step.id)}
-                    className="border-orange-300 text-orange-600 hover:bg-orange-50 px-2"
-                    title="Stop Generation"
-                  >
-                    <StopCircle size={16} />
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onAbortStep(step.id)}
+                      className="border-orange-300 text-orange-600 hover:bg-orange-50 px-2"
+                      title="Stop Generation"
+                    >
+                      <StopCircle size={16} className="mr-1" />
+                      Stop
+                    </Button>
+                    {onRetryStep && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onRetryStep(step.id)}
+                        className="border-blue-300 text-blue-600 hover:bg-blue-50 px-2"
+                        title="Abort current run and restart this step"
+                      >
+                        <RefreshCw size={16} className="mr-1" />
+                        Retry
+                      </Button>
+                    )}
+                  </>
                 )}
                 {step.status === 'completed' && (
                   <>
@@ -321,6 +357,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                         size="sm"
                         variant="outline"
                         onClick={() => handleStartEdit(step.id, step.output)}
+                        disabled={isAnyStepRunning}
                         className={cn(
                           "px-2",
                           editingStep === step.id
@@ -336,6 +373,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                       size="sm"
                       variant="outline"
                       onClick={() => onRunStep(step.id)}
+                      disabled={isAnyStepRunning}
                       className="border-blue-300 text-blue-600 hover:bg-blue-50 px-2"
                       title="Regenerate"
                     >
@@ -345,6 +383,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                       size="sm"
                       variant="outline"
                       onClick={() => onClearStep(step.id)}
+                      disabled={isAnyStepRunning}
                       className="border-rose-300 text-rose-600 hover:bg-rose-50 px-2"
                       title="Clear"
                     >
@@ -358,6 +397,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                       size="sm"
                       variant="outline"
                       onClick={() => onRunStep(step.id)}
+                      disabled={isAnyStepRunning}
                       className="border-orange-300 text-orange-600 hover:bg-orange-50"
                       title="Retry this step"
                     >
@@ -368,6 +408,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                       size="sm"
                       variant="outline"
                       onClick={() => onClearStep(step.id)}
+                      disabled={isAnyStepRunning}
                       className="border-rose-300 text-rose-600 hover:bg-rose-50 px-2"
                       title="Clear error"
                     >

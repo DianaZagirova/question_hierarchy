@@ -13,7 +13,7 @@ import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
 import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
-import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info } from 'lucide-react';
+import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2 } from 'lucide-react';
 import { sessionManager } from './lib/sessionManager';
 
 function App() {
@@ -29,6 +29,7 @@ function App() {
   const [customLensText, setCustomLensText] = useState<string>(''); // Freeform custom lens
   const [editedLensDescriptions, setEditedLensDescriptions] = useState<Record<string, string>>({}); // Overrides for preset descriptions
   const [zenMode, setZenMode] = useState(false); // Zen mode - show only graph and minimap
+  const [graphFullscreen, setGraphFullscreen] = useState(false); // Graph fullscreen overlay
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { 
     currentGoal, 
@@ -48,7 +49,7 @@ function App() {
   } = useAppStore();
 
   // Pipeline execution hook (handles all step running, aborting, single-goal execution)
-  const { handleRunStep, handleAbortStep, handleRunStep4Phase, handleRunStepForSingleGoal } =
+  const { handleRunStep, handleAbortStep, handleRetryStep, handleRunStep4Phase, handleRunStepForSingleGoal } =
     usePipelineExecution({ selectedGoalId, selectedL3Id, selectedL4Id, globalLens });
 
   // Initialize session and state sync on mount
@@ -698,6 +699,7 @@ function App() {
                 onSkipStep={skipStep}
                 onClearStep={clearStep}
                 onAbortStep={handleAbortStep}
+                onRetryStep={handleRetryStep}
                 onRunStep4Phase={handleRunStep4Phase}
                 onEditOutput={handleEditOutput}
               />
@@ -752,23 +754,33 @@ function App() {
             >
               <div className="flex items-center justify-between p-4 border-b border-border/30">
                 <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
-                <button
-                  onClick={() => setZenMode(!zenMode)}
-                  className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/40 hover:border-purple-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
-                  title={zenMode ? "Show all controls" : "Hide controls (zen mode)"}
-                >
-                  {zenMode ? (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5" />
-                      <span>Full View</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Zen Mode</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setZenMode(!zenMode)}
+                    className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/40 hover:border-purple-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                    title={zenMode ? "Show all controls" : "Hide controls (zen mode)"}
+                  >
+                    {zenMode ? (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span>Full View</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Zen Mode</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setGraphFullscreen(true)}
+                    className="px-3 py-1.5 text-xs bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 hover:border-cyan-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                    title="Open graph in fullscreen"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span>Fullscreen</span>
+                  </button>
+                </div>
               </div>
               <div className="h-[calc(100%-70px)]">
                 <GraphVisualizationWrapper steps={steps} zenMode={zenMode} />
@@ -811,6 +823,7 @@ function App() {
               onSkipStep={skipStep}
               onClearStep={clearStep}
               onAbortStep={handleAbortStep}
+              onRetryStep={handleRetryStep}
               onEditOutput={handleEditOutput}
             />
           </div>
@@ -1151,6 +1164,50 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Fullscreen Graph Overlay */}
+      {graphFullscreen && (
+        <div
+          className="fixed inset-0 z-50 bg-background flex flex-col"
+          onKeyDown={(e) => { if (e.key === 'Escape') setGraphFullscreen(false); }}
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
+        >
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-card/80 backdrop-blur-sm flex-shrink-0">
+            <h2 className="text-lg font-bold gradient-text">Knowledge Graph — Fullscreen</h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setZenMode(!zenMode)}
+                className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/40 hover:border-purple-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                title={zenMode ? "Show all controls" : "Hide controls (zen mode)"}
+              >
+                {zenMode ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5" />
+                    <span>Full View</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Zen Mode</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setGraphFullscreen(false)}
+                className="px-3 py-1.5 text-xs bg-gradient-to-r from-rose-500/20 to-orange-500/20 hover:from-rose-500/30 hover:to-orange-500/30 border border-rose-500/40 hover:border-rose-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                title="Exit fullscreen (Esc)"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Exit Fullscreen</span>
+              </button>
+            </div>
+          </div>
+          <div className="flex-1">
+            <GraphVisualizationWrapper steps={steps} zenMode={zenMode} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
