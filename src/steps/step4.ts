@@ -157,8 +157,12 @@ export async function runStep4Phase(
 
     const result = await executeStepBatch(4, domainMapperAgent, items, undefined, globalLens, { phase: '4a' });
 
+    if (result.error) {
+      throw new Error(result.error || 'Phase 4a batch execution failed');
+    }
+
     const domainsByGoal: Record<string, any> = {};
-    result.batch_results.forEach((r: any, idx: number) => {
+    (result.batch_results || []).forEach((r: any, idx: number) => {
       if (r.success && r.data) domainsByGoal[goals[idx].id] = r.data;
     });
 
@@ -194,8 +198,12 @@ export async function runStep4Phase(
 
     const result = await executeStepBatch(4, domainSpecialistAgent, allItems, undefined, globalLens, { phase: '4b' });
 
+    if (result.error) {
+      throw new Error(result.error || 'Phase 4b batch execution failed');
+    }
+
     const scansByGoal: Record<string, any> = {};
-    result.batch_results.forEach((r: any, idx: number) => {
+    (result.batch_results || []).forEach((r: any, idx: number) => {
       const item = allItems[idx];
       const goalId = item.target_goal.id;
       const domainId = item.target_domain.domain_id;

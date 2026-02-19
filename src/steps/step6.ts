@@ -62,13 +62,17 @@ export async function runStep6(
 
   const batchResult = await executeStepBatch(6, agent, items, signal, globalLens);
 
+  if (batchResult.error) {
+    throw new Error(batchResult.error || 'Batch execution failed');
+  }
+
   // Aggregate all L3 questions and per-goal analysis data
   const existingL3s = selectedGoalId ? (steps[5]?.output?.l3_questions || []) : [];
   const existingAnalysis = selectedGoalId ? (steps[5]?.output?.goal_analyses || {}) : {};
   const allL3Questions: any[] = [...existingL3s];
   const goalAnalyses: Record<string, any> = { ...existingAnalysis };
 
-  batchResult.batch_results.forEach((result: any) => {
+  (batchResult.batch_results || []).forEach((result: any) => {
     if (result.success && result.data) {
       const l3s = result.data.l3_questions || result.data.seed_questions || [];
       const targetGoalId = result.data.target_goal_id;

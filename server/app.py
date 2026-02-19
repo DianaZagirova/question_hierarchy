@@ -49,7 +49,8 @@ except Exception as e:
     sys.stdout.flush()
 
 # Max parallel workers for batch execution (configurable via .env)
-MAX_BATCH_WORKERS = int(os.getenv('MAX_BATCH_WORKERS', '15'))
+# Increased to 35 for optimal throughput with gpt-4o (monitor OpenRouter rate limits)
+MAX_BATCH_WORKERS = int(os.getenv('MAX_BATCH_WORKERS', '25'))
 
 # In production, serve the built frontend from ../dist
 DIST_DIR = os.path.join(os.path.dirname(__file__), '..', 'dist')
@@ -1057,12 +1058,12 @@ def execute_single_item(step_id, agent_config, input_data, global_lens=None):
     # Steps with many nodes need more time and token capacity
     if step_id == 4:
         timeout_seconds = 600  # 10 minutes for Step 4 (domain specialist)
-        max_tokens = 32000  # Allow larger responses for Step 4
+        max_tokens = 16000  # Optimized: typical usage ~5000-8000 tokens (was 32000)
         logger.info(f"  Timeout: {timeout_seconds}s")
         logger.info(f"  Max tokens: {max_tokens}")
     elif step_id == 9:
         timeout_seconds = 600  # 10 minutes for Step 9 (L5/L6 generation with hierarchies)
-        max_tokens = 32000  # Large token budget for drill-down hierarchies
+        max_tokens = 8000  # Optimized: actual usage ~2200 tokens (was 32000)
     elif step_id == 10:
         timeout_seconds = 600  # 10 minutes for Step 10 (convergence analysis across many L6 tasks)
         max_tokens = 28000
@@ -1228,32 +1229,64 @@ def execute_step(session_id):
 def execute_step_batch(session_id):
     """
     Execute a step multiple times with different inputs in parallel.
-
-    NOTE: Flask's development server doesn't detect client disconnections,
-    so if the frontend aborts, the backend will continue processing until
-    all tasks complete. This is expected behavior for the dev server.
-    For production, use Gunicorn which handles disconnects properly.
+    Runs in background to avoid Cloudflare 524 timeout.
+    Client polls /api/batch-result for the final result.
     """
     try:
         data = request.json
         step_id = data.get('stepId')
         agent_config = data.get('agentConfig')
         items = data.get('items', [])
-        phase_info = data.get('phase_info', {})  # Get phase information for Step 4
-        global_lens = data.get('globalLens')  # User-configured epistemic lens
+        phase_info = data.get('phase_info', {})
+        global_lens = data.get('globalLens')
 
-        print(f'\n{"#"*70}')
-        print(f'### BATCH EXECUTION: Step {step_id} - {agent_config.get("name")} (Session: {session_id[:8]}...)')
-        print(f'{"#"*70}')
-        print(f'📦 Total items to process: {len(items)}')
+        logger.info(f'\n{"#"*70}')
+        logger.info(f'### BATCH EXECUTION: Step {step_id} - {agent_config.get("name")} (Session: {session_id[:8]}...)')
+        logger.info(f'### Running in BACKGROUND (async) to avoid proxy timeouts')
+        logger.info(f'{"#"*70}')
+        logger.info(f'📦 Total items to process: {len(items)}')
 
-        # Adjust max workers — maximize parallelism for speed
-        # Capped by MAX_BATCH_WORKERS env var (default 15)
+        _clear_progress(session_id, step_id)
+
+        # Clear any stale result from a previous run
+        result_key = f"batch_result:{session_id}:{step_id}"
+        try:
+            if redis_client.client:
+                redis_client.client.delete(result_key)
+        except Exception:
+            pass
+
+        # Start batch execution in background thread
+        thread = threading.Thread(
+            target=_run_batch_background,
+            args=(session_id, step_id, agent_config, items, phase_info, global_lens),
+            daemon=True,
+        )
+        thread.start()
+
+        return jsonify({
+            'started': True,
+            'total_items': len(items),
+            'message': f'Batch execution started in background. Poll /api/batch-result?step_id={step_id} for results.',
+        })
+
+    except Exception as error:
+        logger.error(f'Error starting batch execution: {error}', exc_info=True)
+        return jsonify({'error': str(error), 'details': 'Batch execution failed to start'}), 500
+
+
+def _run_batch_background(session_id, step_id, agent_config, items, phase_info, global_lens):
+    """
+    Background worker for batch execution.
+    Stores the final result in Redis when done.
+    """
+    result_key = f"batch_result:{session_id}:{step_id}"
+
+    try:
         max_workers = min(len(items), MAX_BATCH_WORKERS)
-        print(f'⚡ Processing {len(items)} items in PARALLEL with {max_workers} workers (MAX_BATCH_WORKERS={MAX_BATCH_WORKERS})...')
+        logger.info(f'⚡ Processing {len(items)} items in PARALLEL with {max_workers} workers (MAX_BATCH_WORKERS={MAX_BATCH_WORKERS})...')
 
         results = [None] * len(items)  # Pre-allocate results list
-        _clear_progress(session_id, step_id)  # Reset progress for this session+step
         
         # Process items in parallel using ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -1371,8 +1404,6 @@ def execute_step_batch(session_id):
         else:
             logger.info(f"\n=== Batch Complete: {successful_count}/{len(items)} successful ===")
 
-        _clear_progress(session_id, step_id)  # Clean up progress store
-
         # Save batch results to database
         batch_summary = {
             'batch_results': completed_results,
@@ -1387,33 +1418,67 @@ def execute_step_batch(session_id):
         except Exception as e:
             logger.warning(f"Warning: Failed to save batch results to database: {e}")
 
-        return jsonify(batch_summary)
+        # Store result in Redis for the client to pick up
+        result_data = json.dumps(batch_summary)
+        try:
+            if redis_client.client:
+                redis_client.client.setex(result_key, 3600, result_data)
+                logger.info(f"  📦 Batch result stored in Redis ({len(result_data)} bytes)")
+        except Exception as e:
+            logger.error(f"  ❌ Failed to store batch result in Redis: {e}")
+
+        _clear_progress(session_id, step_id)
 
     except Exception as error:
         logger.error(f'Error in batch execution: {error}', exc_info=True)
+        # Store error in Redis so the client can pick it up
         try:
-            _clear_progress(session_id, step_id)  # Clean up on error too
-        except:
-            pass  # session_id/step_id might not be defined if error happened early
-        return jsonify({
-            'error': str(error),
-            'details': 'Batch execution failed'
-        }), 500
+            if redis_client.client:
+                redis_client.client.setex(result_key, 3600, json.dumps({
+                    'error': str(error),
+                    'details': 'Batch execution failed'
+                }))
+        except Exception:
+            pass
+        try:
+            _clear_progress(session_id, step_id)
+        except Exception:
+            pass
+
+
+@app.route('/api/batch-result', methods=['GET'])
+@with_session(db)
+def get_batch_result(session_id):
+    """
+    Poll for batch execution result. Returns the result if ready,
+    or {pending: true} if still running.
+    """
+    step_id = request.args.get('step_id', type=int)
+    if not step_id:
+        return jsonify({'error': 'Missing step_id parameter'}), 400
+
+    result_key = f"batch_result:{session_id}:{step_id}"
+    try:
+        if redis_client.client:
+            data = redis_client.client.get(result_key)
+            if data:
+                # Result is ready — delete from Redis and return it
+                redis_client.client.delete(result_key)
+                return Response(data, mimetype='application/json')
+    except Exception as e:
+        logger.warning(f"Error fetching batch result from Redis: {e}")
+
+    return jsonify({'pending': True}), 202
 
 @app.route('/api/execute-step4-pipeline', methods=['POST'])
 @with_session(db)
 def execute_step4_pipeline(session_id):
     """
-    Pipelined Step 4 execution: overlaps Phase 4a (domain mapping) and Phase 4b
-    (domain scans) per goal for maximum throughput.
+    Pipelined Step 4 execution: starts the pipeline in a background thread
+    and returns immediately (avoids Cloudflare 524 timeout).
 
-    As each goal's domain mapping completes, its domain scans start immediately
-    without waiting for other goals' mappings.
-
-    Timeline illustration (3 goals):
-      Goal1: [4a] ──→ [4b-D1] [4b-D2] [4b-D3]
-      Goal2: [  4a  ] ──→ [4b-D1] [4b-D2]
-      Goal3: [    4a    ] ──→ [4b-D1] [4b-D2] [4b-D3] [4b-D4]
+    The client polls /api/step4-result for the final result.
+    Real-time progress is delivered via SSE at /api/progress/4.
     """
     try:
         data = request.json
@@ -1425,13 +1490,60 @@ def execute_step4_pipeline(session_id):
         num_goals = len(goal_items)
         logger.info(f"\n{'#'*70}")
         logger.info(f"### PIPELINED Step 4: {num_goals} goal(s) (Session: {session_id[:8]}...)")
+        logger.info(f"### Running in BACKGROUND (async) to avoid proxy timeouts")
         logger.info(f"{'#'*70}")
 
-        max_workers = min(num_goals * 5, MAX_BATCH_WORKERS)
+        _clear_progress(session_id, 4)
+
+        # Clear any stale result from a previous run
+        _step4_result_key = f"step4_result:{session_id}"
+        try:
+            if redis_client.client:
+                redis_client.client.delete(_step4_result_key)
+        except Exception:
+            pass
+
+        # Start pipeline in background thread
+        thread = threading.Thread(
+            target=_run_step4_pipeline_background,
+            args=(session_id, goal_items, domain_mapper_agent,
+                  domain_specialist_agent, global_lens),
+            daemon=True,
+        )
+        thread.start()
+
+        return jsonify({
+            'started': True,
+            'total_goals': num_goals,
+            'message': 'Pipeline started in background. Poll /api/step4-result for results.',
+        })
+
+    except Exception as e:
+        logger.error(f"Step 4 Pipeline start error: {e}", exc_info=True)
+        return jsonify({'error': str(e), 'details': 'Step 4 pipeline failed to start'}), 500
+
+
+def _run_step4_pipeline_background(session_id, goal_items, domain_mapper_agent,
+                                    domain_specialist_agent, global_lens):
+    """
+    Background worker for the Step 4 pipeline.
+    Stores the final result in Redis when done.
+
+    Timeline illustration (3 goals):
+      Goal1: [4a] ──→ [4b-D1] [4b-D2] [4b-D3]
+      Goal2: [  4a  ] ──→ [4b-D1] [4b-D2]
+      Goal3: [    4a    ] ──→ [4b-D1] [4b-D2] [4b-D3] [4b-D4]
+    """
+    result_key = f"step4_result:{session_id}"
+
+    try:
+        num_goals = len(goal_items)
+        # Increase parallelism for Step 4's pipelined execution (4a + 4b overlap)
+        # Allow up to 2x MAX_BATCH_WORKERS since 4a and 4b run concurrently
+        max_workers = min(num_goals * 8, MAX_BATCH_WORKERS * 2)
         logger.info(f"⚡ Pipeline workers: {max_workers} (MAX_BATCH_WORKERS={MAX_BATCH_WORKERS})")
 
         # --- Progress tracking (thread-safe) ---
-        _clear_progress(session_id, 4)
         progress_lock = threading.Lock()
         # Weight: 4a item = 1 unit, 4b item = 3 units (scans take longer)
         PHASE_4A_WEIGHT = 1
@@ -1535,9 +1647,8 @@ def execute_step4_pipeline(session_id):
         logger.info(f"  ⏱️  Total: {elapsed/60:.1f} min")
         logger.info(f"{'#'*70}\n")
 
-        _clear_progress(session_id, 4)
-
-        return jsonify({
+        # Store result in Redis for the client to pick up
+        result_data = json.dumps({
             'success': True,
             'goal_results': {str(k): v for k, v in goal_results.items()},
             'total_goals': num_goals,
@@ -1545,14 +1656,52 @@ def execute_step4_pipeline(session_id):
             'successful': successful_count,
             'failed': failed_count,
         })
+        try:
+            if redis_client.client:
+                redis_client.client.setex(result_key, 3600, result_data)
+                logger.info(f"  📦 Result stored in Redis ({len(result_data)} bytes)")
+        except Exception as e:
+            logger.error(f"  ❌ Failed to store result in Redis: {e}")
+
+        _clear_progress(session_id, 4)
 
     except Exception as e:
-        logger.error(f"Step 4 Pipeline error: {e}", exc_info=True)
+        logger.error(f"Step 4 Pipeline background error: {e}", exc_info=True)
+        # Store error in Redis so the client can pick it up
+        try:
+            if redis_client.client:
+                redis_client.client.setex(result_key, 3600, json.dumps({
+                    'success': False,
+                    'error': str(e),
+                    'details': 'Step 4 pipeline failed',
+                }))
+        except Exception:
+            pass
         try:
             _clear_progress(session_id, 4)
-        except:
+        except Exception:
             pass
-        return jsonify({'error': str(e), 'details': 'Step 4 pipeline failed'}), 500
+
+
+@app.route('/api/step4-result', methods=['GET'])
+@with_session(db)
+def get_step4_result(session_id):
+    """
+    Poll for Step 4 pipeline result. Returns the result if ready,
+    or {pending: true} if still running.
+    """
+    result_key = f"step4_result:{session_id}"
+    try:
+        if redis_client.client:
+            data = redis_client.client.get(result_key)
+            if data:
+                # Result is ready — delete from Redis and return it
+                redis_client.client.delete(result_key)
+                return Response(data, mimetype='application/json')
+    except Exception as e:
+        logger.warning(f"Error fetching step4 result from Redis: {e}")
+
+    return jsonify({'pending': True}), 202
 
 
 def prepare_user_prompt(step_id, input_data):
@@ -1635,16 +1784,16 @@ Generate Requirement Atoms for this specific goal pillar."""
             return f"""Q0 Reference: {q0_reference}
 
 Target Goal (G):
-{json.dumps(target_goal, indent=2)}
+{json.dumps(target_goal, separators=(',', ':'))}
 
 Requirement Atoms (RAs) for this Goal:
-{json.dumps(requirement_atoms, indent=2)}
+{json.dumps(requirement_atoms, separators=(',', ':'))}
 
 Bridge Lexicon (System Property Variables):
-{json.dumps(bridge_lexicon, indent=2)}
+{json.dumps(bridge_lexicon, separators=(',', ':'))}
 
 Target Research Domain to scan:
-{json.dumps(target_domain, indent=2)}
+{json.dumps(target_domain, separators=(',', ':'))}
 
 Generate Scientific Pillars (S-Nodes) for 2026 from THIS SPECIFIC RESEARCH DOMAIN that are relevant to the goal and can affect the required system properties. Focus your analysis on the domain specified above."""
         
@@ -1652,13 +1801,13 @@ Generate Scientific Pillars (S-Nodes) for 2026 from THIS SPECIFIC RESEARCH DOMAI
         return f"""Q0 Reference: {q0_reference}
 
 Target Goal (G):
-{json.dumps(target_goal, indent=2)}
+{json.dumps(target_goal, separators=(',', ':'))}
 
 Requirement Atoms (RAs) for this Goal:
-{json.dumps(requirement_atoms, indent=2)}
+{json.dumps(requirement_atoms, separators=(',', ':'))}
 
 Bridge Lexicon (System Property Variables):
-{json.dumps(bridge_lexicon, indent=2)}
+{json.dumps(bridge_lexicon, separators=(',', ':'))}
 
 Generate Scientific Pillars (S-Nodes) for 2026 that are specifically relevant to THIS GOAL and can affect the required system properties."""
     
@@ -1976,10 +2125,10 @@ Generate L4 Tactical Questions that discriminate between these hypotheses for th
 {q0_ref}
 
 L4 Tactical Question:
-{json.dumps(l4_question, indent=2)}
+{json.dumps(l4_question, separators=(',', ':'))}
 
 Requirement Atoms (for parent Goal):
-{json.dumps(ras[:3], indent=2)}
+{json.dumps(ras[:3], separators=(',', ':'))}
 
 Generate L5 mechanistic sub-questions and L6 experiment-ready tasks (with S-I-M-T parameters) for this specific L4 question."""
     

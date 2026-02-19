@@ -114,9 +114,8 @@ export const executeStepBatch = async (
   globalLens?: string,
   phaseInfo?: { phase: '4a' | '4b' }
 ): Promise<any> => {
-  // No withRetry for batch operations: the server handles per-item errors internally,
-  // and retrying the whole batch would reset server-side progress to 0%.
-  const response = await api.post('/api/execute-step-batch', {
+  // Start the batch (returns immediately — runs in background on server)
+  const startResponse = await api.post('/api/execute-step-batch', {
     stepId,
     agentConfig,
     items,
@@ -125,7 +124,31 @@ export const executeStepBatch = async (
   }, {
     signal,
   });
-  return response.data;
+
+  if (!startResponse.data?.started) {
+    throw new Error(startResponse.data?.error || 'Failed to start batch execution');
+  }
+
+  // Poll for result every 5 seconds
+  const POLL_INTERVAL = 5000;
+  while (true) {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, POLL_INTERVAL);
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    });
+
+    const resultResponse = await api.get(`/api/batch-result?step_id=${stepId}`, { signal });
+    if (resultResponse.status === 200 && !resultResponse.data?.pending) {
+      return resultResponse.data;
+    }
+  }
 };
 
 export const executeStep4Pipeline = async (
@@ -135,7 +158,8 @@ export const executeStep4Pipeline = async (
   signal?: AbortSignal,
   globalLens?: string,
 ): Promise<any> => {
-  const response = await api.post('/api/execute-step4-pipeline', {
+  // Start the pipeline (returns immediately — runs in background on server)
+  const startResponse = await api.post('/api/execute-step4-pipeline', {
     goal_items: goalItems,
     domain_mapper_agent: domainMapperAgent,
     domain_specialist_agent: domainSpecialistAgent,
@@ -143,7 +167,31 @@ export const executeStep4Pipeline = async (
   }, {
     signal,
   });
-  return response.data;
+
+  if (!startResponse.data?.started) {
+    throw new Error(startResponse.data?.error || 'Failed to start Step 4 pipeline');
+  }
+
+  // Poll for result every 5 seconds
+  const POLL_INTERVAL = 5000;
+  while (true) {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, POLL_INTERVAL);
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    });
+
+    const resultResponse = await api.get('/api/step4-result', { signal });
+    if (resultResponse.status === 200 && !resultResponse.data?.pending) {
+      return resultResponse.data;
+    }
+  }
 };
 
 export const createAbortController = (stepId: number): AbortController => {

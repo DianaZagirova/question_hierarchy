@@ -32,9 +32,13 @@ export async function runStep3(
 
   const batchResult = await executeStepBatch(3, agent, items, signal, globalLens);
 
+  if (batchResult.error) {
+    throw new Error(batchResult.error || 'Batch execution failed');
+  }
+
   // Aggregate results by goal ID
   const rasByGoal: Record<string, any[]> = selectedGoalId ? (steps[2]?.output || {}) : {};
-  batchResult.batch_results.forEach((result: any, idx: number) => {
+  (batchResult.batch_results || []).forEach((result: any, idx: number) => {
     if (result.success && result.data) {
       const goalId = goals[idx].id;
       const ras = result.data.requirement_atoms || result.data.RAs || [];

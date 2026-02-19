@@ -539,58 +539,52 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
             </CardContent>
           )}
 
-          {/* Step 4 Phase Progress Indicator (shown when running) */}
-          {step.id === 4 && step.status === 'running' && step.output && typeof step.output === 'object' && (step.output as any).phase && (
-            <CardContent className="border-t border-border/30">
+          {/* Step 4 Pipeline Progress (uses SSE batch progress) */}
+          {step.id === 4 && step.status === 'running' && (
+            <CardContent className="border-t border-border/30 py-3">
               <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
                 <div className="text-xs font-bold text-blue-400 mb-3 uppercase tracking-wide">
-                  🔬 2-Phase Scientific Knowledge Collection
+                  🔬 Pipelined Scientific Knowledge Collection
                 </div>
-                <div className="space-y-2.5">
-                  {/* Phase 4a */}
-                  <div className="flex items-center gap-3">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                      (step.output as any).phase === '4a_domain_mapping' ? 'bg-blue-500 text-white animate-pulse ring-2 ring-blue-400' :
-                      (step.output as any).progress >= 50 ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400'
-                    }`}>
-                      {(step.output as any).progress >= 50 ? '✓' : '1'}
+                {batchProgress[4] && batchProgress[4].total > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wide">
+                        Pipeline Progress
+                      </span>
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                        {batchProgress[4].successful > 0 && (
+                          <span className="text-green-400">{batchProgress[4].successful} ok</span>
+                        )}
+                        {batchProgress[4].failed > 0 && (
+                          <span className="text-rose-400">{batchProgress[4].failed} failed</span>
+                        )}
+                        {batchProgress[4].elapsed > 0 && (
+                          <span>{Math.round(batchProgress[4].elapsed)}s elapsed</span>
+                        )}
+                        {batchProgress[4].eta > 0 && (
+                          <span className="text-blue-400 font-semibold">
+                            ETA {Math.ceil(batchProgress[4].eta / 60) < 1 ? '<1' : Math.ceil(batchProgress[4].eta / 60)} min
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold">Phase 1: Domain Mapping</div>
-                      <div className="text-xs text-muted-foreground">Identify 8-12 relevant research domains</div>
+                    <div className="w-full bg-slate-700/50 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-green-500 h-full transition-all duration-700 ease-out rounded-full"
+                        style={{ width: `${batchProgress[4].percent}%` }}
+                      />
                     </div>
-                  </div>
-
-                  {/* Phase 4b */}
-                  <div className="flex items-center gap-3">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                      (step.output as any).phase === '4b_domain_scans' ? 'bg-blue-500 text-white animate-pulse ring-2 ring-blue-400' :
-                      (step.output as any).progress === 100 ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400'
-                    }`}>
-                      {(step.output as any).progress === 100 ? '✓' : '2'}
+                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 px-0.5">
+                      <span>{batchProgress[4].completed} / {batchProgress[4].total} units (4a mapping + 4b scans)</span>
+                      <span className="text-blue-400 font-semibold">{batchProgress[4].percent}%</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold">Phase 2: Domain Scans (Parallel)</div>
-                      <div className="text-xs text-muted-foreground">Collect 15-50 interventions per domain</div>
-                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-muted-foreground animate-pulse">
+                    Starting pipeline — mapping research domains for each goal...
                   </div>
-
-                </div>
-
-                {/* Progress Bar - 2 phases = 50% each */}
-                <div className="mt-4">
-                  <div className="w-full bg-slate-700/50 rounded-full h-2.5 overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-green-500 h-full transition-all duration-500 rounded-full"
-                      style={{ width: `${(step.output as any).progress || 0}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
-                    <span>Phase 1</span>
-                    <span className="text-blue-400 font-semibold">{(step.output as any).progress || 0}% Complete</span>
-                    <span>Phase 2</span>
-                  </div>
-                </div>
+                )}
               </div>
             </CardContent>
           )}

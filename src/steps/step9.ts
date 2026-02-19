@@ -42,11 +42,16 @@ export async function runStep9(
 
   const batchResult = await executeStepBatch(9, agent, items, signal, globalLens);
 
+  // Handle error response
+  if (batchResult.error) {
+    throw new Error(batchResult.error || 'Batch execution failed');
+  }
+
   // Aggregate results — preserve L5 and L6 hierarchy
   const allL5Nodes: any[] = [];
   const allL6Tasks: any[] = [];
 
-  batchResult.batch_results.forEach((result: any) => {
+  (batchResult.batch_results || []).forEach((result: any) => {
     if (result.success && result.data) {
       // Hierarchical format (drill_branches with L5 nodes)
       if (result.data.drill_branches && Array.isArray(result.data.drill_branches)) {

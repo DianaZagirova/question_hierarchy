@@ -63,8 +63,12 @@ export async function runStep10(
 
   const batchResult = await executeStepBatch(10, agent, items, signal, globalLens);
 
+  if (batchResult.error) {
+    throw new Error(batchResult.error || 'Batch execution failed');
+  }
+
   const commonL6Results: any[] = [];
-  batchResult.batch_results.forEach((result: any) => {
+  (batchResult.batch_results || []).forEach((result: any) => {
     if (result.success && result.data) {
       commonL6Results.push(result.data);
     }

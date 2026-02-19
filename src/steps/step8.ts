@@ -51,8 +51,12 @@ export async function runStep8(
 
   const batchResult = await executeStepBatch(8, agent, items, signal, globalLens);
 
+  if (batchResult.error) {
+    throw new Error(batchResult.error || 'Batch execution failed');
+  }
+
   const allL4Questions: any[] = [];
-  batchResult.batch_results.forEach((result: any) => {
+  (batchResult.batch_results || []).forEach((result: any) => {
     if (result.success && result.data) {
       const l4s = result.data.l4_questions || result.data.child_nodes_L4 || [];
       // Use item_index to find the corresponding input item

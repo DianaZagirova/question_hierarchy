@@ -10,7 +10,6 @@ import { GraphVisualizationWrapper } from './components/GraphVisualizationWrappe
 import { ParticleBackground } from './components/ParticleBackground';
 import { SystemOverview } from './components/SystemOverview';
 import { Button } from './components/ui/Button';
-import { Input } from './components/ui/Input';
 import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
 import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2 } from 'lucide-react';
@@ -191,11 +190,12 @@ function App() {
           <CardContent className="pt-4">
             <div className="space-y-3">
               <div className="flex gap-3">
-                <Input
+                <textarea
                   placeholder="Define your longevity research objective or master question (Q₀)..."
                   value={currentGoal}
                   onChange={(e) => setGoal(e.target.value)}
-                  className="flex-1 bg-secondary/30 border-primary/30 focus:border-primary focus:ring-primary/30 transition-all focus:shadow-[0_0_15px_rgba(34,197,94,0.2)]"
+                  rows={3}
+                  className="flex-1 bg-secondary/30 border-primary/30 focus:border-primary focus:ring-primary/30 transition-all focus:shadow-[0_0_15px_rgba(34,197,94,0.2)] rounded-md px-3 py-2 text-sm resize-y min-h-[80px] max-h-[200px] overflow-y-auto"
                 />
               <Button
                 onClick={() => handleRunStep(1)}

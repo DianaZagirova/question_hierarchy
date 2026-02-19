@@ -45,8 +45,12 @@ export async function runStep7(
 
   const batchResult = await executeStepBatch(7, agent, items, signal, globalLens);
 
+  if (batchResult.error) {
+    throw new Error(batchResult.error || 'Batch execution failed');
+  }
+
   const allIHs: any[] = [];
-  batchResult.batch_results.forEach((result: any) => {
+  (batchResult.batch_results || []).forEach((result: any) => {
     if (result.success && result.data) {
       const ihs = result.data.instantiation_hypotheses || result.data.IHs || [];
       allIHs.push(...(Array.isArray(ihs) ? ihs : [ihs]));
