@@ -327,9 +327,17 @@ def save_session_state(session_id):
 # ─── User Session Management (UI Sessions) ────────────────────────────────────
 
 @app.route('/api/user-sessions', methods=['GET'])
-@with_session(db)
+@optional_session(db)
 def list_user_sessions(session_id):
     """Get all user sessions (UI sessions) for the current browser session"""
+    # Auto-create session if none exists
+    if not session_id:
+        try:
+            session_id = db.create_session()
+            logger.info(f"Auto-created session for user-sessions GET: {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to auto-create session: {e}")
+            return jsonify({'error': 'Failed to create session', 'details': str(e)}), 500
     try:
         # Retrieve sessions list from state
         sessions_data = db.get_session_state(session_id, 'user_sessions')
@@ -345,9 +353,17 @@ def list_user_sessions(session_id):
 
 
 @app.route('/api/user-sessions', methods=['POST'])
-@with_session(db)
+@optional_session(db)
 def create_user_session(session_id):
     """Create a new user session (UI session)"""
+    # Auto-create session if none exists
+    if not session_id:
+        try:
+            session_id = db.create_session()
+            logger.info(f"Auto-created session for user-sessions POST: {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to auto-create session: {e}")
+            return jsonify({'error': 'Failed to create session', 'details': str(e)}), 500
     try:
         data = request.json or {}
         user_session_name = data.get('name', 'New Session')

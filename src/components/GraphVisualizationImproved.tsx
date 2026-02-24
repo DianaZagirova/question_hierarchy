@@ -57,12 +57,20 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   const [contextSelectionMode, setContextSelectionMode] = useState(false);
   const [selectedContextNodes, setSelectedContextNodes] = useState<Array<{ id: string; type: string; label: string; data: any }>>([]);
   const [nodeDetailsMinimized, setNodeDetailsMinimized] = useState(false);
+  const [focusedGoalId, setFocusedGoalId] = useState<string | null>(null);
+  const [compactMode, setCompactMode] = useState(false);
   const { fitView } = useReactFlow();
   const { updateNodeData } = useAppStore();
   
   // Extract bridge lexicon from Step 2 for node detail lookups
   const step2 = steps.find(s => s.id === 2);
   const bridgeLexicon = step2?.output?.bridge_lexicon || step2?.output?.Bridge_Lexicon || step2?.output?.bridgeLexicon || {};
+  
+  // Extract available goals for focus mode
+  const availableGoals = useMemo(() => {
+    const goals = step2?.output?.goals || [];
+    return goals.map((g: any) => ({ id: g.id, title: g.title || g.name || g.id }));
+  }, [step2]);
 
   // Build graph from pipeline steps
   const graphData = useMemo(() => {
@@ -93,16 +101,29 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     return { nodes: layoutedNodes, edges: graphData.edges };
   }, [graphData, layoutMode]);
 
-  // Filter nodes and edges based on visible layers and search
+  // Filter nodes and edges based on visible layers, search, and focus mode
   const filteredGraph = useMemo(() => {
     const searchLower = searchTerm.toLowerCase();
 
     // Filter nodes
-    const filteredNodes = layoutedGraph.nodes.filter((node) => {
+    let filteredNodes = layoutedGraph.nodes.filter((node) => {
       // Layer filter
       const nodeType = node.data.type;
       const layerId = getLayerIdFromNodeType(nodeType);
       if (!visibleLayers.has(layerId)) return false;
+
+      // Focus mode filter - only show nodes related to focused goal
+      if (focusedGoalId) {
+        const nodeData = node.data.fullData || node.data;
+        const parentGoalId = nodeData.parent_goal_id || nodeData.goal_id;
+        const isGoalNode = nodeType === 'goal' && nodeData.id === focusedGoalId;
+        const isQ0 = nodeType === 'q0' || nodeType === 'master';
+        const isRelatedToGoal = parentGoalId === focusedGoalId;
+        
+        if (!isGoalNode && !isQ0 && !isRelatedToGoal) {
+          return false;
+        }
+      }
 
       // Search filter
       if (searchTerm) {
@@ -123,7 +144,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     });
 
     return { nodes: filteredNodes, edges: filteredEdges };
-  }, [layoutedGraph, visibleLayers, searchTerm]);
+  }, [layoutedGraph, visibleLayers, searchTerm, focusedGoalId]);
 
   // Add cluster toggle callbacks to cluster nodes
   const nodesWithCallbacks = useMemo(() => {
@@ -297,9 +318,69 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     setVisibleLayers(new Set(['q0', 'goals', 'spvs', 'ras', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6']));
     setLayoutMode('hierarchical');
     setSelectedNode(null);
+    setFocusedGoalId(null);
+    setCompactMode(false);
     if (onNodeHighlight) onNodeHighlight(null, null);
     setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 150);
   }, [fitView, onNodeHighlight]);
+  
+  // Jump to Q0 node
+  const handleJumpToQ0 = useCallback(() => {
+    const q0Node = nodes.find(n => n.data.type === 'q0' || n.data.type === 'master');
+    if (q0Node) {
+      setSelectedNode(q0Node.data);
+      if (onNodeHighlight) onNodeHighlight(q0Node.id, q0Node.data.type);
+      // Center on Q0
+      setTimeout(() => fitView({ duration: 500, padding: 0.2, nodes: [q0Node] }), 100);
+    }
+  }, [nodes, fitView, onNodeHighlight]);
+  
+  // Jump to Goals layer
+  const handleJumpToGoals = useCallback(() => {
+    const goalNodes = nodes.filter(n => n.data.type === 'goal');
+    if (goalNodes.length > 0) {
+      // Center on all goal nodes
+      setTimeout(() => fitView({ duration: 500, padding: 0.15, nodes: goalNodes }), 100);
+    }
+  }, [nodes, fitView]);
+  
+  // Focus mode - isolate a single goal's path
+  const handleFocusMode = useCallback((goalId: string | null) => {
+    setFocusedGoalId(goalId);
+    if (goalId) {
+      // When focusing, collapse everything first for cleaner view
+      setClusterState({});
+      setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 150);
+    }
+  }, [fitView]);
+  
+  // Smart expand - intelligently expand relevant branches
+  const handleSmartExpand = useCallback(() => {
+    // Strategy: Expand L3 and L4 clusters (strategic/tactical layers)
+    // Keep L5/L6 collapsed (execution details)
+    const newState: ClusterState = { ...clusterState };
+    
+    // Build current graph to discover clusters
+    const data = buildGraphFromSteps(steps, clusterState);
+    
+    data.nodes.filter(n => n.type === 'cluster').forEach(n => {
+      const nodeType = n.data.type;
+      // Expand strategic layers (L3, L4, IH)
+      if (['l3', 'l4', 'ih'].includes(nodeType)) {
+        newState[n.id] = true;
+      }
+      // Keep execution layers collapsed (L5, L6)
+      else if (['l5', 'l6'].includes(nodeType)) {
+        newState[n.id] = false;
+      }
+      // Expand other important layers (goals, domains)
+      else if (['goal', 'domain', 'domain_group'].includes(nodeType)) {
+        newState[n.id] = true;
+      }
+    });
+    
+    setClusterState(newState);
+  }, [steps, clusterState]);
 
   // Find the path to a node in the step output based on node type and ID
   const findNodePath = (nodeType: string, nodeId: string, stepId: number): string[] | null => {
@@ -595,11 +676,19 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
               chatOpen={chatOpen}
               onChatToggle={() => setChatOpen(!chatOpen)}
               chatNodeCount={chatNodes.length}
+              onJumpToQ0={handleJumpToQ0}
+              onJumpToGoals={handleJumpToGoals}
+              onFocusMode={handleFocusMode}
+              focusedGoalId={focusedGoalId}
+              availableGoals={availableGoals}
+              onSmartExpand={handleSmartExpand}
+              compactMode={compactMode}
+              onCompactModeToggle={() => setCompactMode(!compactMode)}
             />
           </Panel>
         )}
 
-        {/* Stats Panel - Hidden in Zen Mode */}
+        {/* Graph Stats Panel */}
         {!zenMode && (
           <Panel position="top-right">
             <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 text-xs w-[180px]">

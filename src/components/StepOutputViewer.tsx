@@ -396,6 +396,14 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
           </div>
         )}
         
+        {/* Feasibility Note */}
+        {ih.feasibility_note && (
+          <div className="mt-2 bg-green-500/10 p-2 rounded border border-green-500/30">
+            <p className="text-xs font-semibold text-green-400">Feasibility:</p>
+            <p className="text-xs text-foreground mt-1">{ih.feasibility_note}</p>
+          </div>
+        )}
+        
         {/* Notes */}
         {(ih.testability_notes || ih.notes) && (
           <div className="mt-2 bg-secondary/30 p-2 rounded">
@@ -457,6 +465,14 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
                 <span key={i} className="text-xs bg-lime-500/20 text-lime-300 px-2 py-0.5 rounded border border-lime-500/30">{id}</span>
               ))}
             </div>
+          </div>
+        )}
+        
+        {/* Feasibility Note */}
+        {q.feasibility_note && (
+          <div className="mt-2 bg-green-500/10 p-2 rounded border border-green-500/30">
+            <p className="text-xs font-semibold text-green-400">Feasibility:</p>
+            <p className="text-xs text-foreground mt-1">{q.feasibility_note}</p>
           </div>
         )}
         
@@ -522,6 +538,14 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
         <div className="mt-2 bg-secondary/30 p-2 rounded">
           <p className="text-xs font-semibold text-muted-foreground">Expected Impact</p>
           <p className="text-xs text-foreground mt-1">{task.expected_impact}</p>
+        </div>
+      )}
+      
+      {task.feasibility_score && (
+        <div className="mt-2">
+          <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded border border-green-500/30">
+            Feasibility: {task.feasibility_score}/10
+          </span>
         </div>
       )}
       

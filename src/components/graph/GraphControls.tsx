@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Layers, RotateCcw, Info, Target, ListChecks, Microscope, Lightbulb, FlaskConical, Workflow, MessageSquare } from 'lucide-react';
+import { Search, Filter, Layers, RotateCcw, Info, Target, ListChecks, Microscope, Lightbulb, FlaskConical, Workflow, MessageSquare, Focus, Maximize2, ChevronRight, Home, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -16,6 +16,14 @@ interface GraphControlsProps {
   chatOpen?: boolean;
   onChatToggle?: () => void;
   chatNodeCount?: number;
+  onJumpToQ0?: () => void;
+  onJumpToGoals?: () => void;
+  onFocusMode?: (goalId: string | null) => void;
+  focusedGoalId?: string | null;
+  availableGoals?: Array<{ id: string; title: string }>;
+  onSmartExpand?: () => void;
+  compactMode?: boolean;
+  onCompactModeToggle?: () => void;
 }
 
 const LAYERS = [
@@ -144,8 +152,17 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
   chatOpen,
   onChatToggle,
   chatNodeCount,
+  onJumpToQ0,
+  onJumpToGoals,
+  onFocusMode,
+  focusedGoalId,
+  availableGoals = [],
+  onSmartExpand,
+  compactMode = false,
+  onCompactModeToggle,
 }) => {
   const [infoHover, setInfoHover] = useState<string | null>(null);
+  const [showFocusMenu, setShowFocusMenu] = useState(false);
 
   return (
     <div className="absolute top-4 left-4 z-10 flex flex-row items-start gap-2">
@@ -237,41 +254,198 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
         </div>
       </div>
 
-      {/* Column 2: Collapse / Expand / Reset / Node Chat */}
-      <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[120px] flex flex-col gap-1.5">
-        <Button size="sm" variant="outline" onClick={onExpandAll} className="w-full h-8 text-xs">
-          Expand All
-        </Button>
-        <Button size="sm" variant="outline" onClick={onCollapseAll} className="w-full h-8 text-xs">
-          Collapse All
-        </Button>
-        <Button size="sm" variant="outline" onClick={onResetView} className="w-full h-8 text-xs border-blue-500/40 text-blue-400 hover:bg-blue-500/10">
-          <RotateCcw size={12} className="mr-1.5" />
-          Reset
-        </Button>
-        {onChatToggle && (
-          <>
-            <div className="border-t border-border/30 my-1" />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onChatToggle}
-              className={`w-full h-8 text-xs flex items-center justify-center gap-1.5 ${
-                chatOpen
-                  ? 'border-primary/60 text-primary bg-primary/10 hover:bg-primary/20'
-                  : 'hover:border-primary/40'
+      {/* Column 2: Navigation & Controls */}
+      <div className="flex flex-col gap-2">
+        {/* Quick Navigation */}
+        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px]">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-semibold">Quick Jump</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {onJumpToQ0 && (
+              <Button size="sm" variant="outline" onClick={onJumpToQ0} className="w-full h-7 text-xs justify-start">
+                <Home size={12} className="mr-1.5" />
+                Jump to Q₀
+              </Button>
+            )}
+            {onJumpToGoals && (
+              <Button size="sm" variant="outline" onClick={onJumpToGoals} className="w-full h-7 text-xs justify-start">
+                <Layers size={12} className="mr-1.5" />
+                View Goals
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Focus Mode */}
+        {onFocusMode && availableGoals.length > 0 && (
+          <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px]">
+            <div className="flex items-center gap-2 mb-2">
+              <Focus className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-semibold">Focus Mode</span>
+            </div>
+            <div className="relative">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setShowFocusMenu(!showFocusMenu)}
+                className={`w-full h-7 text-xs justify-between ${
+                  focusedGoalId ? 'border-primary/60 text-primary bg-primary/10' : ''
+                }`}
+              >
+                <span className="truncate">
+                  {focusedGoalId 
+                    ? availableGoals.find(g => g.id === focusedGoalId)?.title.slice(0, 12) + '...' 
+                    : 'Select Goal'}
+                </span>
+                <ChevronRight size={12} className={`transition-transform ${showFocusMenu ? 'rotate-90' : ''}`} />
+              </Button>
+              {showFocusMenu && (
+                <div className="absolute left-full ml-2 top-0 z-50 w-[200px] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-2 max-h-[300px] overflow-y-auto">
+                  <button
+                    onClick={() => {
+                      onFocusMode(null);
+                      setShowFocusMenu(false);
+                    }}
+                    className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-800 text-slate-400 mb-1"
+                  >
+                    Clear Focus
+                  </button>
+                  {availableGoals.map(goal => (
+                    <button
+                      key={goal.id}
+                      onClick={() => {
+                        onFocusMode(goal.id);
+                        setShowFocusMenu(false);
+                      }}
+                      className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-800 ${
+                        focusedGoalId === goal.id ? 'bg-primary/20 text-primary' : 'text-slate-300'
+                      }`}
+                    >
+                      {goal.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Expand/Collapse Controls */}
+        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px] flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 mb-1">
+            <Maximize2 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-semibold">Expand</span>
+          </div>
+          {onSmartExpand && (
+            <Button size="sm" variant="outline" onClick={onSmartExpand} className="w-full h-7 text-xs border-green-500/40 text-green-400 hover:bg-green-500/10">
+              Smart Expand
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={onExpandAll} className="w-full h-7 text-xs">
+            Expand All
+          </Button>
+          <Button size="sm" variant="outline" onClick={onCollapseAll} className="w-full h-7 text-xs">
+            Collapse All
+          </Button>
+          {onCompactModeToggle && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={onCompactModeToggle} 
+              className={`w-full h-7 text-xs ${
+                compactMode ? 'border-primary/60 text-primary bg-primary/10' : ''
               }`}
             >
-              <MessageSquare size={12} />
-              <span>Chat</span>
-              {chatNodeCount && chatNodeCount > 0 && (
-                <span className="ml-0.5 px-1 py-0.5 rounded-full bg-primary/30 text-primary text-[9px] font-bold leading-none">
-                  {chatNodeCount}
-                </span>
-              )}
+              {compactMode ? <Eye size={12} className="mr-1" /> : <EyeOff size={12} className="mr-1" />}
+              {compactMode ? 'Normal' : 'Compact'}
             </Button>
-          </>
-        )}
+          )}
+          <div className="border-t border-border/30 my-1" />
+          <Button size="sm" variant="outline" onClick={onResetView} className="w-full h-7 text-xs border-blue-500/40 text-blue-400 hover:bg-blue-500/10">
+            <RotateCcw size={12} className="mr-1.5" />
+            Reset
+          </Button>
+          {onChatToggle && (
+            <>
+              <div className="border-t border-border/30 my-1" />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onChatToggle}
+                className={`w-full h-7 text-xs flex items-center justify-center gap-1.5 ${
+                  chatOpen
+                    ? 'border-primary/60 text-primary bg-primary/10 hover:bg-primary/20'
+                    : 'hover:border-primary/40'
+                }`}
+              >
+                <MessageSquare size={12} />
+                <span>Chat</span>
+                {chatNodeCount && chatNodeCount > 0 && (
+                  <span className="ml-0.5 px-1 py-0.5 rounded-full bg-primary/30 text-primary text-[9px] font-bold leading-none">
+                    {chatNodeCount}
+                  </span>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
+
+        {/* Layer Presets */}
+        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px]">
+          <div className="flex items-center gap-2 mb-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-semibold">Presets</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => {
+                ['q0', 'goals', 'ras'].forEach(layer => {
+                  if (!visibleLayers.has(layer)) onLayerToggle(layer);
+                });
+                ['spvs', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6'].forEach(layer => {
+                  if (visibleLayers.has(layer)) onLayerToggle(layer);
+                });
+              }}
+              className="w-full h-7 text-xs"
+            >
+              Overview
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => {
+                ['q0', 'goals', 'domains', 'l3', 'l4'].forEach(layer => {
+                  if (!visibleLayers.has(layer)) onLayerToggle(layer);
+                });
+                ['spvs', 'ras', 'ih', 'l5', 'l6'].forEach(layer => {
+                  if (visibleLayers.has(layer)) onLayerToggle(layer);
+                });
+              }}
+              className="w-full h-7 text-xs"
+            >
+              Strategy
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => {
+                ['l3', 'ih', 'l4', 'l5', 'l6'].forEach(layer => {
+                  if (!visibleLayers.has(layer)) onLayerToggle(layer);
+                });
+                ['q0', 'goals', 'spvs', 'ras', 'domains'].forEach(layer => {
+                  if (visibleLayers.has(layer)) onLayerToggle(layer);
+                });
+              }}
+              className="w-full h-7 text-xs"
+            >
+              Execution
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

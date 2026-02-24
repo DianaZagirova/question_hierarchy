@@ -712,11 +712,11 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
           const l3Id = q.id || '';
           let parentGoalId = null;
 
-          // Method 1: Try new format first: Q_L3_M_G1_1, Q_L3_M_G2_1
+          // Method 1: Try format: Q_L3_M_G1_01 or Q_L3_M_G1_1 (both work with \d+)
           const newFormatMatch = l3Id.match(/Q_L3_(M_G\d+)_/);
           if (newFormatMatch) {
             parentGoalId = newFormatMatch[1];
-            console.log(`[GraphViz] L3 ${l3Id} matched new format -> parent goal: ${parentGoalId}`);
+            console.log(`[GraphViz] L3 ${l3Id} matched format -> parent goal: ${parentGoalId}`);
           }
           // Method 2: Check if question has explicit target_goal_id field
           else if (q.target_goal_id) {
@@ -929,7 +929,8 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
         if (!ih || typeof ih !== 'object') return;
         const ihId = ih.ih_id || '';
 
-        // Extract L3 ID from IH ID format: IH_Q_L3_M_G1_1_01 -> Q_L3_M_G1_1
+        // Extract L3 ID from IH ID format: IH_Q_L3_M_G1_01_01 -> Q_L3_M_G1_01
+        // Matches both old (IH_Q_L3_M_G1_1_01) and new (IH_Q_L3_M_G1_01_01) formats
         const l3Match = ihId.match(/IH_(Q_L3_[^_]+_[^_]+_\d+)/);
         if (l3Match) {
           const parentL3Id = l3Match[1];
@@ -1479,6 +1480,7 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = ({ steps, h
         let parentL4Id = task.parent_l4_id || task.l4_id;
 
         // If no explicit parent, extract from L6 ID format
+        // Format: T_L6_M_G1_01_01_A_01 -> Q_L4_M_G1_01_01
         if (!parentL4Id && task.id) {
           const l6Id = task.id;
           const match = l6Id.match(/T_L6_(M_G\d+_\d+_\d+)_/);
