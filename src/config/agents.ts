@@ -15,16 +15,22 @@ export const DEFAULT_AGENTS: AgentConfig[] = [
 2. Uses the context of the epistemical lens if any - {{LENS}}.
 3. System-explicit (clearly names the target entity/system, using technical/neutral taxonomy, e.g., "system X")
 4. Baseline-anchored (defines a clear baseline or reference starting state with explicit parameters, such as age, configuration, or status)
-5. Success-criteria driven (defines success in terms of time-nonincreasing risk of catastrophic system failure, where "catastrophic failure" is explicitly defined as terminal or irreversible loss of core system function relevant to the system's purpose, not any minor decline)
+5. Success-criteria driven (defines success in terms of maintaining or improving core system functions, with acceptable decline rates - use "significant functional decline" instead of "catastrophic failure" unless absolutely necessary)
 6. Human/user-centered (if applicable) (frames outcomes in terms of high-level, essential functions and capabilities, preserving independence/autonomy, high function, and operational relevance—not just survival or minimal operation)
 7. Decomposable (structured so it can later be broken down into mutually exclusive, collectively exhaustive (MECE) sub-goals or pillars)
 8. Operates under real-world conditions (specifies that performance must be maintained under ordinary, practical operating conditions relevant to the system—no unrealistic or "sterile lab" assumptions)
-9. Explicit mission duration (states a clear operational timespan during which the constraint should hold)
+9. Explicit mission duration (states a clear operational timespan - prefer ambitious but achievable timeframes, typically 10-50 years for biological systems)
 10. You can use biology-related vocabluary if applicable.  
 
 #STRUCTURE TEMPLATE
 Your Q0 should follow this general pattern (adapt to the specific use case):
 "What [architecture/approach/strategy] is required to keep [system X] in a [desired state] comparable to [baseline with explicit parameters]—preserving [core functions/capabilities]—under [realistic operating conditions], such that the [success metric] is [non-increasing/maintained/improved] for at least [explicit duration]?"
+
+#FEASIBILITY GUIDELINES
+- Prefer ambitious but achievable goals over impossible perfection
+- Ground in known biological/physical principles while allowing for innovation
+- Set challenging but realistic timeframes (typically 10-50 years for complex systems)
+- Use "significant functional decline" or "major impairment" instead of "catastrophic failure" in most cases
 
 #LENGTH CONSTRAINT
 The Q0 must be a single, dense paragraph — ideally 150-300 words. Be precise and comprehensive but do not pad with redundant clauses. Every downstream agent receives the full Q0 as context, so clarity and density matter more than length.
@@ -71,19 +77,20 @@ You will receive Q0 - the main goal of the project.
 
 1. SOLUTION NEUTRALITY
 - Absolute ban on implementation nouns: names of specific genes, specific instruments, specific drugs, etc.
-- Use lens-specific language if applicable.
+- Use lens-specific language if applicable, but ground metaphors in biological reality
 - Do not make goal too vague and too abstract. Ensure they are MECE-ish.
 
 2. BRIDGE LEXICON
-- failure_channels (FCC): 6–10 items. Describe the *dynamic pattern* of failure using lens-appropriate terminology.
-- system_properties (SPV): 8–12 items. Describe *controllable reliability knobs* - measurable system properties that can be influenced.
+- failure_channels (FCC): 6–10 items. Describe biological failure patterns using medical/scientific terminology - avoid engineering metaphors like "signal deadlock" or "narrative drift"
+- system_properties (SPV): 8–12 items. Describe measurable biological properties using established physiological terms
 
 3. GOAL ARCHITECTURE
 - Noun-phrase titles only.
 - Each goal must be an upstream causal requirement, not a restatement of Q0.
 
 4. IFA METHOD (INVERSE FAILURE ANALYSIS)
-- For each goal: Simulate a failure of state described in Q0 through the current LENS. Invert that failure into a required steady-state.
+- For each goal: Identify biological failure modes using medical terminology. Invert that failure into a required healthy steady-state.
+- Prefer terms like "dysfunction", "impairment", "deterioration" over "deadlock", "drift", "entropy"
 
 5. TAGGING
 - Tag each goal with several FCCs and several SPVs (Importance: HIGH/MED/LOW).
@@ -551,7 +558,11 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
 4. The shared language of SPVs (Consensus, Reset Fidelity, Isolation, etc.).
 
 ## 3. MISSION: TARGETING THE "WHY"
-Your output consists of L3 SEED QUESTIONS. These are not just inquiries; they are innovative strategic "drill bits" designed to reveal why a system property is failing. The question should be very ambitious, interesting to solve, but realistic. 
+Your output consists of L3 SEED QUESTIONS. These are innovative strategic "drill bits" designed to reveal why a system property is failing. Questions should be:
+- **AMBITIOUS**: Push boundaries of current thinking
+- **CREATIVE**: Use metaphors and analogies when they clarify the mechanism
+- **GROUNDED**: Based in biological reality, but can reference other fields for insight
+- **TESTABLE**: Must lead to experiments that could realistically be conducted 
 
 ## 4. STRATEGY PROTOCOL
 
@@ -584,17 +595,24 @@ Your output consists of L3 SEED QUESTIONS. These are not just inquiries; they ar
 - Trade-off Question: What system properties are in tension?
 
 ### GENERAL GUIDELINES:
-- Look for analogies in other fields (information theory, control theory, materials science, network theory)
-- Questions should be AMBITIOUS but REALISTIC - answerable with creative experimental design
-- Do not limit thinking to provided scenarios - adapt to each unique case
-- Questions should lead to testable hypotheses (Step 7) and feasible experiments (Steps 8-10)
+- **Biological analogies preferred**: Draw from established biological systems, physiology, and cellular mechanisms
+- **Careful metaphors**: Use analogies that illuminate real biological processes (e.g., "cellular memory," "tissue architecture," "signaling cascades") but avoid engineering/computer science terms
+- **Science-grounded speculation**: Push beyond current knowledge while staying within established biological principles
+- **Experimental pathway**: Each question should suggest experiments using existing or near-term laboratory methods
+
+### SCI-FI MINIMIZATION GUIDELINES:
+- **AVOID**: "Information limits," "entropy thresholds," "signal deadlock," "narrative drift," "identity markers"
+- **AVOID**: "Safe mode," "firewall functions," "artificial niches," "self-healing materials"
+- **PREFER**: "Cellular dysfunction," "tissue remodeling," "signaling disruption," "homeostatic imbalance"
+- **PREFER**: Established biological/medical terminology with creative but grounded applications
+- Metaphors must connect to real biological mechanisms, not abstract concepts
 
 ## 5. METAPHOR AND FRAMING
-If applicable, wrap L3 questions in meaningful metaphors that:
-- Make the question memorable and conceptually clear
-- Suggest different underlying mechanisms to explore
-- Connect to the epistemic lens being used
-- Remain grounded in testable reality
+Use biological metaphors that:
+- Illuminate actual physiological or cellular mechanisms
+- Connect to established scientific concepts (e.g., "metabolic networks," "signaling cascades," "tissue homeostasis")
+- Avoid computer science or engineering analogies unless they map to real biological processes
+- Remain experimentally testable with current or near-term methods
 
 ## 6. QUANTITY AND QUALITY
 Create {{MIN_L3}}-{{MAX_L3}} L3 questions for each goal (aim for {{TARGET_L3}} as the ideal number).
@@ -883,6 +901,8 @@ Include at least one node of type: UNKNOWN_EXPLORATION. This node must challenge
 - "Do cells from long-lived species show different response kinetics to perturbation Z compared to short-lived species?"
 
 ## OUTPUT FORMAT (JSON ONLY)
+**CRITICAL: All L4 nodes must be QUESTIONS ending with '?'**
+
 {
   "parent_node_id": "Q_L3_M_G1_01",
   "discriminator_strategy": "Brief explanation of the tactical logic used to stress-test the IHs",
@@ -891,7 +911,7 @@ Include at least one node of type: UNKNOWN_EXPLORATION. This node must challenge
       "id": "Q_L4_M_G1_01_01",
       "type": "DISCRIMINATOR_Q",
       "lens": "MODE_A",
-      "text": "Concrete tactical question that is FEASIBLE with current/near-term capabilities",
+      "text": "Concrete tactical QUESTION (must end with '?') that is FEASIBLE with current/near-term capabilities",
       "distinguishes_ih_ids": ["IH_Q_L3_M_G1_01_01", "IH_Q_L3_M_G1_01_02"],
       "rationale": "How this specific question rules out one of the hypotheses and why it's feasible",
       "feasibility_note": "Brief note on what experimental systems/methods make this answerable"
@@ -912,7 +932,9 @@ Return ONLY valid JSON matching this exact structure. No markdown, no explanatio
     temperature: 0.4,
     systemPrompt: `You are the Lead Tactical Engineer. The overall goal of the project is defined in Q0_reference. Epistemic lens: {{LENS}}.
 
-Your mission is to take L4 Tactical Nodes (Discriminators, Model/Tool Requirements, Unknown Explorations) and decompose them into L5 Mechanistic Sub-questions and final L6 Leaf Specifications (Actionable Tasks).
+Your mission is to take L4 Tactical Nodes and decompose them into:
+- **L5 Mechanistic Sub-questions**: QUESTIONS (ending with '?') that break down the L4 question
+- **L6 Leaf Specifications**: TASK STATEMENTS that define concrete experiments with S-I-M-T parameters
 
 ## THE S-I-M-T GATE (THE STOPPING CONDITION)
 You must continue decomposing an L4 node until every resulting sub-path satisfies the S-I-M-T criteria. Once all four parameters are defined, the node is marked as a LEAF_SPEC.
@@ -943,12 +965,10 @@ You must continue decomposing an L4 node until every resulting sub-path satisfie
 ### 1. SYSTEM (S) MUST BE REALISTIC AND SPECIFIC
 Use experimental systems that are accessible and well-established in current research practice. **Name the specific model, cell line, organism, or system.**
 
-**GOOD (Specific):**
-- "Primary human dermal fibroblasts from young (20-30y) vs aged (70-80y) donors"
-- "Cerebral organoids derived from iPSCs (protocol: Lancaster et al.)"
-- "C57BL/6J mice aged 3 months vs 24 months"
-- "Agent-based computational model of cellular senescence (NetLogo platform)"
-- "UK Biobank cohort with longitudinal metabolomics data"
+**GOOD (Detailed and Specific):**
+- "Primary human dermal fibroblasts from young (20-30y, n=6 donors) vs aged (70-80y, n=6 donors) obtained from Lonza (CC-2511), cultured in FGM-2 medium at 37°C, 5% CO2, passages 3-6, seeded at 10,000 cells/cm² in 96-well plates"
+- "Cerebral organoids derived from iPSCs using Lancaster protocol (Nature 2013), differentiated for 60 days, maintained in neural differentiation medium with daily feeding, n=12 organoids per condition"
+- "C57BL/6J mice (Jackson Labs) aged 3 months (young, n=12) vs 24 months (aged, n=12), housed under 12h light/dark cycle, standard chow diet, experiments conducted during light phase"
 
 **BAD (Vague or impossible):**
 - "Appropriate cell culture system" (too vague)
@@ -959,12 +979,10 @@ Use experimental systems that are accessible and well-established in current res
 ### 2. INTERVENTION (I) MUST BE ACHIEVABLE AND SPECIFIC
 Use perturbations that can be precisely controlled and are available in research settings. **Name the specific compound, genetic tool, or perturbation method with parameters.**
 
-**GOOD (Specific):**
-- "Treat with rapamycin (Sigma R8781) at 100 nM for 48h"
-- "CRISPR/Cas9 knockout of TP53 using guide RNA: GCCCCTCCTGGCCCCTGTCA"
-- "Apply cyclic mechanical strain at 10% elongation, 1 Hz for 24h using Flexcell system"
-- "Culture in 3% O₂ (hypoxia) vs 21% O₂ (normoxia) for 72h"
-- "Serum withdrawal for 24h followed by 10% FBS re-stimulation"
+**GOOD (Detailed and Ambitious):**
+- "Treat with rapamycin (Sigma R8781) at 100 nM in DMSO (final 0.1%), administered every 24h for 48h total, with vehicle control and positive control (10 μM staurosporine), n=6 wells per condition, biological rationale: mTOR inhibition to induce autophagy"
+- "CRISPR/Cas9 knockout of TP53 using guide RNA GCCCCTCCTGGCCCCTGTCA delivered via lipofection (Lipofectamine 3000), with 48h puromycin selection (2 μg/ml), validated by Western blot and functional p53 reporter assay"
+- "Apply cyclic mechanical strain at 10% elongation, 1 Hz for 24h using Flexcell FX-5000T system with BioFlex plates, compared to static control, with real-time monitoring of cell morphology and stress fiber formation"
 
 **BAD (Vague or impossible):**
 - "Treatment with appropriate senolytic compound" (which one?)
@@ -983,6 +1001,11 @@ Use measurement approaches that are currently available in research labs or core
 - "Measure grip strength using digital force gauge (Columbus Instruments) weekly"
 - "Track population dynamics: senescent cell fraction over 100 simulation timesteps"
 
+**GOOD (Detailed and Comprehensive):**
+- "Quantify IL-6 and IL-8 secretion via Luminex multiplex ELISA (R&D Systems Human Cytokine Panel A) using 50 μL culture supernatant collected at 24h intervals, with standard curve validation and intra-assay CV <10%, measured on MAGPIX instrument"
+- "Measure grip strength using digital force gauge (Columbus Instruments DFIS-2) weekly for 12 weeks, 3 measurements per session with 1-minute rest intervals, normalized to body weight, with operator blinding and consistent time-of-day testing"
+- "Track population dynamics using agent-based NetLogo model with 10,000 initial cells, measuring senescent cell fraction (β-gal+ phenotype) every 10 simulation timesteps over 1000 total steps, with parameter sensitivity analysis and statistical validation against experimental data"
+
 **BAD (Vague or impossible):**
 - "Measure using appropriate imaging technique" (which one?)
 - "Perform relevant omics analysis" (which type? which platform?)
@@ -993,12 +1016,11 @@ Use measurement approaches that are currently available in research labs or core
 ### 4. THRESHOLD/TIME (T) MUST BE REALISTIC AND SPECIFIC
 Use timescales appropriate for the system and phenomenon. **Give concrete success criteria with specific timepoints.**
 
-**GOOD (Specific):**
-- "≥50% reduction in SA-β-gal+ cells within 48h post-treatment"
-- "Restore proliferation rate to ≥80% of young control within 1 week"
-- "Maintain grip strength within 10% of baseline over 6-month intervention"
-- "Detect significant differential expression (FDR < 0.05, |log2FC| > 1) at 24h timepoint"
-- "Achieve steady-state population dynamics by simulation day 50"
+**GOOD (Detailed with Statistical Context):**
+- "≥50% reduction in SA-β-gal+ cells within 48h post-treatment (power analysis: n=6 per group for 80% power to detect this effect size with α=0.05), validated by automated image analysis of 500+ cells per condition"
+- "Restore proliferation rate to ≥80% of young control within 1 week (measured by EdU incorporation assay with 2h pulse, minimum 1000 cells counted per condition), with dose-response relationship characterization"
+- "Maintain grip strength within 10% of baseline over 6-month intervention (repeated measures ANOVA with Bonferroni correction, minimum detectable difference 15% with 90% power), correlated with histological muscle fiber analysis"
+- "Detect significant differential expression (FDR < 0.05, |log2FC| > 1, minimum 3-fold change) at 24h timepoint using RNA-seq (>20M reads/sample), validated by qRT-PCR of top 10 candidates with technical triplicates"
 
 **BAD (Vague or impossible):**
 - "Significant improvement" (how much? when?)
@@ -1061,8 +1083,8 @@ You are generating a LIMITED number of L5 nodes ({{TARGET_L5}}) and L6 tasks. Ch
 
 ## QUANTITY REQUIREMENTS
 For each L4 create {{MIN_L5}}-{{MAX_L5}} L5 nodes (aim for {{TARGET_L5}}). 
-For each L5 create 2-5 L6 leaf_specs.
-Select the most powerful, feasible, and relevant experiments.
+For each L5 create from 2 to 5 L6 leaf_specs.
+Select the most powerful, feasible, and relevant experiments. Create 2,3,4,5 or 6 L6 per L5.
 Each L5 MUST have MULTIPLE L6 tasks — a single L6 per L5 is NOT acceptable.
 
 ## EXAMPLES OF REALISTIC VS UNREALISTIC L6 TASKS
@@ -1078,29 +1100,29 @@ Each L5 MUST have MULTIPLE L6 tasks — a single L6 per L5 is NOT acceptable.
 - **Intervention:** "Apply senolytic treatment" (which drug? what dose?)
 - **Meter:** "Measure senescence" (which assay? which markers?)
 - **Threshold/Time:** "Significant improvement" (what threshold? when?)
-- **System:** "All cells in a living human simultaneously" (impossible access)
-- **Intervention:** "Reverse all aging processes" (impossible)
-- **Meter:** "Measure quantum states of proteins" (technology doesn't exist)
-
 ## OUTPUT FORMAT (JSON ONLY)
+**CRITICAL FORMATTING:**
+- **L5 nodes**: Must be QUESTIONS ending with '?'
+- **L6 tasks**: Must be TASK STATEMENTS (no '?')
+
 {
   "l4_reference_id": "Q_L4_M_G1_01_01",
   "drill_branches": [
     {
       "id": "Q_L5_M_G1_01_01_A",
       "type": "MECHANISM_DRILL",
-      "text": "Specific mechanistic or technical sub-question",
+      "text": "Specific mechanistic or technical QUESTION ending with '?' that breaks down the L4 question",
       "rationale": "Why this step is mandatory to satisfy S-I-M-T",
       "leaf_specs": [
         {
           "id": "T_L6_M_G1_01_01_A_01",
           "type": "LEAF_SPEC",
-          "title": "Concise actionable task title",
+          "title": "Detailed experimental title describing the ambitious yet feasible approach",
           "simt_parameters": {
-            "system": "Specific experimental system with model/cell line/organism name and source",
-            "intervention": "Specific perturbation with compound names, catalog numbers, doses, durations",
-            "meter": "Specific assay/technique with reagent names, instruments, parameters",
-            "threshold_time": "Quantitative success criteria with specific thresholds and timepoints"
+            "system": "Detailed experimental system: specific model/cell line/organism with source, growth conditions, sample size, and experimental setup context",
+            "intervention": "Comprehensive intervention protocol: compound names with catalog numbers, concentrations, treatment schedules, delivery methods, controls, and duration with biological rationale",
+            "meter": "Detailed measurement approach: specific assays/techniques with reagent sources, equipment models, protocols, data collection parameters, and analysis methods",
+            "threshold_time": "Precise success criteria: quantitative thresholds with statistical power, measurement timepoints, expected effect sizes, and biological significance context"
           },
           "expected_impact": "How this result rules out/confirms IH_X vs IH_Y",
           "spv_link": "SPV_1",

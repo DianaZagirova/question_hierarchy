@@ -300,6 +300,26 @@ export const useAppStore = create<AppStore>()(
     {
       name: 'omega-point-storage',
       version: STORAGE_VERSION,
+      partialize: (state) => {
+        // Exclude large step outputs from localStorage to prevent quota issues
+        // Keep outputs in memory but rely on server storage for persistence
+        const filteredSteps = state.steps.map(step => {
+          // Keep outputs for first 6 steps (usually small)
+          if (step.id <= 6) {
+            return step;
+          }
+          // For steps 7+ (large experimental data), exclude output from localStorage
+          return {
+            ...step,
+            output: step.status === 'completed' ? { _large_data_excluded: true } : step.output
+          };
+        });
+        
+        return {
+          ...state,
+          steps: filteredSteps
+        };
+      },
       migrate: (persistedState: any, version: number) => {
         // If stored version is older than current, reset agents to defaults
         if (version < STORAGE_VERSION) {

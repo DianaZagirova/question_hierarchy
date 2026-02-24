@@ -517,6 +517,13 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
         <span className="font-semibold">Type:</span> {task.type}
       </p>
       
+      {task.rationale && (
+        <div className="mt-2 bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+          <p className="text-xs font-semibold text-blue-400">Rationale</p>
+          <p className="text-xs text-foreground mt-1">{task.rationale}</p>
+        </div>
+      )}
+      
       {task.simt_parameters && (
         <div className="mt-2 space-y-1 text-xs">
           <div className="bg-secondary/30 p-2 rounded">
@@ -1772,6 +1779,12 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
             <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-teal-400">Title</p>
               <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.title}</p>
+            </div>
+          )}
+          {nodeData.rationale && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Rationale</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
             </div>
           )}
           {nodeData.description && (
