@@ -194,6 +194,24 @@ export const executeStep4Pipeline = async (
   }
 };
 
+export const executeStep4Optimized = async (
+  goal: any,
+  ras: any[],
+  spvs: any[],
+  signal?: AbortSignal,
+): Promise<any> => {
+  // Call the optimized Step 4 endpoint (with research APIs and caching)
+  const response = await api.post('/api/execute-step4-optimized', {
+    goal,
+    ras,
+    spvs,
+  }, {
+    signal,
+  });
+
+  return response.data;
+};
+
 export const createAbortController = (stepId: number): AbortController => {
   // Abort any existing controller for this step
   const existing = abortControllers.get(stepId);
@@ -349,6 +367,89 @@ export const streamNodeChat = (
   return () => controller.abort();
 };
 
+// ─── Full Pipeline: run all steps (1→2→3→4→6→7→8→9) on the backend ──
+export interface FullPipelineProgress {
+  pending: true;
+  step: number;
+  step_name: string;
+  status: string;
+  detail: string;
+  elapsed: number;
+  completed_steps?: string[];     // e.g. ["step1", "step2", ...]
+  step_outputs?: Record<string, any>;  // completed step data for incremental rendering
+}
+
+export interface FullPipelineResult {
+  success: boolean;
+  run_id: string;
+  goal: string;
+  globalLens?: string;
+  step_outputs: Record<string, any>;
+  l6_analysis?: any;
+  summary: Record<string, number>;
+  step_timings: Record<string, number>;
+  total_elapsed_seconds: number;
+  error?: string;
+}
+
+/**
+ * Start the full pipeline and poll until complete.
+ * Calls onProgress while running, resolves with final result.
+ */
+export const runFullPipeline = async (
+  goal: string,
+  globalLens: string,
+  agents: Record<string, any>,
+  onProgress?: (progress: FullPipelineProgress) => void,
+  signal?: AbortSignal,
+): Promise<FullPipelineResult> => {
+  // 1. Start pipeline
+  const startResponse = await api.post('/api/run-full-pipeline', {
+    goal,
+    globalLens,
+    agents,
+  }, { signal });
+
+  if (!startResponse.data?.started) {
+    throw new Error(startResponse.data?.error || 'Failed to start full pipeline');
+  }
+
+  const runId = startResponse.data.run_id;
+
+  // 2. Poll for result (max 30 minutes to prevent infinite polling)
+  const POLL_INTERVAL = 2000;
+  const MAX_POLL_TIME_MS = 30 * 60 * 1000; // 30 minutes
+  const pollStartTime = Date.now();
+  while (true) {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    if (Date.now() - pollStartTime > MAX_POLL_TIME_MS) {
+      throw new Error('Pipeline timed out after 30 minutes. Check server logs for details.');
+    }
+
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, POLL_INTERVAL);
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    });
+
+    const resultResponse = await api.get(`/api/full-pipeline-result?run_id=${runId}`, { signal });
+
+    if (resultResponse.status === 200 && !resultResponse.data?.pending) {
+      return resultResponse.data as FullPipelineResult;
+    }
+
+    // Still running — report progress
+    if (resultResponse.data?.pending && onProgress) {
+      onProgress(resultResponse.data as FullPipelineProgress);
+    }
+  }
+};
+
 export const testConnection = async (): Promise<boolean> => {
   try {
     const response = await api.get('/api/health');
@@ -432,6 +533,105 @@ export const streamNodeImprovement = (
     });
 
   return () => controller.abort();
+};
+
+// ─── L6 Perspective Analysis ─────────────────────────────────────────
+
+export interface L6AnalysisParams {
+  q0: string;
+  goals: any[];
+  l6_experiments: any[];
+  agentConfig: AgentConfig;
+  top_n?: number;
+}
+
+export interface L6AnalysisResult {
+  selected_experiments: Array<{
+    l6_id: string;
+    rank: number;
+    strategic_value: string;
+    impact_potential: string;
+    key_insight: string;
+    score: number;
+  }>;
+  overall_assessment: string;
+}
+
+/**
+ * Analyze L6 experiments and select the most promising ones using LLM
+ */
+export const analyzeL6Perspective = async (params: L6AnalysisParams): Promise<{
+  success: boolean;
+  analysis: L6AnalysisResult;
+  total_analyzed: number;
+  selected_count: number;
+}> => {
+  const response = await api.post('/api/analyze-l6-perspective', params);
+  return response.data;
+};
+
+// ─── Node Feedback ──────────────────────────────────────────────────────────
+
+export interface SubmitFeedbackParams {
+  node_id: string;
+  node_type: string;
+  user_session_id: string;
+  rating?: number;
+  comment?: string;
+  category?: string;
+  author?: string;
+}
+
+export interface NodeFeedbackEntry {
+  feedbackId: string;
+  sessionId: string;
+  userSessionId: string;
+  nodeId: string;
+  nodeType: string;
+  rating: number | null;
+  comment: string | null;
+  category: string | null;
+  author: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const submitNodeFeedback = async (params: SubmitFeedbackParams): Promise<NodeFeedbackEntry> => {
+  const response = await api.post('/api/feedback', params);
+  return response.data.feedback;
+};
+
+export const getNodeFeedback = async (nodeId: string, userSessionId?: string): Promise<NodeFeedbackEntry[]> => {
+  const params = new URLSearchParams({ node_id: nodeId });
+  if (userSessionId) params.append('user_session_id', userSessionId);
+  const response = await api.get(`/api/feedback?${params.toString()}`);
+  return response.data.feedback || [];
+};
+
+export const getSessionFeedback = async (userSessionId: string): Promise<NodeFeedbackEntry[]> => {
+  const response = await api.get(`/api/feedback/session/${userSessionId}`);
+  return response.data.feedback || [];
+};
+
+export const getAllFeedback = async (): Promise<NodeFeedbackEntry[]> => {
+  const response = await api.get('/api/feedback/all');
+  return response.data.feedback || [];
+};
+
+export interface UpdateFeedbackParams {
+  rating?: number;
+  comment?: string;
+  category?: string;
+  author?: string;
+}
+
+export const updateNodeFeedback = async (feedbackId: string, params: UpdateFeedbackParams): Promise<NodeFeedbackEntry> => {
+  const response = await api.put(`/api/feedback/${feedbackId}`, params);
+  return response.data.feedback;
+};
+
+export const deleteNodeFeedback = async (feedbackId: string): Promise<void> => {
+  await api.delete(`/api/feedback/${feedbackId}`);
 };
 
 export default api;

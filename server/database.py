@@ -8,8 +8,8 @@ import uuid
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, ForeignKey, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import UUID, JSONB, insert as pg_insert
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 from sqlalchemy.sql import func
@@ -107,6 +107,7 @@ class CommunitySession(Base):
             'publishedAt': self.published_at.isoformat() if self.published_at else None,
             'tags': self.tags or [],
             'cloneCount': self.clone_count or 0,
+            'sourceBrowserSession': str(self.source_browser_session) if self.source_browser_session else None,
         }
 
     def __repr__(self):
@@ -128,6 +129,41 @@ class SessionVersion(Base):
 
     def __repr__(self):
         return f"<SessionVersion {self.version_id}:{self.version_name}>"
+
+
+class NodeFeedback(Base):
+    """User feedback on graph nodes"""
+    __tablename__ = 'node_feedback'
+
+    feedback_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), nullable=False)
+    user_session_id = Column(String(100), nullable=False)
+    node_id = Column(String(200), nullable=False)
+    node_type = Column(String(50), nullable=False)
+    rating = Column(Integer)
+    comment = Column(String)
+    category = Column(String(50))
+    author = Column(String(100))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'feedbackId': str(self.feedback_id),
+            'sessionId': str(self.session_id),
+            'userSessionId': self.user_session_id,
+            'nodeId': self.node_id,
+            'nodeType': self.node_type,
+            'rating': self.rating,
+            'comment': self.comment,
+            'category': self.category,
+            'author': self.author,
+            'createdAt': self.created_at.isoformat() if self.created_at else None,
+            'updatedAt': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f"<NodeFeedback {self.feedback_id}:{self.node_id}>"
 
 
 # ============================================================
@@ -185,7 +221,7 @@ class DB:
         """
         session = self.get_session()
         try:
-            expiry_days = int(os.getenv('SESSION_EXPIRY_DAYS', 7))
+            expiry_days = int(os.getenv('SESSION_EXPIRY_DAYS', 60))
             new_session = Session(
                 session_id=uuid.uuid4(),
                 expires_at=datetime.utcnow() + timedelta(days=expiry_days),
@@ -228,7 +264,7 @@ class DB:
         session = self.get_session()
         try:
             session_uuid = uuid.UUID(session_id)
-            expiry_days = int(os.getenv('SESSION_EXPIRY_DAYS', 7))
+            expiry_days = int(os.getenv('SESSION_EXPIRY_DAYS', 60))
 
             session.query(Session).filter(
                 Session.session_id == session_uuid
@@ -274,32 +310,27 @@ class DB:
 
     def save_session_state(self, session_id: str, state_key: str, state_data: Dict[str, Any]):
         """
-        Save or update session state
-        Uses upsert logic to handle existing keys
+        Save or update session state.
+        Uses PostgreSQL INSERT ... ON CONFLICT DO UPDATE (atomic upsert)
+        to avoid race conditions under concurrent writes.
         """
         session = self.get_session()
         try:
             session_uuid = uuid.UUID(session_id)
 
-            # Check if state exists
-            existing = session.query(SessionState).filter(
-                SessionState.session_id == session_uuid,
-                SessionState.state_key == state_key
-            ).first()
-
-            if existing:
-                # Update existing state
-                existing.state_data = state_data
-                existing.updated_at = datetime.utcnow()
-            else:
-                # Create new state
-                new_state = SessionState(
-                    session_id=session_uuid,
-                    state_key=state_key,
-                    state_data=state_data
-                )
-                session.add(new_state)
-
+            stmt = pg_insert(SessionState).values(
+                session_id=session_uuid,
+                state_key=state_key,
+                state_data=state_data,
+            )
+            stmt = stmt.on_conflict_do_update(
+                constraint='session_state_session_id_state_key_key',
+                set_={
+                    'state_data': stmt.excluded.state_data,
+                    'updated_at': datetime.utcnow(),
+                },
+            )
+            session.execute(stmt)
             session.commit()
         except Exception as e:
             session.rollback()
@@ -427,6 +458,113 @@ class DB:
                 CommunitySession.id == community_id
             ).delete()
             session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    # ─── Node Feedback ─────────────────────────────────────────────────
+
+    def create_node_feedback(self, session_id: str, user_session_id: str, node_id: str,
+                              node_type: str, rating: int = None, comment: str = None,
+                              category: str = None, author: str = None):
+        """Create a feedback entry for a graph node"""
+        session = self.get_session()
+        try:
+            fb = NodeFeedback(
+                session_id=uuid.UUID(session_id),
+                user_session_id=user_session_id,
+                node_id=node_id,
+                node_type=node_type,
+                rating=rating,
+                comment=comment,
+                category=category,
+                author=author,
+            )
+            session.add(fb)
+            session.commit()
+            session.refresh(fb)
+            return fb.to_dict()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def get_node_feedback(self, node_id: str, session_id: str = None, user_session_id: str = None):
+        """Get feedback for a specific node, optionally filtered by session"""
+        session = self.get_session()
+        try:
+            q = session.query(NodeFeedback).filter(NodeFeedback.node_id == node_id)
+            if session_id:
+                q = q.filter(NodeFeedback.session_id == uuid.UUID(session_id))
+            if user_session_id:
+                q = q.filter(NodeFeedback.user_session_id == user_session_id)
+            results = q.order_by(NodeFeedback.created_at.desc()).all()
+            return [r.to_dict() for r in results]
+        finally:
+            session.close()
+
+    def get_session_feedback(self, user_session_id: str):
+        """Get all feedback for a specific user session"""
+        session = self.get_session()
+        try:
+            results = session.query(NodeFeedback).filter(
+                NodeFeedback.user_session_id == user_session_id
+            ).order_by(NodeFeedback.created_at.desc()).all()
+            return [r.to_dict() for r in results]
+        finally:
+            session.close()
+
+    def get_all_feedback(self):
+        """Get all feedback across all sessions"""
+        session = self.get_session()
+        try:
+            results = session.query(NodeFeedback).order_by(
+                NodeFeedback.created_at.desc()
+            ).limit(500).all()
+            return [r.to_dict() for r in results]
+        finally:
+            session.close()
+
+    def update_node_feedback(self, feedback_id: str, rating: int = None, comment: str = None,
+                              category: str = None, author: str = None):
+        """Update an existing feedback entry"""
+        session = self.get_session()
+        try:
+            fb = session.query(NodeFeedback).filter(
+                NodeFeedback.feedback_id == uuid.UUID(feedback_id)
+            ).first()
+            if not fb:
+                return None
+            if rating is not None:
+                fb.rating = rating
+            if comment is not None:
+                fb.comment = comment
+            if category is not None:
+                fb.category = category
+            if author is not None:
+                fb.author = author
+            fb.updated_at = datetime.utcnow()
+            session.commit()
+            session.refresh(fb)
+            return fb.to_dict()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def delete_node_feedback(self, feedback_id: str):
+        """Delete a feedback entry"""
+        session = self.get_session()
+        try:
+            deleted = session.query(NodeFeedback).filter(
+                NodeFeedback.feedback_id == uuid.UUID(feedback_id)
+            ).delete()
+            session.commit()
+            return deleted > 0
         except Exception as e:
             session.rollback()
             raise e

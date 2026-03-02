@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (with pgvector for Step 4)
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: omega-point-postgres-dev
     environment:
       POSTGRES_USER: omegapoint
@@ -13,7 +13,8 @@ services:
       - "5433:5432"  # Different port to avoid conflicts
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
-      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./server/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./server/migrations/001_add_scientific_pillars.sql:/docker-entrypoint-initdb.d/02-step4-migration.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U omegapoint"]
       interval: 5s
@@ -61,6 +62,13 @@ services:
       - ./server:/app/server:ro
       # Mount .env for live config updates
       - ./.env.dev:/app/.env:ro
+      # Mount Step 4 modules for development
+      - ./server/research_apis_optimized.py:/app/server/research_apis_optimized.py:ro
+      - ./server/knowledge_dedup_optimized.py:/app/server/knowledge_dedup_optimized.py:ro
+      - ./server/knowledge_cache_optimized.py:/app/server/knowledge_cache_optimized.py:ro
+      - ./server/step4_pipeline_optimized.py:/app/server/step4_pipeline_optimized.py:ro
+      - ./server/step4_integration.py:/app/server/step4_integration.py:ro
+      - ./server/migrations:/app/server/migrations:ro
     depends_on:
       postgres:
         condition: service_healthy

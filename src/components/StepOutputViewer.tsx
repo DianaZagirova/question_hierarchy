@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Code } from 'lucide-react';
+import React, { useState, useMemo, memo } from 'react';
+import { ChevronDown, ChevronRight, Code, Eye } from 'lucide-react';
 import { PipelineStep } from '@/types';
+import { useAppStore } from '@/store/useAppStore';
+
+const EMPTY_ARRAY: string[] = [];
 
 interface StepOutputViewerProps {
   output: any;
@@ -8,9 +11,12 @@ interface StepOutputViewerProps {
   step?: PipelineStep;
 }
 
-export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, stepId, step }) => {
+export const StepOutputViewer: React.FC<StepOutputViewerProps> = memo(({ output, stepId, step }) => {
   const [showRaw, setShowRaw] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['main']));
+  // Only subscribe to highlighted IDs for step 9 (L6 tasks) — stable empty ref for others
+  const rawHighlightedIds = useAppStore(s => stepId === 9 ? s.highlightedL6Ids : EMPTY_ARRAY);
+  const highlightedL6Ids = useMemo(() => new Set(rawHighlightedIds), [rawHighlightedIds]);
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -71,7 +77,7 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
                         <div key={i} className="text-xs bg-pink-500/20 text-pink-300 px-2 py-1 rounded border border-pink-500/30">
                           <span className="font-mono">{fcc}</span>
                           {fccInfo && <span className="text-pink-200 ml-1">— {fccInfo.name}</span>}
-                          {fccInfo?.definition && <p className="text-[10px] text-foreground/60 mt-0.5 leading-relaxed">{fccInfo.definition}</p>}
+                          {fccInfo?.definition && <p className="text-xs text-foreground/60 mt-0.5 leading-relaxed">{fccInfo.definition}</p>}
                         </div>
                       );
                     })}
@@ -88,7 +94,7 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
                         <div key={i} className="text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded border border-amber-500/30">
                           <span className="font-mono">{spv.spv_id}</span> <span className="text-amber-400/60">({spv.importance})</span>
                           {spvInfo && <span className="text-amber-200 ml-1">— {spvInfo.name}</span>}
-                          {spvInfo?.definition && <p className="text-[10px] text-foreground/60 mt-0.5 leading-relaxed">{spvInfo.definition}</p>}
+                          {spvInfo?.definition && <p className="text-xs text-foreground/60 mt-0.5 leading-relaxed">{spvInfo.definition}</p>}
                         </div>
                       );
                     })}
@@ -510,9 +516,20 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
     </div>
   );
 
-  const renderL6Task = (task: any, index: number) => (
-    <div key={task.id || index} className="border-l-4 border-teal-500 pl-4 py-2 mb-3 bg-teal-500/10 rounded-r">
-      <h5 className="font-bold text-teal-400">{task.id}: {task.title}</h5>
+  const renderL6Task = (task: any, index: number) => {
+    const isBestExperiment = highlightedL6Ids.has(task.id);
+    return (
+    <div key={task.id || index} className={`relative pl-4 py-2 mb-3 rounded-r ${
+      isBestExperiment
+        ? 'border-l-4 border-purple-500 bg-purple-500/10'
+        : 'border-l-4 border-teal-500 bg-teal-500/10'
+    }`}>
+      {isBestExperiment && (
+        <div className="absolute left-0 top-2 -translate-x-1/2 z-10 w-5 h-5 rounded-full bg-purple-600 border-2 border-purple-400 flex items-center justify-center shadow-md shadow-purple-500/40" title="Best experiment">
+          <Eye className="w-3 h-3 text-white" />
+        </div>
+      )}
+      <h5 className={`font-bold ${isBestExperiment ? 'text-purple-400' : 'text-teal-400'}`}>{task.id}: {task.title}</h5>
       <p className="text-xs text-teal-300 mb-1">
         <span className="font-semibold">Type:</span> {task.type}
       </p>
@@ -521,6 +538,13 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
         <div className="mt-2 bg-blue-500/10 border border-blue-500/30 p-2 rounded">
           <p className="text-xs font-semibold text-blue-400">Rationale</p>
           <p className="text-xs text-foreground mt-1">{task.rationale}</p>
+        </div>
+      )}
+
+      {task.if_null && (
+        <div className="mt-2 bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+          <p className="text-xs font-semibold text-orange-400">If Null</p>
+          <p className="text-xs text-foreground mt-1">{task.if_null}</p>
         </div>
       )}
       
@@ -548,11 +572,29 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
         </div>
       )}
       
-      {task.feasibility_score && (
-        <div className="mt-2">
-          <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded border border-green-500/30">
-            Feasibility: {task.feasibility_score}/10
-          </span>
+      {(task.feasibility_score || task.genius_score) && (
+        <div className="mt-2 flex gap-2 flex-wrap">
+          {task.feasibility_score && (
+            <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded border border-green-500/30">
+              Feasibility: {task.feasibility_score}/10
+            </span>
+          )}
+          {task.genius_score && (
+            <span className={`text-xs px-2 py-0.5 rounded border ${
+              task.genius_score >= 8 ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
+              task.genius_score >= 6 ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+              'bg-gray-500/20 text-gray-300 border-gray-500/30'
+            }`}>
+              Genius: {task.genius_score}/10
+            </span>
+          )}
+        </div>
+      )}
+
+      {task.verification_note && (
+        <div className="mt-2 bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+          <p className="text-xs font-semibold text-purple-400">Verification</p>
+          <p className="text-xs text-foreground mt-1">{task.verification_note}</p>
         </div>
       )}
       
@@ -575,6 +617,7 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
       </div>
     </div>
   );
+  };
 
   const renderContent = () => {
     if (!output) return null;
@@ -712,7 +755,7 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
                         <div key={domain.domain_id} className="bg-secondary/30 p-2 rounded text-xs border border-border/50">
                           <div className="font-semibold text-foreground">{domain.domain_name}</div>
                           <div className="text-muted-foreground mt-1">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${
                               domain.relevance_to_goal === 'HIGH' ? 'bg-green-500/20 text-green-400' :
                               domain.relevance_to_goal === 'MED' ? 'bg-yellow-500/20 text-yellow-400' :
                               'bg-gray-500/20 text-gray-400'
@@ -1066,7 +1109,9 @@ export const StepOutputViewer: React.FC<StepOutputViewerProps> = ({ output, step
       </div>
     </div>
   );
-};
+});
+
+StepOutputViewer.displayName = 'StepOutputViewer';
 
 /**
  * Helper function to lookup SPV or FCC definition from bridge lexicon
@@ -1091,7 +1136,31 @@ const lookupBridgeLexiconItem = (id: string, bridgeLexicon: any) => {
  * Export helper function to render node details for graph visualization
  * Maps node types to their appropriate rendering functions
  */
-export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon?: any) => {
+// Helper: render a resolved ID reference (shows ID + resolved text if available)
+const renderIdRef = (id: string | undefined, lookup: Record<string, string> | undefined, labelColor: string = 'text-blue-400') => {
+  if (!id) return null;
+  const resolved = lookup?.[id];
+  return (
+    <span>
+      <span className={`font-mono text-xs ${labelColor}`}>{id}</span>
+      {resolved && <span className="text-xs text-muted-foreground ml-1">— {resolved.length > 120 ? resolved.slice(0, 120) + '...' : resolved}</span>}
+    </span>
+  );
+};
+
+// Helper: render a list of resolved IDs
+const renderIdList = (ids: string[] | undefined, lookup: Record<string, string> | undefined, labelColor: string = 'text-blue-400') => {
+  if (!ids || ids.length === 0) return null;
+  return (
+    <ul className="space-y-0.5">
+      {ids.map((id, i) => (
+        <li key={i} className="text-xs">{renderIdRef(id, lookup, labelColor)}</li>
+      ))}
+    </ul>
+  );
+};
+
+export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon?: any, pipelineLookup?: { goals: Record<string, string>; ras: Record<string, string>; l3s: Record<string, string>; ihs: Record<string, string>; l4s: Record<string, string>; l5s: Record<string, string> }) => {
   switch (nodeType) {
     case 'goal':
       const goalMeterClasses = nodeData.evidence_of_state?.meter_classes || [];
@@ -1133,7 +1202,7 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <p className="text-xs font-semibold text-blue-400 mb-2">Evidence of State</p>
               {goalMeterClasses.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] text-blue-300 font-semibold">Meter Classes:</p>
+                  <p className="text-xs text-blue-300 font-semibold">Meter Classes:</p>
                   {goalMeterClasses.map((mc: string, i: number) => {
                     const mcInfo = lookupBridgeLexiconItem(mc, bridgeLexicon);
                     return (
@@ -1373,7 +1442,7 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
                 <p className="font-semibold text-cyan-400">Readiness</p>
                 <p className="text-foreground font-semibold">{nodeData.readiness_level}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {nodeData.readiness_level === 'RL-1' ? 'Lab-stage: early research, in-vitro or animal models only' :
                    nodeData.readiness_level === 'RL-2' ? 'Model-stage: human data exists but limited trials or observational' :
                    nodeData.readiness_level === 'RL-3' ? 'Deployed: proven in humans with clinical evidence' :
@@ -1469,10 +1538,10 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
                         {cap.spv_id}{spvInfo ? ` — ${spvInfo.name}` : ''}: {cap.effect_direction}
                       </div>
                       {spvInfo?.definition && (
-                        <div className="text-[10px] text-foreground/60 mt-0.5 italic">{spvInfo.definition}</div>
+                        <div className="text-xs text-foreground/60 mt-0.5 italic">{spvInfo.definition}</div>
                       )}
                       {cap.rationale && (
-                        <div className="text-foreground mt-1 text-[10px]">{cap.rationale}</div>
+                        <div className="text-foreground mt-1 text-xs">{cap.rationale}</div>
                       )}
                     </div>
                   );
@@ -1541,22 +1610,22 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <p className="text-xs font-bold text-rose-400 uppercase tracking-wide">Strategic Assessment</p>
               {sa.the_delta_summary && (
                 <div className="bg-rose-500/10 border border-rose-500/30 p-3 rounded">
-                  <p className="text-[10px] font-semibold text-rose-300 mb-1">The Delta (Gap)</p>
+                  <p className="text-xs font-semibold text-rose-300 mb-1">The Delta (Gap)</p>
                   <p className="text-xs text-foreground leading-relaxed">{sa.the_delta_summary}</p>
                 </div>
               )}
               {sa.epistemic_block && (
                 <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded">
-                  <p className="text-[10px] font-semibold text-amber-300 mb-1">Epistemic Block</p>
+                  <p className="text-xs font-semibold text-amber-300 mb-1">Epistemic Block</p>
                   <p className="text-xs text-foreground leading-relaxed">{sa.epistemic_block}</p>
                 </div>
               )}
               {spvFocus.length > 0 && (
                 <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded">
-                  <p className="text-[10px] font-semibold text-blue-300 mb-1">SPV Focus</p>
+                  <p className="text-xs font-semibold text-blue-300 mb-1">SPV Focus</p>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {spvFocus.map((spv: string, i: number) => (
-                      <span key={i} className="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-[10px] font-mono">
+                      <span key={i} className="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-xs font-mono">
                         {spv}
                       </span>
                     ))}
@@ -1570,20 +1639,20 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Bridge Alignment</p>
               {ba.primary_spv_impact && (
                 <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded">
-                  <p className="text-[10px] font-semibold text-emerald-300 mb-1">Primary SPV Impact</p>
+                  <p className="text-xs font-semibold text-emerald-300 mb-1">Primary SPV Impact</p>
                   <p className="text-xs text-foreground leading-relaxed">{ba.primary_spv_impact}</p>
                 </div>
               )}
               {ba.catastrophe_prevention && (
                 <div className="bg-red-500/10 border border-red-500/30 p-3 rounded">
-                  <p className="text-[10px] font-semibold text-red-300 mb-1">Catastrophe Prevention</p>
+                  <p className="text-xs font-semibold text-red-300 mb-1">Catastrophe Prevention</p>
                   <p className="text-xs text-foreground leading-relaxed">{ba.catastrophe_prevention}</p>
                 </div>
               )}
             </div>
           )}
           {nodeData.questions && (
-            <div className="text-[10px] text-muted-foreground mt-2">
+            <div className="text-xs text-muted-foreground mt-2">
               {nodeData.questions.length} L3 question{nodeData.questions.length !== 1 ? 's' : ''} generated
             </div>
           )}
@@ -1593,6 +1662,13 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
     case 'l3':
       return (
         <div className="space-y-2">
+          {/* Parent goal */}
+          {(nodeData.parent_goal_id || nodeData.goal_id || nodeData.target_goal_id) && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">Parent Goal</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_goal_id || nodeData.goal_id || nodeData.target_goal_id, pipelineLookup?.goals, 'text-purple-400')}</p>
+            </div>
+          )}
           {nodeData.text && (
             <div className="bg-rose-500/10 border border-rose-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-rose-400">Question</p>
@@ -1619,6 +1695,12 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               </div>
             )}
           </div>
+          {nodeData.spv_focus && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">SPV Focus</p>
+              <p className="text-xs mt-1 text-foreground">{Array.isArray(nodeData.spv_focus) ? nodeData.spv_focus.join(', ') : nodeData.spv_focus}</p>
+            </div>
+          )}
         </div>
       );
     
@@ -1628,21 +1710,47 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
 
       return (
         <div className="space-y-2">
-          {nodeData.domain_category && (
-            <div className="inline-block bg-orange-500/20 text-orange-300 px-2 py-1 rounded text-xs font-semibold">
-              {nodeData.domain_category}
+          {/* Parent L3 */}
+          {nodeData.parent_l3_id && (
+            <div className="bg-rose-500/10 border border-rose-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-rose-400">Parent Question (L3)</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_l3_id, pipelineLookup?.l3s, 'text-rose-400')}</p>
             </div>
           )}
+          <div className="flex flex-wrap gap-1.5">
+            {nodeData.domain_category && (
+              <span className="bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded text-xs font-semibold">
+                {nodeData.domain_category}
+              </span>
+            )}
+            {nodeData.confidence_score != null && (
+              <span className="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-xs font-semibold">
+                Confidence: {nodeData.confidence_score}
+              </span>
+            )}
+          </div>
           {nodeData.process_hypothesis && (
             <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-orange-400">Process Hypothesis</p>
               <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.process_hypothesis}</p>
             </div>
           )}
+          {nodeData.mechanism_sketch && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Mechanism Sketch</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.mechanism_sketch}</p>
+            </div>
+          )}
           {nodeData.discriminating_prediction && (
             <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-orange-400">Discriminating Prediction</p>
               <p className="text-xs mt-1 text-foreground">{nodeData.discriminating_prediction}</p>
+            </div>
+          )}
+          {nodeData.testability_notes && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Testability</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.testability_notes}</p>
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
@@ -1661,12 +1769,8 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
           </div>
           {mapsToRaIds.length > 0 && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-emerald-400">Maps to RAs</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {mapsToRaIds.map((raId: string, i: number) => (
-                  <span key={i} className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">{raId}</span>
-                ))}
-              </div>
+              <p className="text-xs font-semibold text-emerald-400">Maps to Requirements</p>
+              <div className="mt-1">{renderIdList(mapsToRaIds, pipelineLookup?.ras, 'text-emerald-400')}</div>
             </div>
           )}
           {meterClassesIH.length > 0 && (
@@ -1690,17 +1794,28 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
     
     case 'l4':
       const distinguishesIHIdsL4 = Array.isArray(nodeData.distinguishes_ih_ids) ? nodeData.distinguishes_ih_ids : [];
-      
+
       return (
         <div className="space-y-2">
           {nodeData.type && nodeData.lens && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <span className="inline-block bg-lime-500/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
                 {nodeData.type}
               </span>
               <span className="inline-block bg-lime-500/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
                 {nodeData.lens}
               </span>
+              {nodeData.priority && (
+                <span className="inline-block bg-lime-500/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
+                  Priority: {nodeData.priority}
+                </span>
+              )}
+            </div>
+          )}
+          {(nodeData.parent_l3_id || nodeData.l3_id) && (
+            <div className="bg-rose-500/10 border border-rose-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-rose-400">Parent L3 Question</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_l3_id || nodeData.l3_id, pipelineLookup?.l3s, 'text-rose-400')}</p>
             </div>
           )}
           {nodeData.text && (
@@ -1715,14 +1830,22 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
             </div>
           )}
-          {distinguishesIHIdsL4.length > 0 && (
+          {nodeData.expected_outcome && (
             <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-lime-400">Distinguishes IHs</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {distinguishesIHIdsL4.map((ihId: string, i: number) => (
-                  <span key={i} className="text-xs bg-lime-500/20 text-lime-300 px-2 py-0.5 rounded">{ihId}</span>
-                ))}
-              </div>
+              <p className="text-xs font-semibold text-lime-400">Expected Outcome</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.expected_outcome}</p>
+            </div>
+          )}
+          {nodeData.elimination_value && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Elimination Value</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.elimination_value}</p>
+            </div>
+          )}
+          {distinguishesIHIdsL4.length > 0 && (
+            <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-orange-400">Distinguishes Hypotheses</p>
+              <div className="mt-1">{renderIdList(distinguishesIHIdsL4, pipelineLookup?.ihs, 'text-orange-400')}</div>
             </div>
           )}
         </div>
@@ -1732,10 +1855,21 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
       return (
         <div className="space-y-2">
           {nodeData.type && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <span className="inline-block bg-lime-400/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
                 {nodeData.type}
               </span>
+              {nodeData.mechanism_level && (
+                <span className="inline-block bg-lime-400/20 text-lime-300 px-2 py-1 rounded text-xs font-semibold">
+                  {nodeData.mechanism_level}
+                </span>
+              )}
+            </div>
+          )}
+          {nodeData.parent_l4_id && (
+            <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-500">Parent L4 Question</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_l4_id, pipelineLookup?.l4s, 'text-lime-400')}</p>
             </div>
           )}
           {nodeData.text && (
@@ -1750,10 +1884,16 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
             </div>
           )}
-          {nodeData.parent_l4_id && (
+          {nodeData.target_mechanism && (
             <div className="bg-lime-400/10 border border-lime-400/30 p-2 rounded">
-              <p className="text-xs font-semibold text-lime-400">Parent L4</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.parent_l4_id}</p>
+              <p className="text-xs font-semibold text-lime-400">Target Mechanism</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.target_mechanism}</p>
+            </div>
+          )}
+          {nodeData.required_resolution && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Required Resolution</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.required_resolution}</p>
             </div>
           )}
         </div>
@@ -1761,81 +1901,151 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
     
     case 'l6':
       const simtParams = nodeData.simt_parameters || {};
-      
+      const l6GeniusScore = nodeData.genius_score;
+      const l6FeasScore = nodeData.feasibility_score;
+
       return (
         <div className="space-y-2">
-          {nodeData.type && (
-            <div className="inline-block bg-teal-500/20 text-teal-300 px-2 py-1 rounded text-xs font-semibold">
-              {nodeData.type}
-            </div>
-          )}
+          {/* Badges row: type + scores */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {nodeData.type && (
+              <span className="bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded text-xs font-semibold">
+                {nodeData.type}
+              </span>
+            )}
+            {l6GeniusScore != null && (
+              <span className={`px-2 py-0.5 rounded text-xs font-bold ${l6GeniusScore >= 7 ? 'bg-emerald-500/20 text-emerald-300' : l6GeniusScore >= 5 ? 'bg-blue-500/20 text-blue-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                Genius: {l6GeniusScore}/10
+              </span>
+            )}
+            {l6FeasScore != null && (
+              <span className={`px-2 py-0.5 rounded text-xs font-bold ${l6FeasScore >= 7 ? 'bg-emerald-500/20 text-emerald-300' : l6FeasScore >= 5 ? 'bg-blue-500/20 text-blue-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                Feasibility: {l6FeasScore}/10
+              </span>
+            )}
+            {nodeData.discovery_component && (
+              <span className="bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded text-xs font-bold">
+                Discovery
+              </span>
+            )}
+          </div>
+
+          {/* Parent chain */}
           {nodeData.parent_l4_id && (
-            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-teal-400">Parent L4</p>
-              <p className="text-xs mt-1 text-foreground font-mono">{nodeData.parent_l4_id}</p>
+            <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-500">Parent L4 Question</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_l4_id, pipelineLookup?.l4s, 'text-lime-400')}</p>
             </div>
           )}
+          {nodeData.parent_l5_id && (
+            <div className="bg-lime-400/10 border border-lime-400/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Parent L5 Sub-question</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_l5_id, pipelineLookup?.l5s, 'text-lime-300')}</p>
+            </div>
+          )}
+
+          {/* Title */}
           {nodeData.title && (
-            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-teal-400">Title</p>
-              <p className="text-xs mt-1 text-foreground font-semibold">{nodeData.title}</p>
+            <div className="bg-teal-500/10 border border-teal-500/30 p-2.5 rounded">
+              <p className="text-xs font-semibold text-teal-400 mb-1">Title</p>
+              <p className="text-sm text-foreground font-semibold leading-snug">{nodeData.title}</p>
             </div>
           )}
+
+          {/* Rationale */}
           {nodeData.rationale && (
-            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-blue-400">Rationale</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2.5 rounded">
+              <p className="text-xs font-semibold text-blue-400 mb-1">Rationale</p>
+              <p className="text-xs text-foreground leading-relaxed">{nodeData.rationale}</p>
             </div>
           )}
+
+          {/* Description */}
           {nodeData.description && (
-            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-teal-400">Description</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.description}</p>
+            <div className="bg-teal-500/10 border border-teal-500/30 p-2.5 rounded">
+              <p className="text-xs font-semibold text-teal-400 mb-1">Description</p>
+              <p className="text-xs text-foreground leading-relaxed">{nodeData.description}</p>
             </div>
           )}
+
+          {/* SIMT Parameters — individual cards for readability */}
           {Object.keys(simtParams).length > 0 && (
-            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-teal-400">SIMT Parameters</p>
-              <div className="grid grid-cols-2 gap-2 mt-1 text-xs">
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold text-teal-400 uppercase tracking-wider px-0.5">SIMT Parameters</p>
+              <div className="grid grid-cols-1 gap-1.5">
                 {simtParams.system && (
-                  <div>
-                    <span className="font-semibold text-teal-300">System:</span> {simtParams.system}
+                  <div className="bg-teal-500/8 border border-teal-500/20 p-2 rounded">
+                    <p className="text-xs font-bold text-teal-300 mb-0.5">System</p>
+                    <p className="text-xs text-foreground leading-relaxed">{simtParams.system}</p>
                   </div>
                 )}
                 {simtParams.intervention && (
-                  <div>
-                    <span className="font-semibold text-teal-300">Intervention:</span> {simtParams.intervention}
+                  <div className="bg-blue-500/8 border border-blue-500/20 p-2 rounded">
+                    <p className="text-xs font-bold text-blue-300 mb-0.5">Intervention</p>
+                    <p className="text-xs text-foreground leading-relaxed">{simtParams.intervention}</p>
                   </div>
                 )}
                 {simtParams.meter && (
-                  <div>
-                    <span className="font-semibold text-teal-300">Meter:</span> {simtParams.meter}
+                  <div className="bg-violet-500/8 border border-violet-500/20 p-2 rounded">
+                    <p className="text-xs font-bold text-violet-300 mb-0.5">Meter</p>
+                    <p className="text-xs text-foreground leading-relaxed">{simtParams.meter}</p>
                   </div>
                 )}
                 {simtParams.threshold_time && (
-                  <div>
-                    <span className="font-semibold text-teal-300">Time:</span> {simtParams.threshold_time}
+                  <div className="bg-amber-500/8 border border-amber-500/20 p-2 rounded">
+                    <p className="text-xs font-bold text-amber-300 mb-0.5">Threshold / Time</p>
+                    <p className="text-xs text-foreground leading-relaxed">{simtParams.threshold_time}</p>
                   </div>
                 )}
               </div>
             </div>
           )}
-          {nodeData.expected_impact && (
-            <div className="bg-green-500/10 border border-green-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-green-400">Expected Impact</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.expected_impact}</p>
+
+          {/* If Null — critical info about what happens if experiment gives null result */}
+          {nodeData.if_null && (
+            <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded">
+              <p className="text-xs font-semibold text-red-400 mb-1">If Null Result</p>
+              <p className="text-xs text-foreground leading-relaxed">{nodeData.if_null}</p>
             </div>
           )}
+
+          {/* Expected Impact */}
+          {nodeData.expected_impact && (
+            <div className="bg-green-500/10 border border-green-500/30 p-2.5 rounded">
+              <p className="text-xs font-semibold text-green-400 mb-1">Expected Impact</p>
+              <p className="text-xs text-foreground leading-relaxed">{nodeData.expected_impact}</p>
+            </div>
+          )}
+
+          {/* SPV Link */}
           {nodeData.spv_link && (
             <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-teal-400">SPV Link</p>
-              <p className="text-xs mt-1 text-foreground font-mono">{nodeData.spv_link}</p>
+              <p className="text-xs mt-1 text-foreground">
+                <span className="font-mono text-xs text-teal-300">{nodeData.spv_link}</span>
+                {(() => {
+                  const spvs = bridgeLexicon?.system_property_variables || bridgeLexicon?.SPVs || [];
+                  const match = spvs.find((s: any) => (s.id || s.ID) === nodeData.spv_link);
+                  if (match) return <span className="text-xs text-muted-foreground ml-1">— {match.name || match.Name || match.definition || match.Definition}</span>;
+                  return null;
+                })()}
+              </p>
             </div>
           )}
+
+          {/* Verification Note */}
+          {nodeData.verification_note && (
+            <div className="bg-secondary/40 border border-border/30 p-2.5 rounded">
+              <p className="text-xs font-semibold text-muted-foreground mb-1">Verification Note</p>
+              <p className="text-xs text-foreground/80 leading-relaxed">{nodeData.verification_note}</p>
+            </div>
+          )}
+
+          {/* Readiness Assessment */}
           {nodeData.readiness_assessment && (
-            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-amber-400">Readiness Assessment</p>
-              <p className="text-xs mt-1 text-foreground">{nodeData.readiness_assessment}</p>
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded">
+              <p className="text-xs font-semibold text-amber-400 mb-1">Readiness Assessment</p>
+              <p className="text-xs text-foreground leading-relaxed">{nodeData.readiness_assessment}</p>
             </div>
           )}
         </div>
@@ -1868,15 +2078,31 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
     case 'domain_group':
       return (
         <div className="space-y-2">
-          {nodeData.domain_id && (
-            <div className="inline-block bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded text-xs font-semibold">
-              {nodeData.domain_id}
-            </div>
-          )}
-          {nodeData.s_node_count !== undefined && (
-            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-cyan-400">Interventions in Domain</p>
-              <p className="text-xs mt-1 text-foreground font-bold">{nodeData.s_node_count}</p>
+          <div className="flex gap-2 flex-wrap">
+            {nodeData.domain_id && (
+              <span className="bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded text-xs font-semibold">
+                {nodeData.domain_id}
+              </span>
+            )}
+            {nodeData.relevance_to_goal && (
+              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                nodeData.relevance_to_goal === 'HIGH' ? 'bg-green-500/20 text-green-400' :
+                nodeData.relevance_to_goal === 'MED' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-gray-500/20 text-gray-400'
+              }`}>
+                Relevance: {nodeData.relevance_to_goal}
+              </span>
+            )}
+            {nodeData.s_node_count !== undefined && (
+              <span className="bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded text-xs font-semibold">
+                {nodeData.s_node_count} interventions
+              </span>
+            )}
+          </div>
+          {(nodeData.parent_goal_id || nodeData.goal_id || nodeData.target_goal_id) && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">Parent Goal</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_goal_id || nodeData.goal_id || nodeData.target_goal_id, pipelineLookup?.goals, 'text-purple-400')}</p>
             </div>
           )}
           {nodeData.domain_name && (
@@ -1889,18 +2115,6 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
             <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-cyan-400">Scope Definition</p>
               <p className="text-xs mt-1 text-foreground">{nodeData.scope_definition}</p>
-            </div>
-          )}
-          {nodeData.relevance_to_goal && (
-            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
-              <p className="text-xs font-semibold text-cyan-400">Relevance to Goal</p>
-              <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                nodeData.relevance_to_goal === 'HIGH' ? 'bg-green-500/20 text-green-400' :
-                nodeData.relevance_to_goal === 'MED' ? 'bg-yellow-500/20 text-yellow-400' :
-                'bg-gray-500/20 text-gray-400'
-              }`}>
-                {nodeData.relevance_to_goal}
-              </span>
             </div>
           )}
           {nodeData.expected_intervention_count && (
@@ -1925,6 +2139,12 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <p className="text-xs mt-1 text-foreground">{nodeData.rationale}</p>
             </div>
           )}
+          {nodeData.catastrophe_prevention_relevance && (
+            <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-red-400">Catastrophe Prevention Relevance</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.catastrophe_prevention_relevance}</p>
+            </div>
+          )}
         </div>
       );
     
@@ -1943,7 +2163,10 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
             )}
           </div>
           {nodeData.l4_reference_id && (
-            <div className="text-xs text-muted-foreground">L4: <span className="font-mono">{nodeData.l4_reference_id}</span></div>
+            <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Parent L4 Question</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.l4_reference_id, pipelineLookup?.l4s, 'text-lime-400')}</p>
+            </div>
           )}
           {exp.title && (
             <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded">
@@ -2035,7 +2258,10 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
             )}
           </div>
           {nodeData.l4_reference_id && (
-            <div className="text-xs text-muted-foreground">L4: <span className="font-mono">{nodeData.l4_reference_id}</span></div>
+            <div className="bg-lime-500/10 border border-lime-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-lime-400">Parent L4 Question</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.l4_reference_id, pipelineLookup?.l4s, 'text-lime-400')}</p>
+            </div>
           )}
           {rejectionReasons.length > 0 && (
             <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">

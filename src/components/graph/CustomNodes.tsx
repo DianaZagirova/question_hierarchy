@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { ChevronDown, ChevronRight, Layers, FlaskConical, Target, ListChecks, Lightbulb, Workflow, Microscope, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Layers, FlaskConical, Target, ListChecks, Lightbulb, Workflow, Microscope, Info, Eye } from 'lucide-react';
 
 // Color scheme for different node types
 export const NODE_COLORS = {
@@ -36,10 +36,29 @@ const getNodeIcon = (type: string) => {
   }
 };
 
+// Human-readable type labels for node badges
+const NODE_TYPE_LABEL: Record<string, string> = {
+  q0: 'MASTER Q',
+  goal: 'GOAL',
+  spv: 'PROPERTY',
+  ra: 'REQUIREMENT',
+  domain: 'DOMAIN',
+  domain_group: 'DOMAINS',
+  scientific: 'SCIENCE',
+  l3: 'QUESTION',
+  ih: 'HYPOTHESIS',
+  l4: 'TACTIC',
+  l5: 'SUB-PROBLEM',
+  l6: 'EXPERIMENT',
+  common_l6: 'UNIFIED EXP',
+  common_l6_fail: 'NO MERGE',
+};
+
 // Standard Node Component (for most node types)
 export const StandardNode = memo(({ data, selected }: NodeProps) => {
   const colors = NODE_COLORS[data.type as keyof typeof NODE_COLORS] || NODE_COLORS.cluster;
   const hasFullText = data.fullText && data.fullText !== data.label;
+  const isHighlighted = data.isHighlighted;
 
   return (
     <div
@@ -47,13 +66,20 @@ export const StandardNode = memo(({ data, selected }: NodeProps) => {
         relative px-3 py-2 rounded-lg border-2 bg-gradient-to-br
         ${colors.bg} ${colors.border}
         ${selected ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-slate-900' : ''}
+        ${isHighlighted ? 'ring-4 ring-purple-500 ring-offset-2 ring-offset-slate-900 border-purple-500' : ''}
         shadow-lg ${colors.glow}
-        hover:scale-105 transition-all duration-200
+        hover:scale-105 transition-transform duration-150
         min-w-[180px] max-w-[280px]
         group
       `}
       title={hasFullText ? data.fullText : data.label} // Tooltip with full text
     >
+      {/* Best experiment eye indicator — pinned to left edge */}
+      {isHighlighted && (
+        <div className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-purple-600 border-2 border-purple-400 flex items-center justify-center shadow-lg shadow-purple-500/50" title="Selected best experiment">
+          <Eye className="w-3.5 h-3.5 text-white" />
+        </div>
+      )}
       <Handle type="target" position={Position.Top} className="w-2 h-2 bg-slate-400" />
 
       <div className="flex items-start gap-2">
@@ -61,21 +87,24 @@ export const StandardNode = memo(({ data, selected }: NodeProps) => {
           {getNodeIcon(data.type)}
         </div>
         <div className="flex-1 min-w-0">
+          <div className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${colors.text} opacity-70`}>
+            {NODE_TYPE_LABEL[data.type] || data.type}
+          </div>
           <div className="text-xs font-semibold text-foreground leading-tight break-words">
             {data.label}
           </div>
           {hasFullText && (
-            <div className="text-[9px] text-blue-400 mt-0.5 italic opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="text-[10px] text-blue-400 mt-0.5 italic opacity-0 group-hover:opacity-100 transition-opacity">
               Hover for full text
             </div>
           )}
           {data.subtitle && (
-            <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+            <div className="text-[11px] text-muted-foreground mt-1 leading-tight">
               {data.subtitle}
             </div>
           )}
           {data.metrics && (
-            <div className="flex gap-2 mt-1.5 text-[9px]">
+            <div className="flex gap-2 mt-1.5 text-[10px]">
               {data.metrics.map((metric: any, idx: number) => (
                 <span key={idx} className="px-1.5 py-0.5 rounded bg-slate-800/50 text-slate-300">
                   {metric.label}: {metric.value}
@@ -123,7 +152,7 @@ export const ClusterNode = memo(({ data, selected }: NodeProps) => {
         ${colors.bg} ${colors.border}
         ${selected ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-slate-900' : ''}
         shadow-xl ${colors.glow}
-        hover:scale-[1.02] hover:shadow-2xl transition-all duration-200
+        hover:scale-[1.02] transition-transform duration-150
         min-w-[220px] max-w-[360px]
         cursor-pointer group
       `}
@@ -166,7 +195,7 @@ export const ClusterNode = memo(({ data, selected }: NodeProps) => {
           {/* Stats badges */}
           <div className="flex flex-wrap gap-2">
             {data.stats?.map((stat: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800/60 text-[10px] border border-slate-700/50">
+              <div key={idx} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800/60 text-[11px] border border-slate-700/50">
                 <span className="text-slate-400">{stat.label}:</span>
                 <span className={`font-semibold ${colors.text}`}>{stat.value}</span>
               </div>
@@ -176,11 +205,11 @@ export const ClusterNode = memo(({ data, selected }: NodeProps) => {
           {/* Preview (shown when collapsed) */}
           {!data.expanded && data.preview && data.preview.length > 0 && (
             <div className="mt-2.5 pt-2.5 border-t border-slate-700/50">
-              <div className="text-[9px] text-slate-400 mb-1.5 uppercase tracking-wide font-semibold">
+              <div className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wide font-semibold">
                 Preview (top {data.preview.length}):
               </div>
               {data.preview.map((item: string, idx: number) => (
-                <div key={idx} className="text-[10px] text-slate-300 truncate leading-relaxed">
+                <div key={idx} className="text-[11px] text-slate-300 truncate leading-relaxed">
                   • {item}
                 </div>
               ))}
@@ -189,7 +218,7 @@ export const ClusterNode = memo(({ data, selected }: NodeProps) => {
 
           {/* Expanded indicator */}
           {data.expanded && (
-            <div className="mt-2 text-[10px] text-green-400 font-semibold">
+            <div className="mt-2 text-[11px] text-green-400 font-semibold">
               ✓ Expanded - showing all items
             </div>
           )}
@@ -207,6 +236,7 @@ ClusterNode.displayName = 'ClusterNode';
 export const CompactNode = memo(({ data, selected }: NodeProps) => {
   const colors = NODE_COLORS[data.type as keyof typeof NODE_COLORS] || NODE_COLORS.cluster;
   const hasFullText = data.fullText && data.fullText !== data.label;
+  const isHighlighted = data.isHighlighted;
 
   return (
     <div
@@ -214,19 +244,29 @@ export const CompactNode = memo(({ data, selected }: NodeProps) => {
         relative px-2 py-1.5 rounded-md border bg-gradient-to-br
         ${colors.bg} ${colors.border}
         ${selected ? 'ring-2 ring-green-400' : ''}
+        ${isHighlighted ? 'ring-2 ring-purple-500 border-purple-500' : ''}
         shadow-md ${colors.glow}
-        hover:scale-110 transition-all duration-200
+        hover:scale-105 transition-transform duration-150
         min-w-[140px] max-w-[200px]
       `}
       title={hasFullText ? data.fullText : data.label} // Tooltip with full text
     >
+      {/* Best experiment eye indicator — pinned to left edge */}
+      {isHighlighted && (
+        <div className="absolute -left-2.5 top-1/2 -translate-y-1/2 z-10 w-5 h-5 rounded-full bg-purple-600 border-2 border-purple-400 flex items-center justify-center shadow-lg shadow-purple-500/50" title="Selected best experiment">
+          <Eye className="w-3 h-3 text-white" />
+        </div>
+      )}
       <Handle type="target" position={Position.Top} className="w-1.5 h-1.5 bg-slate-400" />
 
+      <div className={`text-[8px] font-bold uppercase tracking-wider mb-0.5 ${colors.text} opacity-70`}>
+        {NODE_TYPE_LABEL[data.type] || data.type}
+      </div>
       <div className="flex items-center gap-1.5">
         <div className={`${colors.text}`}>
           {getNodeIcon(data.type)}
         </div>
-        <div className="text-[10px] font-medium text-foreground leading-tight truncate flex-1">
+        <div className="text-[11px] font-medium text-foreground leading-tight truncate flex-1">
           {data.label}
         </div>
       </div>
@@ -250,7 +290,7 @@ export const MasterNode = memo(({ data, selected }: NodeProps) => {
         border-blue-500/60
         ${selected ? 'ring-3 ring-green-400 ring-offset-2 ring-offset-slate-900' : ''}
         shadow-2xl shadow-blue-500/40
-        hover:scale-105 transition-all duration-300
+        hover:scale-105 transition-transform duration-150
         min-w-[300px] max-w-[400px]
         group
       `}
@@ -268,7 +308,7 @@ export const MasterNode = memo(({ data, selected }: NodeProps) => {
             {data.label}
           </div>
           {hasFullText && (
-            <div className="text-[10px] text-blue-300 mt-1 italic opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="text-[11px] text-blue-300 mt-1 italic opacity-0 group-hover:opacity-100 transition-opacity">
               Click for full text →
             </div>
           )}
@@ -279,3 +319,31 @@ export const MasterNode = memo(({ data, selected }: NodeProps) => {
 });
 
 MasterNode.displayName = 'MasterNode';
+
+// Layer annotation label — non-interactive, positioned in the graph at each rank level
+export const LayerLabelNode = memo(({ data }: NodeProps) => {
+  return (
+    <div className="pointer-events-auto select-none group/layerlabel" style={{ width: 160 }}>
+      {data.tiers.map((tier: { type: string; label: string; color: string; description: string }, i: number) => (
+        <div key={tier.type} className={`relative flex items-center gap-1.5 ${i > 0 ? 'mt-0.5' : ''}`}>
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tier.color }} />
+          <span className="text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: tier.color }}>
+            {tier.label}
+          </span>
+        </div>
+      ))}
+      {/* Hover tooltip showing all tier descriptions */}
+      <div className="invisible group-hover/layerlabel:visible absolute z-[100] left-full ml-3 top-0 w-72 px-3 py-2.5 rounded-lg shadow-2xl text-[11px] leading-relaxed"
+        style={{ color: '#e2e8f0', backgroundColor: '#0f172aee', border: '1px solid rgba(148,163,184,0.3)' }}>
+        {data.tiers.map((tier: { type: string; label: string; color: string; description: string }) => (
+          <div key={tier.type} className="mb-2 last:mb-0">
+            <div className="font-bold text-xs" style={{ color: tier.color }}>{tier.label}</div>
+            <div className="text-slate-300 mt-0.5">{tier.description}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+LayerLabelNode.displayName = 'LayerLabelNode';

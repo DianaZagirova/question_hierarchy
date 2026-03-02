@@ -7,12 +7,11 @@ interface SplitViewProps {
   steps: PipelineStep[];
   agents: AgentConfig[];
   onRunStep: (stepId: number) => void;
-  onSkipStep: (stepId: number) => void;
   onClearStep: (stepId: number) => void;
   onAbortStep: (stepId: number) => void;
 }
 
-export const SplitView: React.FC<SplitViewProps> = ({ steps, agents, onRunStep, onSkipStep, onClearStep, onAbortStep }) => {
+export const SplitView: React.FC<SplitViewProps> = ({ steps, agents, onRunStep, onClearStep, onAbortStep }) => {
   return (
     <div className="grid grid-cols-2 gap-4 h-[calc(100vh-300px)]">
       {/* Left: Pipeline Actions */}
@@ -24,7 +23,6 @@ export const SplitView: React.FC<SplitViewProps> = ({ steps, agents, onRunStep, 
           steps={steps}
           agents={agents}
           onRunStep={onRunStep}
-          onSkipStep={onSkipStep}
           onClearStep={onClearStep}
           onAbortStep={onAbortStep}
         />

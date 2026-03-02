@@ -24,6 +24,13 @@ FROM python:3.11-slim AS production
 
 WORKDIR /app
 
+# Install system dependencies for ML packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Python dependencies
 COPY server/requirements.txt /app/server/requirements.txt
 RUN pip install --no-cache-dir -r /app/server/requirements.txt
@@ -31,6 +38,16 @@ RUN pip install --no-cache-dir -r /app/server/requirements.txt
 # Copy server code
 COPY server/*.py /app/server/
 COPY server/init.sql /app/server/init.sql
+
+# Copy Step 4 optimized modules
+COPY server/research_apis_optimized.py /app/server/
+COPY server/knowledge_dedup_optimized.py /app/server/
+COPY server/knowledge_cache_optimized.py /app/server/
+COPY server/step4_pipeline_optimized.py /app/server/
+COPY server/step4_integration.py /app/server/
+
+# Copy migrations
+COPY server/migrations /app/server/migrations
 
 # Copy built frontend from Stage 1
 COPY --from=frontend /app/dist /app/dist
@@ -42,7 +59,7 @@ ENV PYTHONUNBUFFERED=1 \
     NODE_ENV=production \
     PORT=3002 \
     HOST=0.0.0.0 \
-    GUNICORN_WORKERS=4 \
+    GUNICORN_WORKERS=2 \
     GUNICORN_TIMEOUT=420 \
     API_PROVIDER=openai
 

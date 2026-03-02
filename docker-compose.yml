@@ -10,7 +10,7 @@
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: omega-point-postgres
     restart: unless-stopped
     environment:
@@ -19,7 +19,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./server/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./server/migrations/001_add_scientific_pillars.sql:/docker-entrypoint-initdb.d/02-step4-migration.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U omegapoint"]
       interval: 10s
@@ -58,6 +59,10 @@ services:
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-300}
       - DATABASE_URL=${DATABASE_URL:-postgresql://omegapoint:changeme@postgres:5432/omegapoint}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - OPENBLAS_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - OMP_NUM_THREADS=1
+      - NUMEXPR_NUM_THREADS=1
 
 volumes:
   postgres_data:

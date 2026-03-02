@@ -89,7 +89,7 @@ const AgentDetails: React.FC<AgentDetailsProps> = ({ agent, stepNumber }) => {
                 {stepNumber}. {agent.name}
               </h3>
               {isDeprecated && (
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40">
                   Deprecated
                 </span>
               )}

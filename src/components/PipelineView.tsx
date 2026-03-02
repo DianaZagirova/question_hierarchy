@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { StepOutputViewer } from './StepOutputViewer';
 import { PipelineStep, AgentConfig } from '@/types';
-import { Play, SkipForward, CheckCircle, XCircle, Circle, Loader, RefreshCw, Trash2, StopCircle, Info, X, Pencil } from 'lucide-react';
+import { Play, CheckCircle, XCircle, Circle, Loader, RefreshCw, Trash2, StopCircle, Info, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { subscribeBatchProgress, BatchProgress } from '@/lib/api';
 
@@ -11,13 +11,26 @@ interface PipelineViewProps {
   steps: PipelineStep[];
   agents: AgentConfig[];
   onRunStep: (stepId: number) => void;
-  onSkipStep: (stepId: number) => void;
   onClearStep: (stepId: number) => void;
   onAbortStep: (stepId: number) => void;
   onRetryStep?: (stepId: number) => void;
   onRunStep4Phase?: (phase: '4a' | '4b') => void;
   onEditOutput?: (stepId: number, newOutput: any) => void;
 }
+
+// Concise one-line subtitle for each step (shown below the step name)
+const STEP_SUBTITLE: Record<number, string> = {
+  1: 'Turns your goal into one precise, measurable master question',
+  2: 'Breaks the master question into required end-states and failure modes',
+  3: 'Converts each goal into atomic, testable requirements',
+  4: 'Scans scientific literature to map what is already known',
+  5: 'Matches requirements to scientific knowledge (merged into Step 4)',
+  6: 'Identifies frontier questions where science has no answers yet',
+  7: 'Proposes competing hypotheses that could answer each question',
+  8: 'Designs tactical questions that pit hypotheses against each other',
+  9: 'Converts tactics into concrete lab experiments with protocols',
+  10: 'Tries to merge related experiments into unified designs',
+};
 
 // Step-specific input/output descriptions
 const STEP_IO: Record<number, { inputs: string[]; outputs: string[] }> = {
@@ -63,7 +76,7 @@ const STEP_IO: Record<number, { inputs: string[]; outputs: string[] }> = {
   },
 };
 
-export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRunStep, onSkipStep, onClearStep, onAbortStep, onRetryStep, onRunStep4Phase, onEditOutput }) => {
+export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRunStep, onClearStep, onAbortStep, onRetryStep, onRunStep4Phase, onEditOutput }) => {
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [agentInfoStep, setAgentInfoStep] = useState<number | null>(null);
   const [editingStep, setEditingStep] = useState<number | null>(null);
@@ -74,6 +87,29 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
 
   // Track whether any step is currently running (global lock for Run/Regenerate buttons)
   const isAnyStepRunning = steps.some((s) => s.status === 'running');
+
+  // Refs for auto-scrolling to steps
+  const stepRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  // Track previous step statuses for detecting transitions
+  const prevStatusesRef = useRef<Record<number, string>>({});
+
+  // Auto-scroll to the step that just started running
+  useEffect(() => {
+    const prevStatuses = prevStatusesRef.current;
+
+    for (const step of steps) {
+      const prev = prevStatuses[step.id];
+
+      if (step.status === 'running' && prev !== 'running') {
+        const el = stepRefs.current[step.id];
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+
+      prevStatuses[step.id] = step.status;
+    }
+  }, [steps.map(s => `${s.id}:${s.status}`).join(',')]);
 
   // Subscribe to SSE progress for running batch steps (steps 3-10 use batching)
   useEffect(() => {
@@ -217,6 +253,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
         return (
         <Card
           key={step.id}
+          ref={(el: HTMLDivElement | null) => { stepRefs.current[step.id] = el; }}
           className={cn(
             'transition-all bg-card/50 border-border/30',
             step.status === 'running' && 'ring-2 ring-primary shadow-[0_0_30px_rgba(59,130,246,0.3)]',
@@ -233,7 +270,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                 <div className="flex items-center gap-3 flex-1">
                   {getStatusIcon(step.status)}
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2">
                       {(() => {
                         const agent = agents.find(a => a.id === step.agentId);
                         return agent?.icon && (
@@ -249,6 +286,11 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                         </span>
                       )}
                     </div>
+                    {STEP_SUBTITLE[step.id] && !isDisabled && (
+                      <div className="text-xs text-muted-foreground/70 mt-0.5 leading-snug">
+                        {STEP_SUBTITLE[step.id]}
+                      </div>
+                    )}
                     {(() => {
                       const stepAgent = agents.find(a => a.id === step.agentId);
                       return stepAgent && (
@@ -316,15 +358,6 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                     >
                       <Play size={16} className="mr-1" />
                       Run
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onSkipStep(step.id)}
-                      disabled={isAnyStepRunning}
-                    >
-                      <SkipForward size={16} className="mr-1" />
-                      Skip
                     </Button>
                   </>
                 )}
@@ -451,19 +484,19 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
 
                 {/* Model & Settings */}
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
                     Model: {agent.model}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
                     Temp: {agent.temperature}
                   </span>
                   {agent.settings?.nodeCount && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
+                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700/50 text-slate-300 border border-slate-600/50">
                       Nodes: {agent.settings.nodeCount.min}–{agent.settings.nodeCount.max} (default {agent.settings.nodeCount.default})
                     </span>
                   )}
                   {agent.enabled === false && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-900/30 text-red-400 border border-red-800/50">
+                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-900/30 text-red-400 border border-red-800/50">
                       DISABLED
                     </span>
                   )}
@@ -473,7 +506,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                 {STEP_IO[step.id] && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="bg-emerald-500/5 border border-emerald-500/20 rounded p-2.5">
-                      <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide mb-1.5">Inputs</div>
+                      <div className="text-xs font-bold text-emerald-400 uppercase tracking-wide mb-1.5">Inputs</div>
                       <ul className="space-y-1">
                         {STEP_IO[step.id].inputs.map((input, i) => (
                           <li key={i} className="text-xs text-foreground/80 flex gap-1.5">
@@ -484,7 +517,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                       </ul>
                     </div>
                     <div className="bg-amber-500/5 border border-amber-500/20 rounded p-2.5">
-                      <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wide mb-1.5">Outputs</div>
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wide mb-1.5">Outputs</div>
                       <ul className="space-y-1">
                         {STEP_IO[step.id].outputs.map((output, i) => (
                           <li key={i} className="text-xs text-foreground/80 flex gap-1.5">
@@ -505,10 +538,10 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
             <CardContent className="border-t border-border/30 py-3">
               <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-primary uppercase tracking-wide">
+                  <span className="text-xs font-bold text-primary uppercase tracking-wide">
                     Batch Progress
                   </span>
-                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     {batchProgress[step.id].successful > 0 && (
                       <span className="text-green-400">{batchProgress[step.id].successful} ok</span>
                     )}
@@ -531,7 +564,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                     style={{ width: `${batchProgress[step.id].percent}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-0.5">
+                <div className="flex justify-between text-xs text-muted-foreground mt-1 px-0.5">
                   <span>{batchProgress[step.id].completed} / {batchProgress[step.id].total} items</span>
                   <span className="text-primary font-semibold">{batchProgress[step.id].percent}%</span>
                 </div>
@@ -549,10 +582,10 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                 {batchProgress[4] && batchProgress[4].total > 0 ? (
                   <>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wide">
+                      <span className="text-xs font-bold text-blue-400 uppercase tracking-wide">
                         Pipeline Progress
                       </span>
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         {batchProgress[4].successful > 0 && (
                           <span className="text-green-400">{batchProgress[4].successful} ok</span>
                         )}
@@ -575,7 +608,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                         style={{ width: `${batchProgress[4].percent}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 px-0.5">
+                    <div className="flex justify-between text-xs text-slate-400 mt-1 px-0.5">
                       <span>{batchProgress[4].completed} / {batchProgress[4].total} units (4a mapping + 4b scans)</span>
                       <span className="text-blue-400 font-semibold">{batchProgress[4].percent}%</span>
                     </div>
@@ -677,7 +710,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
                     className="w-full h-[500px] bg-slate-900 border border-amber-500/30 rounded-lg p-3 text-xs font-mono text-foreground leading-relaxed focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 transition-all resize-y"
                     spellCheck={false}
                   />
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Edit the JSON output directly. Changes will be saved to the pipeline and used by downstream steps.
                     Be careful to maintain valid JSON structure.
                   </p>

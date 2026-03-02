@@ -3,7 +3,27 @@ import { persist } from 'zustand/middleware';
 import { AppState, AgentConfig, PipelineStep, ProjectVersion } from '@/types';
 import { DEFAULT_AGENTS } from '@/config/agents';
 
+interface L6AnalysisResult {
+  selected_experiments: Array<{
+    l6_id: string;
+    rank: number;
+    strategic_value: string;
+    impact_potential: string;
+    key_insight: string;
+    discrimination_power?: string;
+    score: number;
+  }>;
+  overall_assessment: string;
+  coverage_gaps?: string;
+}
+
 interface AppStore extends AppState {
+  // L6 Analysis
+  highlightedL6Ids: string[];
+  l6AnalysisResult: L6AnalysisResult | null;
+  l6AnalysisLoading: boolean;
+  focusedNodeId: string | null;
+
   // Actions
   setGoal: (goal: string) => void;
   updateAgent: (agentId: string, updates: Partial<AgentConfig>) => void;
@@ -14,12 +34,16 @@ interface AppStore extends AppState {
   saveVersion: () => void;
   loadVersion: (versionId: string) => void;
   deleteVersion: (versionId: string) => void;
-  skipStep: (stepId: number) => void;
   clearStep: (stepId: number) => void;
   setSelectedGoalId: (goalId: string | null) => void;
   setSelectedL3Id: (l3Id: string | null) => void;
   setSelectedL4Id: (l4Id: string | null) => void;
   updateNodeData: (stepId: number, path: string[], updatedData: any) => void;
+  setHighlightedL6Ids: (ids: string[]) => void;
+  setL6AnalysisResult: (result: L6AnalysisResult | null) => void;
+  setL6AnalysisLoading: (loading: boolean) => void;
+  clearL6Analysis: () => void;
+  setFocusedNodeId: (nodeId: string | null) => void;
 }
 
 const initialSteps: PipelineStep[] = [
@@ -49,6 +73,10 @@ export const useAppStore = create<AppStore>()(
       selectedL3Id: null,
       selectedL4Id: null,
       storageVersion: STORAGE_VERSION,
+      highlightedL6Ids: [],
+      l6AnalysisResult: null,
+      l6AnalysisLoading: false,
+      focusedNodeId: null,
 
       setGoal: (goal: string) => {
         set({ currentGoal: goal });
@@ -127,18 +155,6 @@ export const useAppStore = create<AppStore>()(
         }));
       },
 
-      skipStep: (stepId: number) => {
-        // Step 5 is already permanently skipped, no need to change
-        if (stepId === 5) {
-          console.log(`[Store] Step 5 is permanently skipped (Judge disabled)`);
-          return;
-        }
-        set((state) => ({
-          steps: state.steps.map((step) =>
-            step.id === stepId ? { ...step, status: 'skipped' } : step
-          ),
-        }));
-      },
 
       clearStep: (stepId: number) => {
         // Step 5 cannot be cleared - it's permanently skipped (Judge disabled)
@@ -157,6 +173,10 @@ export const useAppStore = create<AppStore>()(
         set({
           steps: initialSteps,
           currentGoal: '',
+          highlightedL6Ids: [],
+          l6AnalysisResult: null,
+          l6AnalysisLoading: false,
+          focusedNodeId: null,
         });
       },
 
@@ -170,6 +190,10 @@ export const useAppStore = create<AppStore>()(
           selectedGoalId: null,
           selectedL3Id: null,
           selectedL4Id: null,
+          highlightedL6Ids: [],
+          l6AnalysisResult: null,
+          l6AnalysisLoading: false,
+          focusedNodeId: null,
         });
       },
 
@@ -296,6 +320,31 @@ export const useAppStore = create<AppStore>()(
           return { steps: updatedSteps };
         });
       },
+
+      setHighlightedL6Ids: (ids: string[]) => {
+        set({ highlightedL6Ids: ids });
+      },
+
+      setL6AnalysisResult: (result: L6AnalysisResult | null) => {
+        set({ l6AnalysisResult: result });
+      },
+
+      setL6AnalysisLoading: (loading: boolean) => {
+        set({ l6AnalysisLoading: loading });
+      },
+
+      clearL6Analysis: () => {
+        set({
+          highlightedL6Ids: [],
+          l6AnalysisResult: null,
+          l6AnalysisLoading: false,
+          focusedNodeId: null
+        });
+      },
+
+      setFocusedNodeId: (nodeId: string | null) => {
+        set({ focusedNodeId: nodeId });
+      },
     }),
     {
       name: 'omega-point-storage',
@@ -359,6 +408,21 @@ export const useAppStore = create<AppStore>()(
               s.status === 'running' ? { ...s, status: 'pending' as const, error: undefined } : s
             );
           }
+          // Merge stored agents with DEFAULT_AGENTS to ensure all required fields exist
+          // This fixes issues where old localStorage has agents missing temperature/systemPrompt
+          state.agents = state.agents.map((storedAgent) => {
+            const defaultAgent = DEFAULT_AGENTS.find((a) => a.id === storedAgent.id);
+            if (!defaultAgent) return storedAgent;
+
+            // Merge: keep user's enabled/model/temperature overrides, but ensure all fields from default exist
+            return {
+              ...defaultAgent, // Start with all default fields
+              ...storedAgent,  // Override with stored values
+              // Ensure critical fields are not undefined
+              temperature: storedAgent.temperature ?? defaultAgent.temperature,
+              systemPrompt: storedAgent.systemPrompt || defaultAgent.systemPrompt,
+            };
+          });
           // Force deprecated agent-judge to disabled
           const judge = state.agents.find((a) => a.id === 'agent-judge');
           if (judge && judge.enabled) {

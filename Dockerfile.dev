@@ -8,9 +8,10 @@ FROM python:3.11-slim as backend-dev
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (including ML/scientific computing packages)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    g++ \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 

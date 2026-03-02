@@ -4,7 +4,7 @@
 
 import { PipelineStep, AgentConfig } from '@/types';
 import { executeStepBatch } from '@/lib/api';
-import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs, extractStep4ForGoal, fullQ0 } from '@/lib/pipelineHelpers';
+import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs, extractSNodesForGoal, fullQ0 } from '@/lib/pipelineHelpers';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Step7');
@@ -22,7 +22,7 @@ export async function runStep7(
 
   const step2Output = steps[1]?.output;
   const goals = step2Output?.goals || [];
-  const { allSPVs } = extractBridgeLexicon(steps);
+  const { bridgeLexicon, allSPVs } = extractBridgeLexicon(steps);
 
   const step3Output = steps[2]?.output; // RAs keyed by goal ID
 
@@ -32,13 +32,15 @@ export async function runStep7(
     const parentGoalId = l3q.parent_goal_id || l3q.target_goal_id;
     const parentGoal = goals.find((g: any) => g.id === parentGoalId);
     const enrichedParentGoal = parentGoal ? enrichGoalWithSPVs(parentGoal, allSPVs) : null;
-    const goalStep4Data = parentGoalId ? extractStep4ForGoal(steps, parentGoalId) : null;
+    // Only pass scientific_pillars, not full step4 data (domain_mapping, raw_domain_scans)
+    const sNodes = parentGoalId ? extractSNodesForGoal(steps, parentGoalId) : [];
     return {
       Q0_reference: fullQ0(steps),
       l3_question: l3q,
       parent_goal: enrichedParentGoal,
       step3: parentGoalId ? (step3Output?.[parentGoalId] || []) : [],
-      step5: parentGoalId && goalStep4Data ? { [parentGoalId]: goalStep4Data } : steps[4]?.output,
+      bridge_lexicon: bridgeLexicon,
+      step5: parentGoalId ? { [parentGoalId]: { scientific_pillars: sNodes } } : {},
       goal: currentGoal,
     };
   });

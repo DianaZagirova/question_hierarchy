@@ -164,7 +164,7 @@ export const NodeChat: React.FC<NodeChatProps> = ({
           </div>
           <div>
             <h3 className="font-bold text-sm">Node Chat</h3>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {selectedNodes.length} node{selectedNodes.length !== 1 ? 's' : ''} selected
             </p>
           </div>
@@ -204,7 +204,7 @@ export const NodeChat: React.FC<NodeChatProps> = ({
               {selectedNodes.length > 1 && (
                 <button
                   onClick={onClearNodes}
-                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-red-400 transition-all hover:gap-1.5"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-all hover:gap-1.5"
                 >
                   <Trash2 className="w-3 h-3" />
                   Clear all

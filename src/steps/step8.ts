@@ -4,7 +4,7 @@
 
 import { PipelineStep, AgentConfig } from '@/types';
 import { executeStepBatch } from '@/lib/api';
-import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs, extractStep4ForGoal, fullQ0 } from '@/lib/pipelineHelpers';
+import { extractL3Questions, extractBridgeLexicon, enrichGoalWithSPVs, fullQ0 } from '@/lib/pipelineHelpers';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Step8');
@@ -35,7 +35,6 @@ export async function runStep8(
     const l3Id = l3q.id;
     const parentGoal = goals.find((g: any) => g.id === parentGoalId);
     const enrichedParentGoal = parentGoal ? enrichGoalWithSPVs(parentGoal, allSPVs) : null;
-    const goalStep4Data = parentGoalId ? extractStep4ForGoal(steps, parentGoalId) : null;
     // Filter IHs to only those belonging to this L3 question
     const l3IHs = allIHs.filter((ih: any) => ih.parent_l3_id === l3Id || ih.l3_question_id === l3Id);
     return {
@@ -44,7 +43,6 @@ export async function runStep8(
       parent_goal: enrichedParentGoal,
       step3: parentGoalId ? (step3Output?.[parentGoalId] || []) : [],
       step7: { instantiation_hypotheses: l3IHs },
-      step5: parentGoalId && goalStep4Data ? { [parentGoalId]: goalStep4Data } : steps[4]?.output,
       goal: currentGoal,
     };
   });

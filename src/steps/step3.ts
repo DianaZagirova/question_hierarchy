@@ -39,10 +39,16 @@ export async function runStep3(
   // Aggregate results by goal ID
   const rasByGoal: Record<string, any[]> = selectedGoalId ? (steps[2]?.output || {}) : {};
   (batchResult.batch_results || []).forEach((result: any, idx: number) => {
+    const goalId = goals[idx]?.id || `index_${idx}`;
     if (result.success && result.data) {
-      const goalId = goals[idx].id;
       const ras = result.data.requirement_atoms || result.data.RAs || [];
       rasByGoal[goalId] = Array.isArray(ras) ? ras : [ras];
+      if (rasByGoal[goalId].length === 0) {
+        log.warn(`Goal ${goalId}: 0 RAs returned — downstream steps will lack RA context`);
+      }
+    } else {
+      log.error(`Goal ${goalId} failed: ${result.error || 'Unknown error'}`);
+      rasByGoal[goalId] = [];
     }
   });
 

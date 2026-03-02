@@ -9,11 +9,13 @@ import { PipelineView } from './components/PipelineView';
 import { GraphVisualizationWrapper } from './components/GraphVisualizationWrapper';
 import { ParticleBackground } from './components/ParticleBackground';
 import { SystemOverview } from './components/SystemOverview';
+import { L6PerspectiveAnalyzer } from './components/L6PerspectiveAnalyzer';
 import { Button } from './components/ui/Button';
 import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
-import { Users, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2 } from 'lucide-react';
-import { sessionManager } from './lib/sessionManager';
+import { Users, User, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2, Rocket, Square } from 'lucide-react';
+import { runFullPipeline, FullPipelineProgress } from './lib/api';
+import { UserNamePrompt, getUserName } from './components/UserNamePrompt';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
@@ -29,48 +31,36 @@ function App() {
   const [editedLensDescriptions, setEditedLensDescriptions] = useState<Record<string, string>>({}); // Overrides for preset descriptions
   const [zenMode, setZenMode] = useState(false); // Zen mode - show only graph and minimap
   const [graphFullscreen, setGraphFullscreen] = useState(false); // Graph fullscreen overlay
+  const [primaryObjectiveCollapsed, setPrimaryObjectiveCollapsed] = useState(false); // Primary Objective collapsed state
+  const [fullPipelineRunning, setFullPipelineRunning] = useState(false);
+  const [fullPipelineProgress, setFullPipelineProgress] = useState<FullPipelineProgress | null>(null);
+  const [fullPipelineError, setFullPipelineError] = useState(false);
+  const [userName, setUserName] = useState<string | null>(getUserName());
+  const fullPipelineAbortRef = React.useRef<AbortController | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const { 
-    currentGoal, 
-    setGoal, 
-    agents, 
-    updateAgent, 
-    steps, 
+  const {
+    currentGoal,
+    setGoal,
+    agents,
+    updateAgent,
+    steps,
     updateStepStatus,
-    skipStep,
     clearStep,
     resetToDefaults,
     saveVersion,
     versions,
     loadVersion,
     deleteVersion,
-    resetPipeline
+    resetPipeline,
+    setL6AnalysisResult,
   } = useAppStore();
 
   // Pipeline execution hook (handles all step running, aborting, single-goal execution)
   const { handleRunStep, handleAbortStep, handleRetryStep, handleRunStep4Phase, handleRunStepForSingleGoal } =
     usePipelineExecution({ selectedGoalId, selectedL3Id, selectedL4Id, globalLens });
 
-  // Initialize session and state sync on mount
-  useEffect(() => {
-    const initializeSession = async () => {
-      try {
-        // Initialize session manager
-        await sessionManager.initialize();
-
-        // IMPORTANT: stateSync auto-sync is DISABLED
-        // Reason: stateSync saves to main session state (/api/session/state)
-        // which conflicts with user sessions (/api/user-sessions/{id})
-        // User session auto-save is handled by useSessionStore instead
-        console.log('[App] Session initialized - user sessions active');
-      } catch (error) {
-        console.error('[App] Failed to initialize session:', error);
-        // Continue with local-only mode
-      }
-    };
-
-    initializeSession();
-  }, []);
+  // NOTE: sessionManager.initialize() is called inside useSessionStore.initialize()
+  // No separate sessionManager init effect needed — it's all sequenced in initSessions()
 
   // File I/O handlers
   const handleLoadPipelineJSON = (file: File) => {
@@ -99,25 +89,170 @@ function App() {
     updateStepStatus(stepId, 'completed', newOutput);
   };
 
+  // Full pipeline execution
+  const handleRunFullPipeline = async () => {
+    if (fullPipelineRunning || !currentGoal) return;
+
+    setFullPipelineRunning(true);
+    setFullPipelineProgress(null);
+
+    // Mark all pipeline steps as running
+    const pipelineStepIds = [1, 2, 3, 4, 6, 7, 8, 9];
+    for (const stepId of pipelineStepIds) {
+      updateStepStatus(stepId, 'pending');
+    }
+    updateStepStatus(1, 'running');
+
+    const abortController = new AbortController();
+    fullPipelineAbortRef.current = abortController;
+
+    // Track which steps have been applied to avoid duplicate updates
+    const appliedSteps = new Set<number>();
+
+    // Build agent overrides from current agent configs
+    const agentOverrides: Record<string, any> = {};
+    for (const agent of agents) {
+      agentOverrides[agent.id] = agent;
+    }
+
+    try {
+      const result = await runFullPipeline(
+        currentGoal,
+        globalLens,
+        agentOverrides,
+        (progress) => {
+          setFullPipelineProgress(progress);
+
+          // Apply completed step outputs incrementally for live graph rendering
+          const stepMap: Record<string, number> = {
+            step1: 1, step2: 2, step3: 3, step4: 4,
+            step6: 6, step7: 7, step8: 8, step9: 9,
+          };
+          if (progress.step_outputs) {
+            for (const [key, stepId] of Object.entries(stepMap)) {
+              if (progress.step_outputs[key] && !appliedSteps.has(stepId)) {
+                updateStepStatus(stepId, 'completed', progress.step_outputs[key]);
+                appliedSteps.add(stepId);
+              }
+            }
+          }
+
+          // Mark current step as running (if not already completed with output)
+          const currentStep = progress.step;
+          if (!appliedSteps.has(currentStep)) {
+            updateStepStatus(currentStep, 'running');
+          }
+          // Mark steps before current as completed (status only, no output yet)
+          for (const stepId of pipelineStepIds) {
+            if (stepId < currentStep && !appliedSteps.has(stepId)) {
+              updateStepStatus(stepId, 'completed');
+            }
+          }
+        },
+        abortController.signal,
+      );
+
+      if (result.success) {
+        // Map backend step_outputs to store
+        const stepMap: Record<string, number> = {
+          step1: 1, step2: 2, step3: 3, step4: 4,
+          step6: 6, step7: 7, step8: 8, step9: 9,
+        };
+        for (const [key, stepId] of Object.entries(stepMap)) {
+          const output = result.step_outputs[key];
+          if (output) {
+            updateStepStatus(stepId, 'completed', output);
+          }
+        }
+        // Apply L6 Perspective Analysis result if present
+        if (result.l6_analysis && result.l6_analysis.selected_experiments) {
+          setL6AnalysisResult(result.l6_analysis);
+        }
+        const elapsed = result.total_elapsed_seconds;
+        const mins = Math.floor(elapsed / 60);
+        const secs = Math.round(elapsed % 60);
+        const bestCount = result.summary?.total_l6_best || 0;
+        alert(`Full pipeline completed in ${mins}m ${secs}s\n\nGenerated: ${result.summary.goals || 0} goals, ${result.summary.total_l3_questions || 0} L3 questions, ${result.summary.total_l6_tasks || 0} L6 experiments${bestCount ? `, ${bestCount} best selected` : ''}`);
+      } else {
+        // Partial failure — load whatever outputs exist, reset stuck steps
+        const stepMap: Record<string, number> = {
+          step1: 1, step2: 2, step3: 3, step4: 4,
+          step6: 6, step7: 7, step8: 8, step9: 9,
+        };
+        const completedSteps = new Set<number>();
+        for (const [key, stepId] of Object.entries(stepMap)) {
+          const output = result.step_outputs?.[key];
+          if (output) {
+            updateStepStatus(stepId, 'completed', output);
+            completedSteps.add(stepId);
+          }
+        }
+        // Reset any steps still in 'running' or 'pending' that weren't completed
+        for (const stepId of pipelineStepIds) {
+          if (!completedSteps.has(stepId) && !appliedSteps.has(stepId)) {
+            updateStepStatus(stepId, 'error', undefined, result.error || 'Pipeline failed before reaching this step');
+          }
+        }
+        setFullPipelineError(true);
+        setTimeout(() => setFullPipelineError(false), 5000);
+        alert(`Pipeline failed: ${result.error || 'Unknown error'}.\nPartial results have been loaded.`);
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('[FullPipeline] Aborted by user');
+        // Reset all running steps to pending on abort
+        for (const stepId of pipelineStepIds) {
+          if (!appliedSteps.has(stepId)) {
+            updateStepStatus(stepId, 'pending');
+          }
+        }
+      } else {
+        console.error('[FullPipeline] Error:', err);
+        // Reset all running/pending steps to error so they don't stay stuck
+        for (const stepId of pipelineStepIds) {
+          if (!appliedSteps.has(stepId)) {
+            updateStepStatus(stepId, 'error', undefined, err.message || 'Pipeline error');
+          }
+        }
+        setFullPipelineError(true);
+        setTimeout(() => setFullPipelineError(false), 5000);
+        alert(`Pipeline error: ${err.message || 'Unknown error'}`);
+      }
+    } finally {
+      setFullPipelineRunning(false);
+      setFullPipelineProgress(null);
+      fullPipelineAbortRef.current = null;
+    }
+  };
+
+  const handleAbortFullPipeline = () => {
+    if (fullPipelineAbortRef.current) {
+      fullPipelineAbortRef.current.abort();
+    }
+  };
+
   // Session management
-  const { initialize: initSessions, updateActiveSessionMeta, saveCurrentToSession } = useSessionStore();
+  const { initialize: initSessions, updateActiveSessionMeta, saveCurrentToSession, isLoading: sessionsLoading } = useSessionStore();
 
   useEffect(() => {
+    if (!userName) return;
     // Initialize sessions (async)
     initSessions().catch((error) => {
       console.error('[App] Session initialization failed:', error);
     });
-  }, [initSessions]);
+  }, [initSessions, userName]);
 
-  // Auto-save session meta when goal changes
+  // Auto-save session meta when goal changes (only after sessions initialized)
   useEffect(() => {
-    if (currentGoal) {
+    if (currentGoal && !sessionsLoading) {
       updateActiveSessionMeta(currentGoal);
     }
-  }, [currentGoal]);
+  }, [currentGoal, sessionsLoading]);
 
-  // Auto-save session data periodically and on unload
+  // Auto-save session data periodically and on unload (only after sessions initialized)
   useEffect(() => {
+    if (sessionsLoading) return; // Don't start auto-save until sessions are ready
+
     const interval = setInterval(() => {
       saveCurrentToSession();
     }, 30000); // every 30 seconds
@@ -131,125 +266,177 @@ function App() {
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [saveCurrentToSession]);
+  }, [saveCurrentToSession, sessionsLoading]);
 
-  const enabledAgents = agents.filter(agent => agent.enabled);
-  const teamPower = enabledAgents.reduce((sum) => sum + 100, 0);
+  // enabledAgents used in tab label
+
+  // Show name prompt if user hasn't identified themselves yet
+  if (!userName) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <ParticleBackground />
+        <UserNamePrompt onNameSet={(name) => setUserName(name)} />
+      </div>
+    );
+  }
 
   return (
-    <div className="app-main-container min-h-screen bg-background text-foreground overflow-hidden">
+    <div className="app-main-container min-h-screen bg-background text-foreground overflow-x-hidden">
       <ParticleBackground />
       
       {/* Header */}
-      <header className="relative z-20 border-b border-primary/30 bg-card/80 backdrop-blur-md shadow-[0_0_30px_rgba(34,197,94,0.1)]">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg neon-border">
-                <Shield className="w-6 h-6 text-background" />
-              </div>
-              <div className="absolute inset-0 rounded-xl blur-xl glow-pulse -z-10" />
+      <header className="relative z-20 border-b border-border/40 bg-card/80 backdrop-blur-md">
+        <div className="flex items-center justify-between px-4 py-2 w-full overflow-visible">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+              <Shield className="w-3.5 h-3.5 text-background" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                <span className="neon-text">OMEGA</span>
-                <span className="gradient-text">POINT</span>
-                <span className="text-[10px] px-2 py-0.5 rounded neon-border text-primary font-mono">v3.0</span>
-              </h1>
-              <p className="text-[11px] text-muted-foreground uppercase tracking-widest">
-                Ontological Mapping & Epistemic Generation Agents
-              </p>
-            </div>
+            <h1 className="text-lg font-bold tracking-tight flex items-center gap-2">
+              <span className="neon-text">OMEGA</span>
+              <span className="gradient-text">POINT</span>
+            </h1>
+            <span className="hidden sm:inline text-[10px] text-muted-foreground/70 uppercase tracking-wide">
+              Goal → Science → Experiments
+            </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 shrink-0">
             <SessionSwitcher />
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/30 neon-border">
-              <Zap className="w-4 h-4 text-primary" />
-              <span className="text-sm font-mono neon-text">{teamPower}</span>
-              <span className="text-[10px] text-muted-foreground">Team Power</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-primary glow-pulse" />
-              <span className="hidden sm:inline neon-text text-xs">System Online</span>
-            </div>
+            {userName && (
+              <button
+                onClick={() => {
+                  const newName = prompt('Change your name:', userName);
+                  if (newName && newName.trim()) {
+                    localStorage.setItem('omega-point-user-name', newName.trim());
+                    setUserName(newName.trim());
+                  }
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-secondary/30 border border-border/30 hover:bg-secondary/50 transition-colors cursor-pointer text-sm"
+                title="Click to change your name"
+              >
+                <User className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="font-medium text-foreground/80">{userName}</span>
+              </button>
+            )}
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400" title="System online" />
           </div>
         </div>
       </header>
 
-      <div className="relative z-10 max-w-[90vw] mx-auto px-4 py-6">
+      <div className="relative z-10 max-w-[98vw] mx-auto px-3 py-3">
 
         {/* Goal Input */}
-        <Card className="mb-6 neon-border bg-card/50 backdrop-blur-sm shadow-[0_0_30px_rgba(34,197,94,0.1)]">
-          <CardHeader className="border-b border-primary/20 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pb-3">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2 text-primary">
-              <Target size={16} className="text-primary" />
-              Primary Objective
+        <Card className="mb-3 bg-card/50 backdrop-blur-sm border border-border/30">
+          <CardHeader
+            className="border-b border-border/20 pb-2 cursor-pointer hover:bg-secondary/20 transition-colors"
+            onClick={() => setPrimaryObjectiveCollapsed(!primaryObjectiveCollapsed)}
+          >
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider flex items-center justify-between text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Target size={14} className="text-primary" />
+                <span>Primary Objective</span>
+              </div>
+              <button className="p-0.5 hover:bg-secondary/50 rounded transition-colors">
+                {primaryObjectiveCollapsed ? (
+                  <Maximize2 size={12} className="text-muted-foreground" />
+                ) : (
+                  <Minimize2 size={12} className="text-muted-foreground" />
+                )}
+              </button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-4">
-            <div className="space-y-3">
-              <div className="flex gap-3">
+          {!primaryObjectiveCollapsed && (
+            <CardContent className="pt-3">
+            <div className="space-y-2">
+              {/* Row 1: Goal textarea + primary action buttons */}
+              <div className="flex gap-2">
                 <textarea
-                  placeholder="Define your longevity research objective or master question (Q₀)..."
+                  placeholder="Define your research objective or master question (Q₀)..."
                   value={currentGoal}
                   onChange={(e) => setGoal(e.target.value)}
-                  rows={3}
-                  className="flex-1 bg-secondary/30 border-primary/30 focus:border-primary focus:ring-primary/30 transition-all focus:shadow-[0_0_15px_rgba(34,197,94,0.2)] rounded-md px-3 py-2 text-sm resize-y min-h-[80px] max-h-[200px] overflow-y-auto"
+                  rows={2}
+                  className="flex-1 bg-secondary/20 border border-border/40 focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all rounded-md px-3 py-1.5 text-sm resize-y min-h-[50px] max-h-[200px] overflow-y-auto"
                 />
-              <Button
-                onClick={() => handleRunStep(1)}
-                disabled={!currentGoal || steps[0].status === 'running' || steps[0].status === 'completed'}
-                className="bg-gradient-to-r from-primary to-accent hover:shadow-[0_0_30px_rgba(34,197,94,0.5)] transition-all neon-border"
-              >
-                <Play size={16} className="mr-1" />
-                Start
-              </Button>
-              <Button
-                onClick={() => {
-                  saveVersion();
-                  alert('Version saved successfully!');
-                }}
-                disabled={!currentGoal || steps.every(s => s.status === 'pending')}
-                className="bg-gradient-to-r from-primary to-primary/80 hover:shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                title={!currentGoal ? 'Enter a goal first' : steps.every(s => s.status === 'pending') ? 'Run at least one step first' : 'Save current state as a version'}
-              >
-                <Save size={16} className="mr-2" />
-                Save
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  handleSaveToFile();
-                  alert('Results saved to file successfully!');
-                }}
-                disabled={!currentGoal || steps.every(s => s.status === 'pending')}
-                className="neon-border text-primary hover:bg-primary/10 hover:shadow-[0_0_20px_rgba(34,197,94,0.3)] disabled:opacity-40 disabled:cursor-not-allowed disabled:border-muted"
-                title={!currentGoal ? 'Enter a goal first' : steps.every(s => s.status === 'pending') ? 'Run at least one step first' : 'Download all results as JSON'}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Save Results
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  handleSaveInputsOutputs();
-                  alert('Input/Output check file saved successfully!');
-                }}
-                disabled={!currentGoal || steps.every(s => s.status === 'pending')}
-                className="neon-border text-accent hover:bg-accent/10 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-40 disabled:cursor-not-allowed disabled:border-muted"
-                title={!currentGoal ? 'Enter a goal first' : steps.every(s => s.status === 'pending') ? 'Run at least one step first' : 'Save inputs and outputs for verification'}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Check I/O
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => resetPipeline()}
-                className="border-border/50 hover:bg-secondary/50 hover:border-primary/30"
-              >
-                Reset
-              </Button>
+                <div className="flex flex-col gap-1.5 flex-shrink-0">
+                  {!fullPipelineRunning ? (
+                    <Button
+                      onClick={handleRunFullPipeline}
+                      disabled={!currentGoal || fullPipelineRunning}
+                      size="sm"
+                      className={fullPipelineError
+                        ? "bg-red-600 hover:bg-red-700 transition-colors h-8 animate-pulse"
+                        : "bg-amber-600 hover:bg-amber-700 transition-colors h-8"
+                      }
+                      title={fullPipelineError ? "Pipeline failed — click to retry" : "Run the entire pipeline: Steps 1→2→3→4→6→7→8→9"}
+                    >
+                      <Rocket size={14} className="mr-1" />
+                      {fullPipelineError ? 'Retry' : 'Run All'}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleAbortFullPipeline}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 transition-colors h-8 animate-pulse"
+                      title={fullPipelineProgress ? `Step ${fullPipelineProgress.step}: ${fullPipelineProgress.step_name} (${Math.round(fullPipelineProgress.elapsed)}s)` : 'Pipeline running...'}
+                    >
+                      <Square size={12} className="mr-1" />
+                      {fullPipelineProgress ? `S${fullPipelineProgress.step} ${Math.round(fullPipelineProgress.elapsed)}s` : 'Stop'}
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => handleRunStep(1)}
+                    disabled={!currentGoal || steps[0].status === 'running' || steps[0].status === 'completed' || fullPipelineRunning}
+                    size="sm"
+                    className="bg-primary hover:bg-primary/90 transition-colors h-8"
+                  >
+                    <Play size={14} className="mr-1" />
+                    Step 1
+                  </Button>
+                </div>
+              </div>
+
+              {/* Row 2: Secondary actions — compact inline */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { saveVersion(); alert('Version saved!'); }}
+                    disabled={!currentGoal || steps.every(s => s.status === 'pending')}
+                    className="h-7 text-xs px-2.5 border-border/40 hover:bg-secondary/50 disabled:opacity-30"
+                  >
+                    <Save size={12} className="mr-1" />Save
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { handleSaveToFile(); }}
+                    disabled={!currentGoal || steps.every(s => s.status === 'pending')}
+                    className="h-7 text-xs px-2.5 border-border/40 hover:bg-secondary/50 disabled:opacity-30"
+                    title="Download all results as JSON"
+                  >
+                    <Download className="w-3 h-3 mr-1" />Export
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { handleSaveInputsOutputs(); }}
+                    disabled={!currentGoal || steps.every(s => s.status === 'pending')}
+                    className="h-7 text-xs px-2.5 border-border/40 hover:bg-secondary/50 disabled:opacity-30"
+                    title="Save inputs and outputs for verification"
+                  >
+                    <Download className="w-3 h-3 mr-1" />I/O Check
+                  </Button>
+                </div>
+                <div className="w-px h-4 bg-border/30" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => resetPipeline()}
+                  className="h-7 text-xs px-2.5 border-border/40 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                >
+                  Reset
+                </Button>
               </div>
               
               {/* Global Lens Selector */}
@@ -353,91 +540,32 @@ function App() {
               </p>
             )}
           </CardContent>
+          )}
         </Card>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 bg-card/50 backdrop-blur-sm rounded-xl p-2 shadow-lg neon-border">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'overview'
-                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
-            }`}
-          >
-            <Info size={18} />
-            System Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('agents')}
-            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'agents'
-                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
-            }`}
-          >
-            <Users size={18} />
-            Agent Team ({agents.filter(a => a.enabled).length}/{agents.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('split')}
-            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'split'
-                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
-            }`}
-          >
-            <LayoutGrid size={18} />
-            Split View
-          </button>
-          <button
-            onClick={() => setActiveTab('pipeline')}
-            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'pipeline'
-                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
-            }`}
-          >
-            <GitBranch size={18} />
-            Pipeline
-          </button>
-          <button
-            onClick={() => setActiveTab('graph')}
-            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'graph'
-                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
-            }`}
-          >
-            <Network size={18} />
-            Graph View
-          </button>
-          <button
-            onClick={() => {}}
-            disabled
-            className="px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 opacity-40 cursor-not-allowed text-muted-foreground border border-transparent relative group"
-            title="This feature is deprecated and no longer available"
-          >
-            <Network size={18} />
-            <span>Scientific Pillars</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40">
-              Deprecated
-            </span>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-card border border-border/50 rounded-md text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-              This tab is deprecated
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveTab('versions')}
-            className={`px-6 py-3 font-semibold rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'versions'
-                ? 'bg-gradient-to-r from-primary to-accent text-background shadow-[0_0_30px_rgba(34,197,94,0.5)] neon-border'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary hover:border-primary/30 border border-transparent'
-            }`}
-          >
-            <History size={18} />
-            Versions ({versions.length})
-          </button>
+        <div className="flex gap-1 mb-3 bg-card/40 backdrop-blur-sm rounded-lg p-1 border border-border/20">
+          {([
+            { key: 'overview', label: 'Overview', icon: Info },
+            { key: 'agents', label: `Agents (${agents.filter(a => a.enabled).length})`, icon: Users },
+            { key: 'split', label: 'Split View', icon: LayoutGrid },
+            { key: 'pipeline', label: 'Pipeline', icon: GitBranch },
+            { key: 'graph', label: 'Graph', icon: Network },
+            { key: 'versions', label: `Versions (${versions.length})`, icon: History },
+          ] as const).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key as typeof activeTab)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
+                activeTab === key
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+              }`}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Content */}
@@ -453,28 +581,23 @@ function App() {
               style={{ width: `${splitRatio}%` }}
               className="overflow-auto bg-card/50 backdrop-blur-sm rounded-l-lg shadow-lg border border-border/30 p-4 select-text"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold gradient-text">Pipeline Steps</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-foreground/80">Pipeline Steps</h2>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
                     const stepsWithData = steps.filter(s => s.status === 'completed' || s.status === 'error');
-                    if (stepsWithData.length === 0) {
-                      alert('No data to clear');
-                      return;
-                    }
-                    if (confirm(`Clear all data from ${stepsWithData.length} step(s)? This will reset all completed steps to pending.`)) {
+                    if (stepsWithData.length === 0) { alert('No data to clear'); return; }
+                    if (confirm(`Clear all data from ${stepsWithData.length} step(s)?`)) {
                       stepsWithData.forEach(step => clearStep(step.id));
                     }
                   }}
                   disabled={!steps.some(s => s.status === 'completed' || s.status === 'error')}
-                  className="relative group border-rose-500/50 bg-gradient-to-r from-rose-500/10 to-red-500/10 text-rose-400 hover:from-rose-500/20 hover:to-red-500/20 hover:border-rose-400 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
-                  title="Clear all data from all steps"
+                  className="h-7 text-xs px-2.5 border-border/40 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 disabled:opacity-30"
+                  title="Clear all step data"
                 >
-                  <div className="absolute inset-0 rounded-md bg-gradient-to-r from-rose-500/0 via-rose-500/5 to-rose-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <Trash2 size={14} className="mr-1.5 relative z-10 group-hover:scale-110 transition-transform duration-200" />
-                  <span className="relative z-10 font-semibold">Clear All Data</span>
+                  <Trash2 size={12} className="mr-1" />Clear All
                 </Button>
               </div>
               
@@ -696,15 +819,19 @@ function App() {
                 steps={steps}
                 agents={agents}
                 onRunStep={handleRunStep}
-                onSkipStep={skipStep}
                 onClearStep={clearStep}
                 onAbortStep={handleAbortStep}
                 onRetryStep={handleRetryStep}
                 onRunStep4Phase={handleRunStep4Phase}
                 onEditOutput={handleEditOutput}
               />
+
+              {/* L6 Perspective Analysis */}
+              <div className="mt-4">
+                <L6PerspectiveAnalyzer />
+              </div>
             </div>
-            
+
             {/* Resizable Divider */}
             <div
               className={`w-2 bg-border/50 hover:bg-primary/50 cursor-col-resize relative group flex-shrink-0 ${
@@ -752,37 +879,27 @@ function App() {
               style={{ width: `${100 - splitRatio}%` }}
               className="bg-card/50 backdrop-blur-sm rounded-r-lg shadow-lg border border-border/30 select-text"
             >
-              <div className="flex items-center justify-between p-4 border-b border-border/30">
-                <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border/20">
+                <h2 className="text-sm font-semibold text-foreground/80">Knowledge Graph</h2>
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setZenMode(!zenMode)}
-                    className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/40 hover:border-purple-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
-                    title={zenMode ? "Show all controls" : "Hide controls (zen mode)"}
+                    className="px-2 py-1 text-[11px] border border-border/30 hover:bg-secondary/50 rounded transition-colors flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    title={zenMode ? "Show all controls" : "Hide controls"}
                   >
-                    {zenMode ? (
-                      <>
-                        <EyeOff className="w-3.5 h-3.5" />
-                        <span>Full View</span>
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Zen Mode</span>
-                      </>
-                    )}
+                    {zenMode ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{zenMode ? 'Full' : 'Zen'}</span>
                   </button>
                   <button
                     onClick={() => setGraphFullscreen(true)}
-                    className="px-3 py-1.5 text-xs bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 hover:border-cyan-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(6,182,212,0.3)]"
-                    title="Open graph in fullscreen"
+                    className="px-2 py-1 text-[11px] border border-border/30 hover:bg-secondary/50 rounded transition-colors flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    title="Fullscreen"
                   >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                    <span>Fullscreen</span>
+                    <Maximize2 className="w-3 h-3" />
                   </button>
                 </div>
               </div>
-              <div className="h-[calc(100%-70px)]">
+              <div className="h-[calc(100%-42px)]">
                 <GraphVisualizationWrapper steps={steps} zenMode={zenMode} />
               </div>
             </div>
@@ -791,28 +908,23 @@ function App() {
 
         {activeTab === 'pipeline' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold gradient-text">Pipeline Steps</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-foreground/80">Pipeline Steps</h2>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => {
                   const stepsWithData = steps.filter(s => s.status === 'completed' || s.status === 'error');
-                  if (stepsWithData.length === 0) {
-                    alert('No data to clear');
-                    return;
-                  }
-                  if (confirm(`Clear all data from ${stepsWithData.length} step(s)? This will reset all completed steps to pending.`)) {
+                  if (stepsWithData.length === 0) { alert('No data to clear'); return; }
+                  if (confirm(`Clear all data from ${stepsWithData.length} step(s)?`)) {
                     stepsWithData.forEach(step => clearStep(step.id));
                   }
                 }}
                 disabled={!steps.some(s => s.status === 'completed' || s.status === 'error')}
-                className="relative group border-rose-500/50 bg-gradient-to-r from-rose-500/10 to-red-500/10 text-rose-400 hover:from-rose-500/20 hover:to-red-500/20 hover:border-rose-400 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
-                title="Clear all data from all steps"
+                className="h-7 text-xs px-2.5 border-border/40 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 disabled:opacity-30"
+                title="Clear all step data"
               >
-                <div className="absolute inset-0 rounded-md bg-gradient-to-r from-rose-500/0 via-rose-500/5 to-rose-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <Trash2 size={14} className="mr-1.5 relative z-10 group-hover:scale-110 transition-transform duration-200" />
-                <span className="relative z-10 font-semibold">Clear All Data</span>
+                <Trash2 size={12} className="mr-1" />Clear All
               </Button>
             </div>
             <PipelineView
@@ -820,7 +932,6 @@ function App() {
               agents={agents}
               onRunStep={handleRunStep}
               onRunStep4Phase={handleRunStep4Phase}
-              onSkipStep={skipStep}
               onClearStep={clearStep}
               onAbortStep={handleAbortStep}
               onRetryStep={handleRetryStep}
@@ -830,28 +941,19 @@ function App() {
         )}
 
         {activeTab === 'graph' && (
-          <div className="graph-view-container bg-card/50 backdrop-blur-sm rounded-lg shadow-lg border border-border/30 overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-border/30">
-              <h2 className="text-lg font-bold gradient-text">Knowledge Graph</h2>
+          <div className="graph-view-container bg-card/50 backdrop-blur-sm rounded-lg border border-border/30 overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border/20">
+              <h2 className="text-sm font-semibold text-foreground/80">Knowledge Graph</h2>
               <button
                 onClick={() => setZenMode(!zenMode)}
-                className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/40 hover:border-purple-400/60 rounded-md transition-all duration-300 flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"
-                title={zenMode ? "Show all controls" : "Hide controls (zen mode)"}
+                className="px-2 py-1 text-[11px] border border-border/30 hover:bg-secondary/50 rounded transition-colors flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                title={zenMode ? "Show all controls" : "Hide controls"}
               >
-                {zenMode ? (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5" />
-                    <span>Full View</span>
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Zen Mode</span>
-                  </>
-                )}
+                {zenMode ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                <span>{zenMode ? 'Full' : 'Zen'}</span>
               </button>
             </div>
-            <div className="h-[calc(100%-60px)]">
+            <div className="h-[calc(100%-38px)]">
               <GraphVisualizationWrapper steps={steps} zenMode={zenMode} />
             </div>
           </div>

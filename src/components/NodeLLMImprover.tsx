@@ -217,13 +217,13 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
             <div className="text-xs font-semibold text-primary mb-2">{change.field}</div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <div className="text-[10px] font-bold text-red-400 mb-1">BEFORE:</div>
+                <div className="text-xs font-bold text-red-400 mb-1">BEFORE:</div>
                 <div className="text-xs text-foreground/80 bg-red-500/10 border border-red-500/30 rounded p-2 max-h-[100px] overflow-y-auto">
                   {change.before || '(empty)'}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] font-bold text-green-400 mb-1">AFTER:</div>
+                <div className="text-xs font-bold text-green-400 mb-1">AFTER:</div>
                 <div className="text-xs text-foreground bg-green-500/10 border border-green-500/30 rounded p-2 max-h-[100px] overflow-y-auto">
                   {change.after}
                 </div>
@@ -377,7 +377,7 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
                   }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1.5">
+              <div className="flex justify-between text-xs text-muted-foreground mt-1.5">
                 <span className="font-semibold">🎯 Precise (0.0)</span>
                 <span className="font-semibold">🎨 Creative (1.0)</span>
               </div>
@@ -523,13 +523,13 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-foreground">Context Nodes</span>
-                        <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold">
+                        <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-bold">
                           {contextNodes.length}
                         </span>
                       </div>
                       <button
                         onClick={onClearContextNodes}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-red-400 transition-all hover:gap-1.5"
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-all hover:gap-1.5"
                       >
                         <Trash2 className="w-3 h-3" />
                         Clear All
@@ -543,13 +543,13 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
                           style={{ animationDelay: `${idx * 50}ms` }}
                         >
                           <div className="flex-shrink-0 w-8 h-8 rounded-md bg-primary/20 border border-primary/30 flex items-center justify-center">
-                            <span className="text-[10px] font-bold text-primary">
+                            <span className="text-xs font-bold text-primary">
                               {node.type.slice(0, 2).toUpperCase()}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-semibold text-foreground truncate">{node.label}</div>
-                            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{node.type}</div>
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">{node.type}</div>
                           </div>
                           <button
                             onClick={() => onRemoveContextNode(node.id)}
@@ -661,7 +661,7 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
                           <RotateCcw size={16} className="text-amber-400 group-hover:rotate-180 transition-transform duration-500" />
                           <div className="text-left">
                             <div className="font-semibold text-sm text-amber-400">Remake</div>
-                            <div className="text-[10px] text-amber-300/60">Try again</div>
+                            <div className="text-xs text-amber-300/60">Try again</div>
                           </div>
                         </button>
 
@@ -674,7 +674,7 @@ export const NodeLLMImprover: React.FC<NodeLLMImproverProps> = ({
                           <Check size={18} className="text-green-400 group-hover:scale-110 transition-transform" />
                           <div className="text-left">
                             <div className="font-bold text-sm text-green-400">Accept Changes</div>
-                            <div className="text-[10px] text-green-300/60">Apply to node</div>
+                            <div className="text-xs text-green-300/60">Apply to node</div>
                           </div>
                         </button>
                       </div>

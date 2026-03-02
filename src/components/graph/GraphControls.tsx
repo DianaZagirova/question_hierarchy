@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Layers, RotateCcw, Info, Target, ListChecks, Microscope, Lightbulb, FlaskConical, Workflow, MessageSquare, Focus, Maximize2, ChevronRight, Home, Eye, EyeOff } from 'lucide-react';
+import { Search, Filter, RotateCcw, Target, Layers, Lightbulb, FlaskConical, ListChecks, Microscope, Workflow, MessageSquare, Focus, Maximize2, ChevronRight, ChevronDown, Home, Eye, EyeOff, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -24,120 +24,35 @@ interface GraphControlsProps {
   onSmartExpand?: () => void;
   compactMode?: boolean;
   onCompactModeToggle?: () => void;
+  totalNodeCount?: number;
+  visibleNodeCount?: number;
 }
 
 const LAYERS = [
-  {
-    id: 'q0',
-    label: 'Q₀',
-    bg: 'from-blue-500/20 to-green-500/20',
-    border: 'border-blue-500/60',
-    glow: 'shadow-blue-500/40',
-    text: 'text-blue-400',
-    icon: Target,
-    shortDesc: 'Root question — the primary research objective',
-    fullDesc: 'Step 1: Goal Formalization. Transforms vague objectives into a precise, engineering-grade master question (Q₀) that defines success criteria and system requirements. The Q₀ is solution-neutral, system-explicit, baseline-anchored, and includes success criteria driven by time-nonincreasing risk of catastrophic system failure.'
-  },
-  {
-    id: 'goals',
-    label: 'Goals',
-    bg: 'from-purple-500/20 to-pink-500/20',
-    border: 'border-purple-500/60',
-    glow: 'shadow-purple-500/40',
-    text: 'text-purple-400',
-    icon: Layers,
-    shortDesc: 'Goal Pillars — high-level teleological requirements',
-    fullDesc: 'Step 2: Goal Pillars Synthesis. Decomposes Q₀ into MECE (Mutually Exclusive, Collectively Exhaustive) goal pillars and creates a Bridge Lexicon (FCCs & SPVs) to map goals to scientific reality. Each pillar represents a required end-state that, if satisfied together, makes the Q₀ requirement plausible.'
-  },
-  {
-    id: 'spvs',
-    label: 'SPVs',
-    bg: 'from-amber-500/20 to-orange-500/20',
-    border: 'border-amber-500/60',
-    glow: 'shadow-amber-500/40',
-    text: 'text-amber-400',
-    icon: FlaskConical,
-    shortDesc: 'System Property Variables — controllable reliability knobs',
-    fullDesc: 'Step 2: Bridge Lexicon (SPVs). System Property Variables are the shared language between teleological goals and scientific interventions. They describe controllable reliability parameters (e.g., "Reset Fidelity," "Consensus Coherence") that can be measured and modified to achieve goal states.'
-  },
-  {
-    id: 'ras',
-    label: 'RAs',
-    bg: 'from-emerald-500/20 to-green-500/20',
-    border: 'border-emerald-500/60',
-    glow: 'shadow-emerald-500/40',
-    text: 'text-emerald-400',
-    icon: ListChecks,
-    shortDesc: 'Requirement Atoms — atomic testable requirements',
-    fullDesc: 'Step 3: Requirement Atomization. Breaks down each goal pillar into atomic, testable requirements (RAs) with clear done-criteria and failure modes. Each RA is solution-agnostic, specifies state variables, failure shapes, perturbation classes, and meter requirements. RAs must pass a multiple realizability check—at least 3 distinct architecture classes could satisfy them.'
-  },
-  {
-    id: 'domains',
-    label: 'Domains',
-    bg: 'from-cyan-500/20 to-teal-500/20',
-    border: 'border-cyan-500/60',
-    glow: 'shadow-cyan-500/40',
-    text: 'text-cyan-400',
-    icon: Microscope,
-    shortDesc: 'Research Domains — scientific fields mapped to goals',
-    fullDesc: 'Step 4a: Research Domain Identification. Identifies 8-12 distinct research domains relevant to each Goal for systematic scientific knowledge collection. Each domain contains ~25 actionable interventions and is selected based on relevance to catastrophe prevention, number of SPVs addressed, and evidence maturity.'
-  },
-  {
-    id: 'l3',
-    label: 'L3',
-    bg: 'from-red-500/20 to-rose-500/20',
-    border: 'border-red-500/60',
-    glow: 'shadow-red-500/40',
-    text: 'text-red-400',
-    icon: Lightbulb,
-    shortDesc: 'L3 Frontier Questions — strategic science questions',
-    fullDesc: 'Step 6: Frontier Question Generation. Generates strategic L3 questions that discriminate between competing hypotheses and reveal critical unknowns. These are innovative "drill bits" designed to reveal why a system property is failing, using strategies like Genesis Probes (for complete voids), Contextual Decoupling (for fragility traps), Causal Pivot (for proxy mirages), and Arbitration Logic (for conflicting interventions).'
-  },
-  {
-    id: 'ih',
-    label: 'IH',
-    bg: 'from-orange-500/20 to-amber-500/20',
-    border: 'border-orange-500/60',
-    glow: 'shadow-orange-500/40',
-    text: 'text-orange-400',
-    icon: FlaskConical,
-    shortDesc: 'Instantiation Hypotheses — divergent mechanistic hypotheses',
-    fullDesc: 'Step 7: Divergent Hypothesis Instantiation. Creates diverse, testable hypotheses (IHs) for each L3 question, exploring multiple mechanistic explanations. Translates abstract L3 questions into competing physical and informational realization domains. Diversity is mandatory—includes scout hypotheses addressing underexplored domains like bioelectric memory, matrix-topological coding, and systemic feedback loops.'
-  },
-  {
-    id: 'l4',
-    label: 'L4',
-    bg: 'from-lime-500/20 to-green-500/20',
-    border: 'border-lime-500/60',
-    glow: 'shadow-lime-500/40',
-    text: 'text-lime-400',
-    icon: Lightbulb,
-    shortDesc: 'L4 Tactical Questions — concrete experimental questions',
-    fullDesc: 'Step 8: Tactical Decomposition. Decomposes L3 questions into tactical L4 questions that distinguish between competing hypotheses. Uses discriminator questions designed so different answers support different IHs. At least 50% must be discriminators. Adds monotonic specificity by including specific systems, perturbations, or measurement modalities.'
-  },
-  {
-    id: 'l5',
-    label: 'L5',
-    bg: 'from-green-400/20 to-lime-400/20',
-    border: 'border-green-400/60',
-    glow: 'shadow-green-400/40',
-    text: 'text-green-400',
-    icon: Workflow,
-    shortDesc: 'L5 Drill Branches — mechanistic sub-problems',
-    fullDesc: 'Step 9: Execution Drilldown (L5). Decomposes L4 tactical nodes into mechanistic sub-questions and pathways. Each L5 node identifies bottlenecks: tool requirements (if we can\'t see it), model requirements (if we can\'t isolate it), or mechanism drills (if logic is circular). L5 bridges the gap between tactical questions and executable experiments.'
-  },
-  {
-    id: 'l6',
-    label: 'L6',
-    bg: 'from-teal-500/20 to-cyan-500/20',
-    border: 'border-teal-500/60',
-    glow: 'shadow-teal-500/40',
-    text: 'text-teal-400',
-    icon: Workflow,
-    shortDesc: 'L6 Leaf Specs — actionable experiment tasks',
-    fullDesc: 'Step 9: Execution Drilldown (L6). Converts L4 questions into concrete, executable L6 tasks with SIMT parameters: System (biological model), Intervention (independent variable), Meter (dependent variable/readout), Threshold/Time (success criteria). Each L6 task is a fully specified, actionable experiment that can be executed in a lab with clear protocols and expected outcomes.'
-  },
+  { id: 'q0', label: 'Master Q', color: 'text-blue-400', dot: 'bg-blue-400', icon: Target },
+  { id: 'goals', label: 'Goals', color: 'text-purple-400', dot: 'bg-purple-400', icon: Layers },
+  { id: 'spvs', label: 'Properties', color: 'text-amber-400', dot: 'bg-amber-400', icon: FlaskConical },
+  { id: 'ras', label: 'Requirements', color: 'text-emerald-400', dot: 'bg-emerald-400', icon: ListChecks },
+  { id: 'domains', label: 'Domains', color: 'text-cyan-400', dot: 'bg-cyan-400', icon: Microscope },
+  { id: 'l3', label: 'Questions', color: 'text-red-400', dot: 'bg-red-400', icon: Lightbulb },
+  { id: 'ih', label: 'Hypotheses', color: 'text-orange-400', dot: 'bg-orange-400', icon: FlaskConical },
+  { id: 'l4', label: 'Tactics', color: 'text-lime-400', dot: 'bg-lime-400', icon: Lightbulb },
+  { id: 'l5', label: 'Sub-problems', color: 'text-green-400', dot: 'bg-green-400', icon: Workflow },
+  { id: 'l6', label: 'Experiments', color: 'text-teal-400', dot: 'bg-teal-400', icon: Workflow },
 ];
+
+const LAYER_DESCRIPTIONS: Record<string, string> = {
+  q0: 'The root research objective — what are we trying to achieve?',
+  goals: 'Required end-states — what must be true to solve Q₀?',
+  spvs: 'Measurable system properties — the "dials" we can tune',
+  ras: 'Atomic testable requirements per goal',
+  domains: 'Research fields and their known science',
+  l3: 'Frontier questions science can\'t answer yet',
+  ih: 'Competing hypotheses for each question',
+  l4: 'Discriminator questions — which experiment kills which hypothesis?',
+  l5: 'Mechanistic drill-downs per tactic',
+  l6: 'Concrete lab protocols with S-I-M-T parameters',
+};
 
 export const GraphControls: React.FC<GraphControlsProps> = ({
   searchTerm,
@@ -147,8 +62,6 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
   onExpandAll,
   onCollapseAll,
   onResetView,
-  layoutMode,
-  onLayoutChange,
   chatOpen,
   onChatToggle,
   chatNodeCount,
@@ -160,292 +73,273 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
   onSmartExpand,
   compactMode = false,
   onCompactModeToggle,
+  totalNodeCount = 0,
+  visibleNodeCount = 0,
 }) => {
-  const [infoHover, setInfoHover] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [layersExpanded, setLayersExpanded] = useState(true);
   const [showFocusMenu, setShowFocusMenu] = useState(false);
+  const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
 
+  // Collapsed state — just a floating toolbar
+  if (!panelOpen) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <button
+          onClick={() => setPanelOpen(true)}
+          className="bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-2 border border-border/50 hover:bg-card transition-colors group"
+          title="Open controls"
+        >
+          <PanelLeftOpen size={18} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+        </button>
+        {/* Quick action buttons when collapsed */}
+        {onChatToggle && (
+          <button
+            onClick={onChatToggle}
+            className={`bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-2 border border-border/50 hover:bg-card transition-colors ${
+              chatOpen ? 'text-primary border-primary/50' : 'text-muted-foreground'
+            }`}
+            title="Node Chat"
+          >
+            <MessageSquare size={16} />
+            {chatNodeCount && chatNodeCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
+                {chatNodeCount}
+              </span>
+            )}
+          </button>
+        )}
+        <button
+          onClick={onResetView}
+          className="bg-blue-600/90 backdrop-blur-sm rounded-lg shadow-lg p-2 border border-blue-400/50 hover:bg-blue-500 transition-colors text-white"
+          title="Reset view"
+        >
+          <RotateCcw size={16} />
+        </button>
+      </div>
+    );
+  }
+
+  // Expanded panel — single compact panel
   return (
-    <div className="absolute top-4 left-4 z-10 flex flex-row items-start gap-2">
-      {/* Column 1: Search + Visible Layers */}
-      <div className="flex flex-col gap-2 w-[115px]">
-        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search nodes..."
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-8 h-9 text-sm"
-            />
-          </div>
+    <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-xl border border-border/50 w-[200px] max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
+        <span className="text-xs font-bold text-foreground">Controls</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">{visibleNodeCount}/{totalNodeCount}</span>
+          <button
+            onClick={() => setPanelOpen(false)}
+            className="p-1 rounded hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors"
+            title="Collapse panel"
+          >
+            <PanelLeftClose size={14} />
+          </button>
         </div>
-        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50">
-          <div className="flex items-center gap-2 mb-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-semibold">Visible Layers</span>
+      </div>
+
+      {/* Search */}
+      <div className="px-3 py-2 border-b border-border/20">
+        <div className="relative">
+          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-7 h-7 text-xs"
+          />
+        </div>
+      </div>
+
+      {/* Layer Toggles */}
+      <div className="border-b border-border/20">
+        <button
+          onClick={() => setLayersExpanded(!layersExpanded)}
+          className="w-full flex items-center justify-between px-3 py-2 hover:bg-secondary/30 transition-colors"
+        >
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold">Layers</span>
           </div>
-          <div className="grid grid-cols-1 gap-1.5">
+          {layersExpanded ? <ChevronDown size={12} className="text-muted-foreground" /> : <ChevronRight size={12} className="text-muted-foreground" />}
+        </button>
+        {layersExpanded && (
+          <div className="px-2 pb-2 space-y-0.5">
             {LAYERS.map((layer) => {
-              const Icon = layer.icon;
+              const isVisible = visibleLayers.has(layer.id);
               return (
-                <div key={layer.id} className="relative group">
+                <div key={layer.id} className="relative">
                   <button
                     onClick={() => onLayerToggle(layer.id)}
-                    title={layer.shortDesc}
-                    className={`
-                      w-full px-2 py-1.5 rounded-md text-[10px] font-semibold transition-all duration-200 flex items-center gap-1.5 border-2
-                      ${visibleLayers.has(layer.id)
-                        ? `bg-gradient-to-br ${layer.bg} ${layer.border} shadow-lg ${layer.glow} ${layer.text}`
-                        : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:bg-slate-700/70 hover:border-slate-600'
-                      }
-                    `}
+                    onMouseEnter={() => setHoveredLayer(layer.id)}
+                    onMouseLeave={() => setHoveredLayer(null)}
+                    className={`w-full flex items-center gap-2 px-2 py-1 rounded text-[11px] transition-all ${
+                      isVisible
+                        ? `${layer.color} font-semibold bg-white/5`
+                        : 'text-slate-500 line-through opacity-60 hover:opacity-80'
+                    }`}
                   >
-                    <Icon className="w-3 h-3 flex-shrink-0" />
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isVisible ? layer.dot : 'bg-slate-600'}`} />
                     <span className="flex-1 text-left">{layer.label}</span>
-                    <Info
-                      className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0"
-                      onMouseEnter={(e) => {
-                        e.stopPropagation();
-                        setInfoHover(layer.id);
-                      }}
-                      onMouseLeave={() => setInfoHover(null)}
-                    />
+                    {isVisible ? <Eye size={10} className="opacity-40" /> : <EyeOff size={10} className="opacity-40" />}
                   </button>
-                  {/* Info Tooltip */}
-                  {infoHover === layer.id && (
-                    <div className={`absolute left-full ml-2 top-0 z-50 w-[320px] bg-slate-900 border ${layer.border} rounded-lg shadow-2xl p-3 animate-in fade-in slide-in-from-left-2 duration-200`}>
-                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700">
-                        <Icon className={`w-4 h-4 ${layer.text}`} />
-                        <span className={`text-sm font-bold ${layer.text}`}>{layer.label}</span>
-                      </div>
-                      <p className="text-xs text-slate-200 leading-relaxed">
-                        {layer.fullDesc}
-                      </p>
+                  {/* Tooltip */}
+                  {hoveredLayer === layer.id && LAYER_DESCRIPTIONS[layer.id] && (
+                    <div className="absolute left-full ml-2 top-0 z-50 w-[220px] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-2.5 text-[10px] text-slate-300 leading-relaxed">
+                      <span className={`font-bold ${layer.color}`}>{layer.label}:</span>{' '}
+                      {LAYER_DESCRIPTIONS[layer.id]}
                     </div>
                   )}
                 </div>
               );
             })}
-          </div>
-        </div>
-        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50">
-          <div className="flex items-center gap-2 mb-2">
-            <Layers className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-semibold">Layout</span>
-          </div>
-          <div className="flex flex-col gap-1">
-            {(['hierarchical', 'force', 'radial'] as const).map((mode) => (
+            {/* Presets row */}
+            <div className="flex gap-1 pt-1.5 border-t border-border/20 mt-1">
               <button
-                key={mode}
-                onClick={() => onLayoutChange(mode)}
-                className={`
-                  px-2 py-1.5 rounded text-[10px] font-medium transition-all capitalize
-                  ${layoutMode === mode
-                    ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                  }
-                `}
+                onClick={() => {
+                  ['q0', 'goals', 'ras'].forEach(l => { if (!visibleLayers.has(l)) onLayerToggle(l); });
+                  ['spvs', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6'].forEach(l => { if (visibleLayers.has(l)) onLayerToggle(l); });
+                }}
+                className="flex-1 text-[10px] py-1 rounded bg-slate-800/60 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 transition-colors"
               >
-                {mode}
+                Overview
               </button>
-            ))}
+              <button
+                onClick={() => {
+                  ['q0', 'goals', 'domains', 'l3', 'l4'].forEach(l => { if (!visibleLayers.has(l)) onLayerToggle(l); });
+                  ['spvs', 'ras', 'ih', 'l5', 'l6'].forEach(l => { if (visibleLayers.has(l)) onLayerToggle(l); });
+                }}
+                className="flex-1 text-[10px] py-1 rounded bg-slate-800/60 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Strategy
+              </button>
+              <button
+                onClick={() => {
+                  ['l3', 'ih', 'l4', 'l5', 'l6'].forEach(l => { if (!visibleLayers.has(l)) onLayerToggle(l); });
+                  ['q0', 'goals', 'spvs', 'ras', 'domains'].forEach(l => { if (visibleLayers.has(l)) onLayerToggle(l); });
+                }}
+                className="flex-1 text-[10px] py-1 rounded bg-slate-800/60 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Lab
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Column 2: Navigation & Controls */}
-      <div className="flex flex-col gap-2">
-        {/* Quick Navigation */}
-        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px]">
-          <div className="flex items-center gap-2 mb-2">
-            <Target className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-semibold">Quick Jump</span>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {onJumpToQ0 && (
-              <Button size="sm" variant="outline" onClick={onJumpToQ0} className="w-full h-7 text-xs justify-start">
-                <Home size={12} className="mr-1.5" />
-                Jump to Q₀
-              </Button>
-            )}
-            {onJumpToGoals && (
-              <Button size="sm" variant="outline" onClick={onJumpToGoals} className="w-full h-7 text-xs justify-start">
-                <Layers size={12} className="mr-1.5" />
-                View Goals
-              </Button>
-            )}
-          </div>
+      {/* Navigation & Tools — compact button grid */}
+      <div className="px-3 py-2 space-y-1.5">
+        {/* Row: Jump + Focus */}
+        <div className="flex gap-1.5">
+          {onJumpToQ0 && (
+            <Button size="sm" variant="outline" onClick={onJumpToQ0} className="flex-1 h-6 text-[10px] px-1.5">
+              <Home size={10} className="mr-1" />Q₀
+            </Button>
+          )}
+          {onJumpToGoals && (
+            <Button size="sm" variant="outline" onClick={onJumpToGoals} className="flex-1 h-6 text-[10px] px-1.5">
+              <Layers size={10} className="mr-1" />Goals
+            </Button>
+          )}
         </div>
 
         {/* Focus Mode */}
         {onFocusMode && availableGoals.length > 0 && (
-          <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px]">
-            <div className="flex items-center gap-2 mb-2">
-              <Focus className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs font-semibold">Focus Mode</span>
-            </div>
-            <div className="relative">
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => setShowFocusMenu(!showFocusMenu)}
-                className={`w-full h-7 text-xs justify-between ${
-                  focusedGoalId ? 'border-primary/60 text-primary bg-primary/10' : ''
-                }`}
-              >
+          <div className="relative">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowFocusMenu(!showFocusMenu)}
+              className={`w-full h-6 text-[10px] justify-between ${
+                focusedGoalId ? 'border-primary/60 text-primary bg-primary/10' : ''
+              }`}
+            >
+              <div className="flex items-center gap-1">
+                <Focus size={10} />
                 <span className="truncate">
-                  {focusedGoalId 
-                    ? availableGoals.find(g => g.id === focusedGoalId)?.title.slice(0, 12) + '...' 
-                    : 'Select Goal'}
+                  {focusedGoalId
+                    ? availableGoals.find(g => g.id === focusedGoalId)?.title.slice(0, 16) + '...'
+                    : 'Focus on Goal'}
                 </span>
-                <ChevronRight size={12} className={`transition-transform ${showFocusMenu ? 'rotate-90' : ''}`} />
-              </Button>
-              {showFocusMenu && (
-                <div className="absolute left-full ml-2 top-0 z-50 w-[200px] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-2 max-h-[300px] overflow-y-auto">
+              </div>
+              <ChevronRight size={10} className={`transition-transform ${showFocusMenu ? 'rotate-90' : ''}`} />
+            </Button>
+            {showFocusMenu && (
+              <div className="absolute left-full ml-2 top-0 z-50 w-[200px] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-1.5 max-h-[250px] overflow-y-auto">
+                <button
+                  onClick={() => { onFocusMode(null); setShowFocusMenu(false); }}
+                  className="w-full text-left px-2 py-1 text-[11px] rounded hover:bg-slate-800 text-slate-400 mb-0.5"
+                >
+                  Clear Focus
+                </button>
+                {availableGoals.map(goal => (
                   <button
-                    onClick={() => {
-                      onFocusMode(null);
-                      setShowFocusMenu(false);
-                    }}
-                    className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-800 text-slate-400 mb-1"
+                    key={goal.id}
+                    onClick={() => { onFocusMode(goal.id); setShowFocusMenu(false); }}
+                    className={`w-full text-left px-2 py-1 text-[11px] rounded hover:bg-slate-800 ${
+                      focusedGoalId === goal.id ? 'bg-primary/20 text-primary' : 'text-slate-300'
+                    }`}
                   >
-                    Clear Focus
+                    {goal.title}
                   </button>
-                  {availableGoals.map(goal => (
-                    <button
-                      key={goal.id}
-                      onClick={() => {
-                        onFocusMode(goal.id);
-                        setShowFocusMenu(false);
-                      }}
-                      className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-800 ${
-                        focusedGoalId === goal.id ? 'bg-primary/20 text-primary' : 'text-slate-300'
-                      }`}
-                    >
-                      {goal.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Expand/Collapse Controls */}
-        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px] flex flex-col gap-1.5">
-          <div className="flex items-center gap-2 mb-1">
-            <Maximize2 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-semibold">Expand</span>
-          </div>
+        {/* Expand/Collapse row */}
+        <div className="flex gap-1.5">
           {onSmartExpand && (
-            <Button size="sm" variant="outline" onClick={onSmartExpand} className="w-full h-7 text-xs border-green-500/40 text-green-400 hover:bg-green-500/10">
-              Smart Expand
+            <Button size="sm" variant="outline" onClick={onSmartExpand} className="flex-1 h-6 text-[10px] px-1.5 border-green-500/30 text-green-400 hover:bg-green-500/10">
+              Smart
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={onExpandAll} className="w-full h-7 text-xs">
-            Expand All
+          <Button size="sm" variant="outline" onClick={onExpandAll} className="flex-1 h-6 text-[10px] px-1.5">
+            <Maximize2 size={10} className="mr-0.5" />All
           </Button>
-          <Button size="sm" variant="outline" onClick={onCollapseAll} className="w-full h-7 text-xs">
-            Collapse All
+          <Button size="sm" variant="outline" onClick={onCollapseAll} className="flex-1 h-6 text-[10px] px-1.5">
+            Fold
           </Button>
+        </div>
+
+        {/* Compact mode + Reset row */}
+        <div className="flex gap-1.5">
           {onCompactModeToggle && (
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={onCompactModeToggle} 
-              className={`w-full h-7 text-xs ${
-                compactMode ? 'border-primary/60 text-primary bg-primary/10' : ''
-              }`}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onCompactModeToggle}
+              className={`flex-1 h-6 text-[10px] px-1.5 ${compactMode ? 'border-primary/60 text-primary bg-primary/10' : ''}`}
             >
-              {compactMode ? <Eye size={12} className="mr-1" /> : <EyeOff size={12} className="mr-1" />}
               {compactMode ? 'Normal' : 'Compact'}
             </Button>
           )}
-          <div className="border-t border-border/30 my-1" />
-          <Button size="sm" variant="outline" onClick={onResetView} className="w-full h-7 text-xs border-blue-500/40 text-blue-400 hover:bg-blue-500/10">
-            <RotateCcw size={12} className="mr-1.5" />
-            Reset
+          <Button size="sm" onClick={onResetView} className="flex-1 h-6 text-[10px] px-1.5 bg-blue-600 hover:bg-blue-500 text-white border-0">
+            <RotateCcw size={10} className="mr-0.5" />Reset
           </Button>
-          {onChatToggle && (
-            <>
-              <div className="border-t border-border/30 my-1" />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onChatToggle}
-                className={`w-full h-7 text-xs flex items-center justify-center gap-1.5 ${
-                  chatOpen
-                    ? 'border-primary/60 text-primary bg-primary/10 hover:bg-primary/20'
-                    : 'hover:border-primary/40'
-                }`}
-              >
-                <MessageSquare size={12} />
-                <span>Chat</span>
-                {chatNodeCount && chatNodeCount > 0 && (
-                  <span className="ml-0.5 px-1 py-0.5 rounded-full bg-primary/30 text-primary text-[9px] font-bold leading-none">
-                    {chatNodeCount}
-                  </span>
-                )}
-              </Button>
-            </>
-          )}
         </div>
 
-        {/* Layer Presets */}
-        <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 w-[140px]">
-          <div className="flex items-center gap-2 mb-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-semibold">Presets</span>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => {
-                ['q0', 'goals', 'ras'].forEach(layer => {
-                  if (!visibleLayers.has(layer)) onLayerToggle(layer);
-                });
-                ['spvs', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6'].forEach(layer => {
-                  if (visibleLayers.has(layer)) onLayerToggle(layer);
-                });
-              }}
-              className="w-full h-7 text-xs"
-            >
-              Overview
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => {
-                ['q0', 'goals', 'domains', 'l3', 'l4'].forEach(layer => {
-                  if (!visibleLayers.has(layer)) onLayerToggle(layer);
-                });
-                ['spvs', 'ras', 'ih', 'l5', 'l6'].forEach(layer => {
-                  if (visibleLayers.has(layer)) onLayerToggle(layer);
-                });
-              }}
-              className="w-full h-7 text-xs"
-            >
-              Strategy
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => {
-                ['l3', 'ih', 'l4', 'l5', 'l6'].forEach(layer => {
-                  if (!visibleLayers.has(layer)) onLayerToggle(layer);
-                });
-                ['q0', 'goals', 'spvs', 'ras', 'domains'].forEach(layer => {
-                  if (visibleLayers.has(layer)) onLayerToggle(layer);
-                });
-              }}
-              className="w-full h-7 text-xs"
-            >
-              Execution
-            </Button>
-          </div>
-        </div>
+        {/* Chat button */}
+        {onChatToggle && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onChatToggle}
+            className={`w-full h-6 text-[10px] ${
+              chatOpen ? 'border-primary/60 text-primary bg-primary/10' : ''
+            }`}
+          >
+            <MessageSquare size={10} className="mr-1" />
+            Chat
+            {chatNodeCount && chatNodeCount > 0 && (
+              <span className="ml-1 px-1 rounded-full bg-primary/30 text-primary text-[9px] font-bold leading-none">
+                {chatNodeCount}
+              </span>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );

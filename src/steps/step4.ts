@@ -4,7 +4,7 @@
  */
 
 import { PipelineStep, AgentConfig } from '@/types';
-import { executeStepBatch, executeStep4Pipeline } from '@/lib/api';
+import { executeStepBatch, executeStep4Pipeline, executeStep4Optimized } from '@/lib/api';
 import {
   extractGoals,
   minimalGoal,
@@ -16,6 +16,9 @@ import {
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Step4');
+
+// Toggle between optimized (with research APIs) and old pipeline
+const USE_OPTIMIZED_STEP4 = false;  // Set to false for classic Step 4 (LLM-only, no research APIs)
 
 type Step4Phase = 'phase4a_domain_mapping' | 'phase4b_domain_scans' | 'phase4c_integration';
 
@@ -42,6 +45,72 @@ export async function runStep4(
   const { goals, error } = extractGoals(steps, selectedGoalId);
   if (error) throw new Error(error);
 
+  // ===== OPTIMIZED STEP 4 (With Research APIs & Caching) =====
+  if (USE_OPTIMIZED_STEP4) {
+    log.info(`Step 4 Optimized: ${goals.length} goal(s) with real scientific citations`);
+    callbacks.updateStepStatus(4, 'running', { phase: 'optimized', progress: 0 });
+
+    const finalOutput: Record<string, any> = {};
+    let totalPillars = 0;
+
+    for (let i = 0; i < goals.length; i++) {
+      const goal = goals[i];
+      const ras = step3Output?.[goal.id] || [];
+      const spvs = filterSPVsForGoal(goal, filteredBridgeLexicon.system_properties) || [];
+
+      log.info(`Processing goal ${i + 1}/${goals.length}: ${goal.id}`);
+      const progress = (i / goals.length) * 100;
+      callbacks.updateStepStatus(4, 'running', { phase: 'optimized', progress });
+
+      try {
+        const result = await executeStep4Optimized(
+          {
+            id: goal.id,
+            text: goal.text,
+          },
+          (ras || []).map((ra: any) => ({
+            id: ra.id,
+            text: ra.text,
+          })),
+          (Array.isArray(spvs) ? spvs : []).map((spv: any) => ({
+            id: spv.id || '',
+            text: spv.text || spv,
+          })),
+          signal
+        );
+
+        if (result.success && result.scientific_pillars) {
+          finalOutput[goal.id] = {
+            scientific_pillars: result.scientific_pillars,
+            domain_mapping: result.domain_mapping || {},
+            raw_domain_scans: result.raw_domain_scans || {},
+            from_cache: result.from_cache || false,
+            cache_hit_rate: result.cache_hit_rate || 0,
+            statistics: result.statistics || {},
+          };
+          totalPillars += result.scientific_pillars.length;
+          log.info(`  ✅ ${result.scientific_pillars.length} pillars (${result.from_cache ? 'cached' : 'new'})`);
+        } else {
+          log.error(`  ❌ Failed for goal ${goal.id}: ${result.error}`);
+          finalOutput[goal.id] = {
+            scientific_pillars: [],
+            error: result.error,
+          };
+        }
+      } catch (err: any) {
+        log.error(`  ❌ Exception for goal ${goal.id}: ${err.message}`);
+        finalOutput[goal.id] = {
+          scientific_pillars: [],
+          error: err.message,
+        };
+      }
+    }
+
+    log.info(`Step 4 Optimized complete: ${totalPillars} pillars across ${goals.length} goals`);
+    return finalOutput;
+  }
+
+  // ===== FALLBACK: OLD PIPELINE (No Research APIs) =====
   const domainMapperAgent = findAgent(agents, 'agent-domain-mapper');
   if (!domainMapperAgent) {
     throw new Error('Domain Mapper agent not found. Try resetting to defaults or clearing browser cache.');

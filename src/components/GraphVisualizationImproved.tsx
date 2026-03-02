@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import ReactFlow, {
   Node,
   Background,
@@ -11,15 +11,17 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { PipelineStep } from '@/types';
 import { GraphControls } from './graph/GraphControls';
-import { StandardNode, ClusterNode, CompactNode, MasterNode, NODE_COLORS } from './graph/CustomNodes';
+import { StandardNode, ClusterNode, CompactNode, MasterNode, LayerLabelNode, NODE_COLORS } from './graph/CustomNodes';
 import { buildGraphFromSteps, ClusterState } from './graph/graphBuilder';
 import { getHierarchicalLayout, getRadialLayout, getForceLayout } from './graph/layoutUtils';
 import { renderNodeDetails } from './StepOutputViewer';
 import { NodeChat } from './NodeChat';
 import { NodeDataEditor } from './NodeDataEditor';
 import { NodeLLMImprover } from './NodeLLMImprover';
-import { Edit3, Sparkles, Minimize2, Maximize2, X } from 'lucide-react';
+import { Edit3, Sparkles, Minimize2, Maximize2, X, MessageSquare } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
+import { useSessionStore } from '@/store/useSessionStore';
+import { NodeFeedbackForm } from './NodeFeedbackForm';
 
 interface GraphVisualizationImprovedProps {
   steps: PipelineStep[];
@@ -33,6 +35,7 @@ const nodeTypes = {
   cluster: ClusterNode,
   compact: CompactNode,
   master: MasterNode,
+  layerLabel: LayerLabelNode,
 };
 
 export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProps> = ({
@@ -59,18 +62,135 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   const [nodeDetailsMinimized, setNodeDetailsMinimized] = useState(false);
   const [focusedGoalId, setFocusedGoalId] = useState<string | null>(null);
   const [compactMode, setCompactMode] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { fitView } = useReactFlow();
-  const { updateNodeData } = useAppStore();
+  const { updateNodeData, highlightedL6Ids, setHighlightedL6Ids, focusedNodeId, setFocusedNodeId } = useAppStore();
+  const prevHighlightCountRef = useRef(highlightedL6Ids.length);
+  const { activeSessionId } = useSessionStore();
   
   // Extract bridge lexicon from Step 2 for node detail lookups
   const step2 = steps.find(s => s.id === 2);
   const bridgeLexicon = step2?.output?.bridge_lexicon || step2?.output?.Bridge_Lexicon || step2?.output?.bridgeLexicon || {};
+
+  // Build a lookup context so renderNodeDetails can resolve IDs → text
+  const pipelineLookup = useMemo(() => {
+    const goals: Record<string, string> = {};
+    const ras: Record<string, string> = {};
+    const l3s: Record<string, string> = {};
+    const ihs: Record<string, string> = {};
+    const l4s: Record<string, string> = {};
+    const l5s: Record<string, string> = {};
+
+    // Goals from step 2
+    const s2goals = step2?.output?.goals || [];
+    for (const g of s2goals) goals[g.id] = g.title || g.name || g.id;
+
+    // RAs from step 3
+    const s3 = steps.find(s => s.id === 3);
+    if (s3?.output) {
+      for (const arr of Object.values(s3.output)) {
+        if (Array.isArray(arr)) {
+          for (const ra of arr) if (ra.id) ras[ra.id] = ra.requirement_statement || ra.title || ra.id;
+        }
+      }
+    }
+
+    // L3s from step 6
+    const s6 = steps.find(s => s.id === 6);
+    const l3arr = s6?.output?.l3_questions || s6?.output?.seed_questions || [];
+    if (Array.isArray(l3arr)) {
+      for (const q of l3arr) if (q.id) l3s[q.id] = q.text || q.title || q.id;
+    }
+
+    // IHs from step 7
+    const s7 = steps.find(s => s.id === 7);
+    const iharr = s7?.output?.instantiation_hypotheses || [];
+    if (Array.isArray(iharr)) {
+      for (const ih of iharr) if (ih.id) ihs[ih.id] = ih.process_hypothesis || ih.title || ih.id;
+    }
+
+    // L4s from step 8
+    const s8 = steps.find(s => s.id === 8);
+    const l4arr = s8?.output?.l4_questions || [];
+    if (Array.isArray(l4arr)) {
+      for (const q of l4arr) if (q.id) l4s[q.id] = q.text || q.title || q.id;
+    }
+
+    // L5s from step 9
+    const s9 = steps.find(s => s.id === 9);
+    const l5arr = s9?.output?.l5_nodes || [];
+    if (Array.isArray(l5arr)) {
+      for (const n of l5arr) if (n.id) l5s[n.id] = n.text || n.title || n.id;
+    }
+
+    return { goals, ras, l3s, ihs, l4s, l5s };
+  }, [steps, step2]);
   
   // Extract available goals for focus mode
   const availableGoals = useMemo(() => {
     const goals = step2?.output?.goals || [];
     return goals.map((g: any) => ({ id: g.id, title: g.title || g.name || g.id }));
   }, [step2]);
+
+  // Compute TRUE total node count from step outputs (includes collapsed children)
+  const totalNodeCount = useMemo(() => {
+    let count = 0;
+    const s1 = steps.find(s => s.id === 1);
+    if (s1?.output) count += 1; // Q0
+    const s2 = steps.find(s => s.id === 2);
+    const goals = s2?.output?.goals || [];
+    count += goals.length;
+    const bl = s2?.output?.bridge_lexicon || {};
+    const spvs = bl.system_properties || bl.System_Properties || [];
+    count += spvs.length;
+    const s3 = steps.find(s => s.id === 3);
+    if (s3?.output) {
+      const ras = Object.values(s3.output).flat();
+      count += ras.length;
+    }
+    const s4 = steps.find(s => s.id === 4);
+    if (s4?.output) {
+      for (const goalData of Object.values(s4.output)) {
+        const domains = Array.isArray(goalData) ? goalData : (goalData as any)?.domains || [];
+        count += domains.length;
+        for (const d of domains) {
+          const pillars = (d as any)?.scientific_pillars || (d as any)?.pillars || [];
+          count += pillars.length;
+        }
+      }
+    }
+    const s6 = steps.find(s => s.id === 6);
+    const l3s = s6?.output?.l3_questions || s6?.output?.seed_questions || [];
+    count += l3s.length;
+    const s7 = steps.find(s => s.id === 7);
+    const ihs = s7?.output?.instantiation_hypotheses || [];
+    count += ihs.length;
+    const s8 = steps.find(s => s.id === 8);
+    const l4s = s8?.output?.l4_questions || [];
+    count += l4s.length;
+    const s9 = steps.find(s => s.id === 9);
+    const l5s = s9?.output?.l5_nodes || [];
+    const l6s = s9?.output?.l6_tasks || [];
+    count += l5s.length + l6s.length;
+    return count;
+  }, [steps]);
+
+  // Layer depth label mapping (type → display label + color + description)
+  const LAYER_LABEL_MAP: Record<string, { label: string; color: string; description: string }> = useMemo(() => ({
+    q0: { label: 'Master Question', color: '#3b82f6', description: 'Step 1 — The formalized root question (Q₀) that drives the entire pipeline. Solution-neutral, system-explicit, and time-bounded.' },
+    goal: { label: 'Goal Pillars', color: '#8b5cf6', description: 'Step 2 — MECE decomposition of Q₀ into required end-states via Inverse Failure Analysis. Each pillar targets a functional requirement or failure mode.' },
+    spv: { label: 'System Properties', color: '#f59e0b', description: 'Step 2 — Bridge Lexicon variables (SPVs) — the shared measurement language used across all downstream steps.' },
+    ra: { label: 'Requirement Atoms', color: '#10b981', description: 'Step 3 — Solution-agnostic, testable atomic requirements. Each binds a state variable to a perturbation class, timescale, and meter class.' },
+    domain: { label: 'Research Domains', color: '#06b6d4', description: 'Step 4a — 8-12 MECE research domains per goal, each scoped to ~25 actionable interventions. Includes non-obvious adjacent fields.' },
+    scientific: { label: 'Scientific Pillars', color: '#06b6d4', description: 'Step 4b — 15-25 established, evidence-based mechanisms per domain from PubMed, Semantic Scholar, and OpenAlex. Pushes beyond textbook knowledge.' },
+    l3: { label: 'Frontier Questions', color: '#ef4444', description: 'Step 6 — Seed questions targeting the strategic gap between Goals and Scientific Reality. Unanswerable by literature search alone.' },
+    ih: { label: 'Hypotheses', color: '#f97316', description: 'Step 7 — Competing Instantiation Hypotheses across diverse domain categories. Includes heretical and cross-domain transfer hypotheses.' },
+    l4: { label: 'Tactical Questions', color: '#84cc16', description: 'Step 8 — Discriminator questions that pit hypotheses against each other. ≥50% must be elimination-focused, not descriptive.' },
+    l5: { label: 'Sub-problems', color: '#22c55e', description: 'Step 9 — Mechanistic sub-questions decomposing each L4 into testable parts: tool requirements, model requirements, mechanism drills.' },
+    l6: { label: 'Experiments', color: '#14b8a6', description: 'Step 9 — Concrete experimental protocols with S-I-M-T parameters: System, Intervention, Meter, Threshold/Time. The leaf nodes of the pipeline.' },
+    common_l6: { label: 'Unified Experiments', color: '#eab308', description: 'Step 10 — Synthesized experiments combining multiple L6 tasks from the same L4 branch into a single, more powerful experiment.' },
+    common_l6_fail: { label: 'No Merge Possible', color: '#ef4444', description: 'Step 10 — L4 branches where unifying all L6 tasks into a single experiment was not feasible. Includes justification and recommended groupings.' },
+  }), []);
 
   // Build graph from pipeline steps
   const graphData = useMemo(() => {
@@ -146,14 +266,93 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     return { nodes: filteredNodes, edges: filteredEdges };
   }, [layoutedGraph, visibleLayers, searchTerm, focusedGoalId]);
 
-  // Add cluster toggle callbacks to cluster nodes
+  // Build ancestor set: for highlighted L6 nodes, trace back through edges to find all parent nodes
+  const highlightedAncestorIds = useMemo(() => {
+    if (highlightedL6Ids.length === 0) return new Set<string>();
+
+    const hlSet = new Set(highlightedL6Ids);
+    const hlPrefixed = new Set(highlightedL6Ids.map(id => `l6-${id}`));
+
+    // Find graph node IDs for the highlighted L6s
+    const highlightedGraphIds = new Set<string>();
+    for (const node of filteredGraph.nodes) {
+      const rawId = node.data.fullData?.id || '';
+      if ((node.data.type === 'l6' || node.data.type === 'common_l6') &&
+        (hlSet.has(rawId) || hlSet.has(node.id) || hlPrefixed.has(node.id))) {
+        highlightedGraphIds.add(node.id);
+      }
+    }
+
+    // Build reverse edge map (target → sources) for ancestor traversal
+    const parentMap: Record<string, string[]> = {};
+    for (const edge of filteredGraph.edges) {
+      if (!parentMap[edge.target]) parentMap[edge.target] = [];
+      parentMap[edge.target].push(edge.source);
+    }
+
+    // BFS up the tree from each highlighted L6
+    const ancestors = new Set<string>();
+    const queue = [...highlightedGraphIds];
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!;
+      const parents = parentMap[nodeId] || [];
+      for (const parentId of parents) {
+        if (!ancestors.has(parentId) && !highlightedGraphIds.has(parentId)) {
+          ancestors.add(parentId);
+          queue.push(parentId);
+        }
+      }
+    }
+    return ancestors;
+  }, [highlightedL6Ids, filteredGraph.nodes, filteredGraph.edges]);
+
+  // Add cluster toggle callbacks to cluster nodes and apply L6 highlighting
   const nodesWithCallbacks = useMemo(() => {
+    const hlSet = new Set(highlightedL6Ids);
+    const hlPrefixed = new Set(highlightedL6Ids.map(id => `l6-${id}`));
+    const hasActiveHighlights = hlSet.size > 0;
+
     return filteredGraph.nodes.map(node => {
+      // Check if this is a highlighted L6 node (match raw ID, prefixed ID, or fullData.id)
+      const nodeRawId = node.data.fullData?.id || '';
+      const isHighlightedL6 = hasActiveHighlights &&
+        (node.data.type === 'l6' || node.data.type === 'common_l6') &&
+        (hlSet.has(nodeRawId) || hlSet.has(node.id) || hlPrefixed.has(node.id));
+
+      // Check if this is an ancestor of a highlighted L6
+      const isAncestorHighlight = highlightedAncestorIds.has(node.id);
+      const isDimmed = hasActiveHighlights && !isHighlightedL6 && !isAncestorHighlight;
+
+      // Apply highlighting styles
+      const nodeWithHighlight = {
+        ...node,
+        data: {
+          ...node.data,
+          isHighlighted: isHighlightedL6 || isAncestorHighlight,
+        },
+        style: {
+          ...node.style,
+          ...(isHighlightedL6 ? {
+            outline: '3px solid rgb(168, 85, 247)',
+            outlineOffset: '2px',
+            border: '3px solid rgb(168, 85, 247)',
+            zIndex: 1000,
+          } : isAncestorHighlight ? {
+            outline: '2px solid rgba(168, 85, 247, 0.5)',
+            outlineOffset: '1px',
+            border: '2px solid rgba(168, 85, 247, 0.5)',
+            zIndex: 500,
+          } : isDimmed ? {
+            opacity: 0.25,
+          } : {}),
+        },
+      };
+
       if (node.type === 'cluster') {
         return {
-          ...node,
+          ...nodeWithHighlight,
           data: {
-            ...node.data,
+            ...nodeWithHighlight.data,
             onToggle: () => {
               setClusterState(prev => ({
                 ...prev,
@@ -169,19 +368,122 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
           },
         };
       }
-      return node;
+      return nodeWithHighlight;
     });
-  }, [filteredGraph.nodes, onNodeHighlight]);
+  }, [filteredGraph.nodes, onNodeHighlight, highlightedL6Ids, highlightedAncestorIds]);
+
+  // Compute in-graph layer labels: use filteredGraph (stable positions, not affected by highlight changes)
+  const layerLabels = useMemo(() => {
+    const tierMap: Record<string, { ys: number[]; xs: number[] }> = {};
+    for (const node of filteredGraph.nodes) {
+      const t = node.data?.type;
+      if (!t || node.position?.y == null || node.position?.x == null) continue;
+      const key = t === 'domain_group' ? 'domain' : t;
+      if (!tierMap[key]) tierMap[key] = { ys: [], xs: [] };
+      tierMap[key].ys.push(node.position.y);
+      tierMap[key].xs.push(node.position.x);
+    }
+
+    let globalMinX = Infinity;
+    for (const { xs } of Object.values(tierMap)) {
+      for (const x of xs) {
+        if (x < globalMinX) globalMinX = x;
+      }
+    }
+
+    const tiers: Array<{ type: string; label: string; color: string; description: string; y: number }> = [];
+    for (const [type, { ys }] of Object.entries(tierMap)) {
+      const meta = LAYER_LABEL_MAP[type];
+      if (!meta) continue;
+      const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
+      tiers.push({ type, ...meta, y: avgY });
+    }
+    tiers.sort((a, b) => a.y - b.y);
+
+    const groups: Array<{ tiers: typeof tiers; y: number }> = [];
+    for (const tier of tiers) {
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && Math.abs(tier.y - lastGroup.y) < 120) {
+        lastGroup.tiers.push(tier);
+        lastGroup.y = lastGroup.tiers.reduce((s, t) => s + t.y, 0) / lastGroup.tiers.length;
+      } else {
+        groups.push({ tiers: [tier], y: tier.y });
+      }
+    }
+    return { groups, x: globalMinX - 180 };
+  }, [filteredGraph.nodes, LAYER_LABEL_MAP]);
+
+  // Apply edge dimming when highlights are active
+  const edgesWithHighlight = useMemo(() => {
+    if (highlightedL6Ids.length === 0) return filteredGraph.edges;
+
+    const hlSet = new Set(highlightedL6Ids);
+    const hlPrefixed = new Set(highlightedL6Ids.map(id => `l6-${id}`));
+
+    // Collect all highlighted node graph IDs (L6 nodes + ancestors)
+    const highlightedNodeIds = new Set<string>(highlightedAncestorIds);
+    for (const node of filteredGraph.nodes) {
+      const rawId = node.data.fullData?.id || '';
+      if ((node.data.type === 'l6' || node.data.type === 'common_l6') &&
+        (hlSet.has(rawId) || hlSet.has(node.id) || hlPrefixed.has(node.id))) {
+        highlightedNodeIds.add(node.id);
+      }
+    }
+
+    return filteredGraph.edges.map(edge => {
+      const isHighlightedEdge = highlightedNodeIds.has(edge.source) && highlightedNodeIds.has(edge.target);
+      return {
+        ...edge,
+        style: {
+          ...edge.style,
+          opacity: isHighlightedEdge ? 1 : 0.1,
+          strokeWidth: isHighlightedEdge ? 2.5 : (edge.style as any)?.strokeWidth || 1,
+        },
+        animated: isHighlightedEdge || undefined,
+      };
+    });
+  }, [filteredGraph.edges, filteredGraph.nodes, highlightedL6Ids, highlightedAncestorIds]);
+
+  // Build annotation nodes for layer labels (positioned in graph space)
+  const annotationNodes = useMemo(() => {
+    if (zenMode || layerLabels.groups.length === 0) return [];
+    return layerLabels.groups.map((group, i): Node => ({
+      id: `__layer-label-${i}`,
+      type: 'layerLabel',
+      position: { x: layerLabels.x, y: group.y },
+      data: { tiers: group.tiers },
+      selectable: false,
+      draggable: false,
+      connectable: false,
+      style: { pointerEvents: 'auto' as const },
+    }));
+  }, [layerLabels, zenMode]);
 
   useEffect(() => {
-    setNodes(nodesWithCallbacks);
-    setEdges(filteredGraph.edges);
-  }, [nodesWithCallbacks, filteredGraph.edges, setNodes, setEdges]);
+    setNodes([...nodesWithCallbacks, ...annotationNodes]);
+    setEdges(edgesWithHighlight);
+  }, [nodesWithCallbacks, annotationNodes, edgesWithHighlight, setNodes, setEdges]);
 
   // Fit view when layout changes
   useEffect(() => {
     setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 100);
   }, [layoutMode, fitView]);
+
+  // Auto-expand all layers when L6 highlights are active (so ancestor branches are visible)
+  useEffect(() => {
+    if (highlightedL6Ids.length > 0) {
+      setVisibleLayers(new Set(['q0', 'goals', 'spvs', 'ras', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6', 'common_l6']));
+    }
+  }, [highlightedL6Ids]);
+
+  // Reset view when L6 highlights are cleared (transition from highlighted → none)
+  useEffect(() => {
+    const prev = prevHighlightCountRef.current;
+    prevHighlightCountRef.current = highlightedL6Ids.length;
+    if (prev > 0 && highlightedL6Ids.length === 0) {
+      setTimeout(() => fitView({ duration: 600, padding: 0.1 }), 150);
+    }
+  }, [highlightedL6Ids, fitView]);
 
   // Handle ESC key to close/minimize panels
   useEffect(() => {
@@ -211,6 +513,9 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   // Node click handler — Ctrl/Cmd+click to add to chat selection, or context selection mode
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      // Ignore clicks on annotation label nodes
+      if (node.id.startsWith('__layer-label-')) return;
+
       const isMultiSelect = event.ctrlKey || event.metaKey;
 
       // Handle context selection mode for LLM improver
@@ -249,6 +554,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         if (!chatOpen) setChatOpen(true);
       } else {
         setSelectedNode(node.data);
+        setFeedbackOpen(false);
       }
 
       if (onNodeHighlight) {
@@ -258,9 +564,24 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     [onNodeHighlight, chatOpen, contextSelectionMode]
   );
 
+  // Double-click on highlighted L6 node: clear all highlights and reset view
+  const onNodeDoubleClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      if (highlightedL6Ids.length > 0 && (node.data.type === 'l6' || node.data.type === 'common_l6')) {
+        // Use isHighlighted flag already computed by nodesWithCallbacks
+        if (node.data.isHighlighted) {
+          setHighlightedL6Ids([]);
+          return;
+        }
+      }
+    },
+    [highlightedL6Ids.length, setHighlightedL6Ids]
+  );
+
   // Pane click handler (deselect) — only deselect detail panel, not chat nodes
   const onPaneClick = useCallback(() => {
     setSelectedNode(null);
+    setFeedbackOpen(false);
     if (onNodeHighlight) {
       onNodeHighlight(null, null);
     }
@@ -311,8 +632,10 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     setClusterState({});
   }, []);
 
-  // Reset to default view: collapse all, show all layers, clear search, hierarchical layout, center on Q0
+  // Reset to default view: collapse all, show all layers, clear search, hierarchical layout, fit all
   const handleResetView = useCallback(() => {
+    // Skip the auto-reset effect by zeroing the ref before clearing highlights
+    prevHighlightCountRef.current = 0;
     setClusterState({});
     setSearchTerm('');
     setVisibleLayers(new Set(['q0', 'goals', 'spvs', 'ras', 'domains', 'l3', 'ih', 'l4', 'l5', 'l6']));
@@ -320,9 +643,12 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     setSelectedNode(null);
     setFocusedGoalId(null);
     setCompactMode(false);
+    setHighlightedL6Ids([]);
+    setFeedbackOpen(false);
     if (onNodeHighlight) onNodeHighlight(null, null);
-    setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 150);
-  }, [fitView, onNodeHighlight]);
+    // Delay fitView to let collapsed layout recompute, then fit the full graph
+    setTimeout(() => fitView({ duration: 400, padding: 0.15 }), 300);
+  }, [fitView, onNodeHighlight, setHighlightedL6Ids]);
   
   // Jump to Q0 node
   const handleJumpToQ0 = useCallback(() => {
@@ -381,6 +707,207 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
     
     setClusterState(newState);
   }, [steps, clusterState]);
+
+  // Helper: Find an L6 task in step 9 output (handles both flat array and object-keyed formats)
+  const findL6TaskInOutput = useCallback((l6Id: string) => {
+    const step9Data = steps.find((s: any) => s.id === 9);
+    if (!step9Data?.output) return null;
+    const output = step9Data.output;
+
+    // Check flat l6_tasks array
+    if (Array.isArray(output.l6_tasks)) {
+      const found = output.l6_tasks.find((t: any) => t.id === l6Id);
+      if (found) return found;
+    } else if (output.l6_tasks && typeof output.l6_tasks === 'object') {
+      // Object keyed by L4 ID
+      for (const key of Object.keys(output.l6_tasks)) {
+        const tasks = output.l6_tasks[key];
+        if (Array.isArray(tasks)) {
+          const found = tasks.find((t: any) => t.id === l6Id);
+          if (found) return found;
+        }
+      }
+    }
+
+    // Check batch_results format
+    if (output.batch_results) {
+      for (const result of output.batch_results) {
+        if (result.data?.l6_tasks) {
+          const found = result.data.l6_tasks.find((t: any) => t.id === l6Id);
+          if (found) return found;
+        }
+      }
+    }
+
+    return null;
+  }, [steps]);
+
+  // Helper: Find the parent L3 ID for an L4 ID from step 8 output
+  const findL4ParentL3 = useCallback((l4Id: string) => {
+    const step8 = steps.find((s: any) => s.id === 8);
+    if (!step8?.output) return null;
+    const output = step8.output;
+
+    // Check flat l4_questions array
+    const l4Questions = output.l4_questions || [];
+    if (Array.isArray(l4Questions)) {
+      const found = l4Questions.find((q: any) => q.id === l4Id);
+      if (found?.parent_l3_id) return found.parent_l3_id;
+    } else if (typeof l4Questions === 'object') {
+      for (const key of Object.keys(l4Questions)) {
+        const qs = l4Questions[key];
+        if (Array.isArray(qs)) {
+          const found = qs.find((q: any) => q.id === l4Id);
+          if (found?.parent_l3_id) return found.parent_l3_id;
+        }
+      }
+    }
+
+    // Check batch_results
+    if (output.batch_results) {
+      for (const result of output.batch_results) {
+        const qs = result.data?.l4_questions || [];
+        if (Array.isArray(qs)) {
+          const found = qs.find((q: any) => q.id === l4Id);
+          if (found?.parent_l3_id) return found.parent_l3_id;
+        }
+      }
+    }
+    return null;
+  }, [steps]);
+
+  // Helper: Find the parent goal ID for an L3 question from step 6 output
+  const findL3ParentGoal = useCallback((l3Id: string) => {
+    const step6 = steps.find((s: any) => s.id === 6);
+    if (!step6?.output) return null;
+    const output = step6.output;
+
+    const l3Questions = output.l3_questions || output.questions || [];
+    if (Array.isArray(l3Questions)) {
+      const found = l3Questions.find((q: any) => q.id === l3Id);
+      if (found?.goal_id || found?.target_goal_id || found?.parent_goal_id) {
+        return found.goal_id || found.target_goal_id || found.parent_goal_id;
+      }
+    } else if (typeof l3Questions === 'object') {
+      for (const key of Object.keys(l3Questions)) {
+        const qs = l3Questions[key];
+        if (Array.isArray(qs)) {
+          const found = qs.find((q: any) => q.id === l3Id);
+          if (found) return found.goal_id || found.target_goal_id || found.parent_goal_id || key;
+        }
+      }
+    }
+
+    // Check batch_results
+    if (output.batch_results) {
+      for (const result of output.batch_results) {
+        const qs = result.data?.l3_questions || result.data?.questions || [];
+        if (Array.isArray(qs)) {
+          const found = qs.find((q: any) => q.id === l3Id);
+          if (found) return found.goal_id || found.target_goal_id || found.parent_goal_id;
+        }
+      }
+    }
+    return null;
+  }, [steps]);
+
+  // Zoom to focused node (triggered by L6 analyzer or other components)
+  useEffect(() => {
+    if (focusedNodeId && nodes.length > 0) {
+      const fId = focusedNodeId;
+      // Try exact match, then prefixed match (graph nodes use "l6-{id}" format), then fullData match
+      const targetNode = nodes.find(n => n.id === fId)
+        || nodes.find(n => n.id === `l6-${fId}`)
+        || nodes.find(n => n.data?.fullData?.id === fId);
+
+      if (targetNode) {
+        // Node is visible — select and zoom to it
+        setSelectedNode(targetNode.data);
+        setFeedbackOpen(false);
+
+        setTimeout(() => {
+          fitView({
+            duration: 800,
+            padding: 0.3,
+            nodes: [{ id: targetNode.id }]
+          });
+        }, 150);
+
+        // Clear the focused node after zooming (one-time action)
+        setTimeout(() => setFocusedNodeId(null), 1200);
+      } else {
+        // Node not found — expand the full cluster chain: L3 → L4 → L5 → L6
+        // First, find the L6 task data to know its parents
+        const l6Task = findL6TaskInOutput(fId);
+        const expansions: Record<string, boolean> = {};
+
+        if (l6Task) {
+          const parentL5Id = l6Task.parent_l5_id;
+          const parentL4Id = l6Task.parent_l4_id;
+
+          // Expand L6 cluster (keyed by parent L5 ID)
+          if (parentL5Id) {
+            expansions[`l6-cluster-${parentL5Id}`] = true;
+          }
+
+          // Expand L5 cluster (keyed by parent L4 ID)
+          if (parentL4Id) {
+            expansions[`l5-cluster-${parentL4Id}`] = true;
+
+            // Expand L4 cluster (keyed by parent L3 ID)
+            const parentL3Id = findL4ParentL3(parentL4Id);
+            if (parentL3Id) {
+              expansions[`l4-cluster-${parentL3Id}`] = true;
+
+              // Expand L3 cluster (keyed by parent goal ID)
+              const parentGoalId = findL3ParentGoal(parentL3Id);
+              if (parentGoalId) {
+                expansions[`l3-cluster-${parentGoalId}`] = true;
+              }
+            }
+          }
+        } else {
+          // Fallback: search graph data for clusters containing this task
+          const allGraphNodes = graphData.nodes;
+          const parentCluster = allGraphNodes.find(n =>
+            n.type === 'cluster' && n.id.startsWith('l6-cluster-') &&
+            n.data?.fullData?.tasks?.some((t: any) => t.id === fId)
+          );
+
+          if (parentCluster) {
+            expansions[parentCluster.id] = true;
+            const parentL5Id = parentCluster.data?.fullData?.parentL5Id;
+            if (parentL5Id) {
+              // Walk up to find parent L4's L5 cluster
+              const step9Data = steps.find((s: any) => s.id === 9);
+              const l5Nodes = step9Data?.output?.l5_nodes || [];
+              const l5Node = Array.isArray(l5Nodes) ? l5Nodes.find((n: any) => n.id === parentL5Id) : null;
+              if (l5Node?.parent_l4_id) {
+                expansions[`l5-cluster-${l5Node.parent_l4_id}`] = true;
+                const parentL3Id = findL4ParentL3(l5Node.parent_l4_id);
+                if (parentL3Id) {
+                  expansions[`l4-cluster-${parentL3Id}`] = true;
+                  const parentGoalId = findL3ParentGoal(parentL3Id);
+                  if (parentGoalId) {
+                    expansions[`l3-cluster-${parentGoalId}`] = true;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (Object.keys(expansions).length > 0) {
+          setClusterState(prev => ({ ...prev, ...expansions }));
+          // Don't clear focusedNodeId — next render cycle will find the expanded node and zoom
+          return;
+        }
+
+        // Nothing found at all — clear to prevent infinite loop
+        setFocusedNodeId(null);
+      }
+    }
+  }, [focusedNodeId, nodes, fitView, setFocusedNodeId, graphData.nodes, clusterState, steps, findL6TaskInOutput, findL4ParentL3, findL3ParentGoal]);
 
   // Find the path to a node in the step output based on node type and ID
   const findNodePath = (nodeType: string, nodeId: string, stepId: number): string[] | null => {
@@ -626,6 +1153,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
@@ -647,6 +1175,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         {/* Controls component removed - default zoom controls hidden */}
         <MiniMap
           nodeColor={(node) => {
+            if (node.id.startsWith('__layer-label-')) return 'transparent';
             const type = node.data?.type;
             return type === 'q0' ? '#3b82f6' :
                    type === 'goal' ? '#8b5cf6' :
@@ -656,7 +1185,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
                    type === 'l6' ? '#14b8a6' : '#6366f1';
           }}
           maskColor="rgba(0, 0, 0, 0.6)"
-          style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', width: 140, height: 90 }}
           className="backdrop-blur-sm"
         />
 
@@ -684,33 +1213,33 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
               onSmartExpand={handleSmartExpand}
               compactMode={compactMode}
               onCompactModeToggle={() => setCompactMode(!compactMode)}
+              totalNodeCount={totalNodeCount}
+              visibleNodeCount={filteredGraph.nodes.length}
             />
           </Panel>
         )}
 
-        {/* Graph Stats Panel */}
+        {/* Graph Stats Panel removed — stats shown in controls panel header */}
+
+        {/* Pipeline Flow Legend — bottom center, compact with dots */}
         {!zenMode && (
-          <Panel position="top-right">
-            <div className="bg-card/95 backdrop-blur-sm rounded-lg shadow-lg p-3 border border-border/50 text-xs w-[180px]">
-              <div className="font-semibold mb-2 text-sm">Graph Stats</div>
-              <div className="space-y-1 text-[10px]">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Total Nodes:</span>
-                  <span className="font-semibold">{nodes.length}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Visible:</span>
-                  <span className="font-semibold text-green-400">{filteredGraph.nodes.length}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Edges:</span>
-                  <span className="font-semibold">{edges.length}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Layout:</span>
-                  <span className="font-semibold capitalize">{layoutMode}</span>
-                </div>
-              </div>
+          <Panel position="bottom-center">
+            <div className="bg-card/80 backdrop-blur-sm rounded-full shadow-md px-3 py-1.5 border border-border/30 flex items-center gap-1 text-[9px] font-medium select-none">
+              <span className="w-2 h-2 rounded-full bg-blue-400" title="Master Question" />
+              <span className="text-muted-foreground/40 text-[8px]">›</span>
+              <span className="w-2 h-2 rounded-full bg-purple-400" title="Goals" />
+              <span className="text-muted-foreground/40 text-[8px]">›</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400" title="Requirements" />
+              <span className="text-muted-foreground/40 text-[8px]">›</span>
+              <span className="w-2 h-2 rounded-full bg-cyan-400" title="Domains + Science" />
+              <span className="text-muted-foreground/40 text-[8px]">›</span>
+              <span className="w-2 h-2 rounded-full bg-red-400" title="Questions" />
+              <span className="text-muted-foreground/40 text-[8px]">›</span>
+              <span className="w-2 h-2 rounded-full bg-orange-400" title="Hypotheses" />
+              <span className="text-muted-foreground/40 text-[8px]">›</span>
+              <span className="w-2 h-2 rounded-full bg-lime-400" title="Tactics" />
+              <span className="text-muted-foreground/40 text-[8px]">›</span>
+              <span className="w-2 h-2 rounded-full bg-teal-400" title="Experiments" />
             </div>
           </Panel>
         )}
@@ -773,7 +1302,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
                     title="Improve with LLM"
                   >
                     <Sparkles size={12} className="group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-semibold">AI Improve</span>
+                    <span className="text-xs font-semibold">AI Improve</span>
                   </button>
                   <button
                     onClick={handleEditNode}
@@ -781,8 +1310,31 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
                     title="Edit node data"
                   >
                     <Edit3 size={12} className="group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-semibold">Edit</span>
+                    <span className="text-xs font-semibold">Edit</span>
                   </button>
+                  <button
+                    onClick={() => setFeedbackOpen(!feedbackOpen)}
+                    className={`group relative flex-1 px-2.5 py-1.5 rounded-md bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border text-teal-400 transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                      feedbackOpen
+                        ? 'border-teal-400 from-teal-500/20 to-cyan-500/20 shadow-[0_0_15px_rgba(20,184,166,0.3)]'
+                        : 'border-teal-500/40 hover:from-teal-500/20 hover:to-cyan-500/20 hover:border-teal-400 hover:shadow-[0_0_15px_rgba(20,184,166,0.3)]'
+                    }`}
+                    title="Leave feedback"
+                  >
+                    <MessageSquare size={12} className="group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-semibold">Feedback</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Feedback Form */}
+              {feedbackOpen && selectedNode && (
+                <div className="mb-3">
+                  <NodeFeedbackForm
+                    nodeId={selectedNode.id}
+                    nodeType={selectedNode.type}
+                    userSessionId={activeSessionId || ''}
+                  />
                 </div>
               )}
 
@@ -800,7 +1352,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
               <div className="text-sm space-y-2">
                 {selectedNode.fullData && (
                   <div className="max-h-[calc(70vh-280px)] overflow-auto">
-                    {renderNodeDetails(selectedNode.type, selectedNode.fullData, bridgeLexicon)}
+                    {renderNodeDetails(selectedNode.type, selectedNode.fullData, bridgeLexicon, pipelineLookup)}
                   </div>
                 )}
               </div>

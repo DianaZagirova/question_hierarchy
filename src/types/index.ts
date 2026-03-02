@@ -176,6 +176,8 @@ export interface L6Task {
   id: string;
   type: string;
   title: string;
+  rationale?: string;
+  if_null?: string;
   simt_parameters: {
     system: string;
     intervention: string;
@@ -184,6 +186,10 @@ export interface L6Task {
   };
   expected_impact: string;
   spv_link: string;
+  feasibility_score?: number;
+  genius_score?: number;
+  verification_note?: string;
+  discovery_component?: boolean;
 }
 
 // Project State Types
@@ -214,6 +220,32 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   goalPreview: string; // First ~80 chars of the goal for display
+  author?: string;
+  isBookmarked?: boolean;
+}
+
+export interface BookmarkedSession {
+  id: string;
+  name: string;
+  author: string;
+  goalPreview: string;
+  createdAt: string;
+  updatedAt: string;
+  browserSessionId: string;
+}
+
+export interface NodeFeedbackEntry {
+  feedbackId: string;
+  sessionId: string;
+  userSessionId: string;
+  nodeId: string;
+  nodeType: string;
+  rating: number | null;
+  comment: string | null;
+  category: string | null;
+  author: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AppState {

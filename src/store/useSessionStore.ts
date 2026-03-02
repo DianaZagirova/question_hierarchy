@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Session } from '@/types';
+import { Session, BookmarkedSession } from '@/types';
 import { sessionManager } from '@/lib/sessionManager';
 import { stateSync } from '@/lib/stateSync';
 import * as sessionApi from '@/lib/sessionApi';
@@ -22,12 +22,13 @@ interface SessionStore {
   sessions: Session[];
   activeSessionId: string | null;
   isLoading: boolean;
+  bookmarkedSessions: BookmarkedSession[];
 
   // Initialize: load sessions from server or migrate from localStorage
   initialize: () => Promise<string>;
 
   // Create a new session and switch to it
-  createSession: (name?: string) => Promise<string>;
+  createSession: (name?: string, author?: string) => Promise<string>;
 
   // Switch to a different session (saves current first)
   switchSession: (sessionId: string) => Promise<void>;
@@ -46,12 +47,22 @@ interface SessionStore {
 
   // Save current Zustand app state into the active session
   saveCurrentToSession: () => Promise<void>;
+
+  // Bookmark a session with author name
+  bookmarkSession: (sessionId: string, author: string) => Promise<void>;
+
+  // Unbookmark a session
+  unbookmarkSession: (sessionId: string) => Promise<void>;
+
+  // Load all bookmarked sessions
+  loadBookmarkedSessions: () => Promise<void>;
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   isLoading: false,
+  bookmarkedSessions: [],
 
   initialize: async () => {
     set({ isLoading: true });
@@ -76,7 +87,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // If no sessions exist on server, create first one
       if (sessions.length === 0) {
         console.log('[SessionStore] No sessions found, creating first session...');
-        const firstSession = await sessionApi.createUserSession('Session 1');
+        const storedAuthor = localStorage.getItem('omega-point-user-name') || undefined;
+        const firstSession = await sessionApi.createUserSession('Session 1', storedAuthor);
         set({ sessions: [firstSession], activeSessionId: firstSession.id, isLoading: false });
         setActiveSessionId(firstSession.id);
         return firstSession.id;
@@ -111,7 +123,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  createSession: async (name?: string) => {
+  createSession: async (name?: string, author?: string) => {
     const state = get();
 
     try {
@@ -119,7 +131,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await state.saveCurrentToSession();
 
       // Create new session on server
-      const newSession = await sessionApi.createUserSession(name || `Session ${state.sessions.length + 1}`);
+      const newSession = await sessionApi.createUserSession(name || `Session ${state.sessions.length + 1}`, author);
 
       // CRITICAL: Set active session ID in localStorage ONLY, not in Zustand state
       // Setting it in Zustand state would trigger auto-save which would save old data to new session
@@ -268,7 +280,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   saveCurrentToSession: async () => {
     const state = get();
-    if (!state.activeSessionId) return;
+    if (!state.activeSessionId) {
+      console.warn('[SessionStore] Cannot save: no active session ID yet');
+      return;
+    }
 
     try {
       const currentState = await getCurrentZustandState();
@@ -276,6 +291,47 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       console.log('[SessionStore] Session saved to server');
     } catch (error) {
       console.error('[SessionStore] Failed to save session:', error);
+    }
+  },
+
+  bookmarkSession: async (sessionId: string, author: string) => {
+    const state = get();
+    try {
+      await sessionApi.bookmarkSession(sessionId, true, author);
+
+      // Update local state
+      const updatedSessions = state.sessions.map(s =>
+        s.id === sessionId ? { ...s, isBookmarked: true, author, updatedAt: new Date().toISOString() } : s
+      );
+      set({ sessions: updatedSessions });
+    } catch (error) {
+      console.error('[SessionStore] Failed to bookmark session:', error);
+      throw error;
+    }
+  },
+
+  unbookmarkSession: async (sessionId: string) => {
+    const state = get();
+    try {
+      await sessionApi.bookmarkSession(sessionId, false, '');
+
+      // Update local state
+      const updatedSessions = state.sessions.map(s =>
+        s.id === sessionId ? { ...s, isBookmarked: false, updatedAt: new Date().toISOString() } : s
+      );
+      set({ sessions: updatedSessions });
+    } catch (error) {
+      console.error('[SessionStore] Failed to unbookmark session:', error);
+      throw error;
+    }
+  },
+
+  loadBookmarkedSessions: async () => {
+    try {
+      const bookmarked = await sessionApi.getBookmarkedSessions();
+      set({ bookmarkedSessions: bookmarked });
+    } catch (error) {
+      console.error('[SessionStore] Failed to load bookmarked sessions:', error);
     }
   },
 }));
@@ -290,11 +346,20 @@ async function getCurrentZustandState(): Promise<any> {
   const { useAppStore } = await import('./useAppStore');
   const state = useAppStore.getState();
 
+  // Downgrade any 'running' steps to 'pending' before saving —
+  // execution state (SSE, abort controllers) doesn't survive page reload,
+  // so saving 'running' would create a stuck step on next load.
+  const cleanedSteps = state.steps.map((s: any) =>
+    s.status === 'running' ? { ...s, status: 'pending', error: undefined } : s
+  );
+
   return {
     currentGoal: state.currentGoal,
     agents: state.agents,
-    steps: state.steps,
+    steps: cleanedSteps,
     versions: state.versions,
+    l6AnalysisResult: state.l6AnalysisResult || null,
+    highlightedL6Ids: state.highlightedL6Ids || [],
   };
 }
 
@@ -313,10 +378,13 @@ async function migrateLegacyData() {
     const legacySessions = JSON.parse(legacySessionsRaw);
     console.log(`[Migration] Found ${legacySessions.length} sessions to migrate`);
 
+    const storedAuthor = localStorage.getItem('omega-point-user-name') || undefined;
+
     for (const legacySession of legacySessions) {
       try {
-        // Create session on server
-        const newSession = await sessionApi.createUserSession(legacySession.name);
+        // Create session on server (preserve author from legacy data or use stored name)
+        const author = legacySession.author || storedAuthor;
+        const newSession = await sessionApi.createUserSession(legacySession.name, author);
         console.log(`[Migration] Created session: ${newSession.name}`);
 
         // Load session data from localStorage
@@ -362,12 +430,14 @@ async function initializeFallbackMode(): Promise<string> {
   if (sessions.length === 0) {
     // Create first session
     const firstId = `s-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const storedAuthor = localStorage.getItem('omega-point-user-name') || '';
     const firstSession: Session = {
       id: firstId,
       name: 'Session 1',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       goalPreview: '',
+      author: storedAuthor,
     };
     sessions = [firstSession];
     activeId = firstId;

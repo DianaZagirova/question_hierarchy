@@ -3,7 +3,23 @@
  * Communicates with PostgreSQL backend instead of localStorage
  */
 
+import { sessionManager } from './sessionManager';
+
 const API_BASE = import.meta.env.VITE_API_URL || '';
+
+/**
+ * Build headers with X-Session-ID for browser session identification.
+ * This is critical — without the header, the server can't identify the browser session,
+ * causing 401 errors and infinite session creation loops.
+ */
+function getSessionHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const sessionId = sessionManager.getSessionId();
+  if (sessionId) {
+    headers['X-Session-ID'] = sessionId;
+  }
+  return { ...headers, ...extra };
+}
 
 interface UserSession {
   id: string;
@@ -22,7 +38,8 @@ interface SessionData {
  */
 export async function getUserSessions(): Promise<UserSession[]> {
   const response = await fetch(`${API_BASE}/api/user-sessions`, {
-    credentials: 'include', // Include session cookie
+    headers: getSessionHeaders(),
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -36,14 +53,12 @@ export async function getUserSessions(): Promise<UserSession[]> {
 /**
  * Create a new user session
  */
-export async function createUserSession(name?: string): Promise<UserSession> {
+export async function createUserSession(name?: string, author?: string): Promise<UserSession> {
   const response = await fetch(`${API_BASE}/api/user-sessions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getSessionHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, author }),
   });
 
   if (!response.ok) {
@@ -59,6 +74,7 @@ export async function createUserSession(name?: string): Promise<UserSession> {
  */
 export async function getUserSessionData(userSessionId: string): Promise<SessionData | null> {
   const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}`, {
+    headers: getSessionHeaders(),
     credentials: 'include',
   });
 
@@ -80,9 +96,7 @@ export async function getUserSessionData(userSessionId: string): Promise<Session
 export async function updateUserSessionData(userSessionId: string, data: SessionData): Promise<void> {
   const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getSessionHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -98,6 +112,7 @@ export async function updateUserSessionData(userSessionId: string, data: Session
 export async function deleteUserSession(userSessionId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}`, {
     method: 'DELETE',
+    headers: getSessionHeaders(),
     credentials: 'include',
   });
 
@@ -113,6 +128,7 @@ export async function deleteUserSession(userSessionId: string): Promise<void> {
 export async function duplicateUserSession(userSessionId: string): Promise<UserSession> {
   const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}/duplicate`, {
     method: 'POST',
+    headers: getSessionHeaders(),
     credentials: 'include',
   });
 
@@ -130,9 +146,7 @@ export async function duplicateUserSession(userSessionId: string): Promise<UserS
 export async function renameUserSession(userSessionId: string, newName: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}/rename`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getSessionHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ name: newName }),
   });
@@ -154,6 +168,7 @@ export interface CommunitySession {
   publishedAt: string;
   tags: string[];
   cloneCount: number;
+  sourceBrowserSession?: string;
 }
 
 /**
@@ -171,6 +186,7 @@ export async function listCommunitySessions(limit = 50, offset = 0): Promise<{ s
 export async function cloneCommunitySession(communityId: string): Promise<UserSession> {
   const response = await fetch(`${API_BASE}/api/community-sessions/${communityId}/clone`, {
     method: 'POST',
+    headers: getSessionHeaders(),
     credentials: 'include',
   });
   if (!response.ok) throw new Error('Failed to clone community session');
@@ -184,12 +200,85 @@ export async function cloneCommunitySession(communityId: string): Promise<UserSe
 export async function publishSession(userSessionId: string, author?: string, tags?: string[]): Promise<{ published: boolean; communityId: string }> {
   const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}/publish`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getSessionHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ author: author || 'Anonymous', tags: tags || [] }),
   });
   if (!response.ok) throw new Error('Failed to publish session');
   return await response.json();
+}
+
+/**
+ * Unpublish (delete) a community session — only owner can do this
+ */
+export async function unpublishSession(communityId: string): Promise<{ deleted: boolean }> {
+  const response = await fetch(`${API_BASE}/api/community-sessions/${communityId}`, {
+    method: 'DELETE',
+    headers: getSessionHeaders(),
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to unpublish session');
+  }
+  return await response.json();
+}
+
+/**
+ * Get community session count (lightweight, no data)
+ */
+export async function getCommunityCount(): Promise<number> {
+  const response = await fetch(`${API_BASE}/api/community-sessions/count`);
+  if (!response.ok) return 0;
+  const data = await response.json();
+  return data.total || 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Session Bookmarks
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface BookmarkedSession {
+  id: string;
+  name: string;
+  author: string;
+  goalPreview: string;
+  createdAt: string;
+  updatedAt: string;
+  browserSessionId: string;
+}
+
+/**
+ * Toggle bookmark and set author for a user session
+ */
+export async function bookmarkSession(userSessionId: string, isBookmarked: boolean, author: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/user-sessions/${userSessionId}/bookmark`, {
+    method: 'PUT',
+    headers: getSessionHeaders({ 'Content-Type': 'application/json' }),
+    credentials: 'include',
+    body: JSON.stringify({ isBookmarked, author }),
+  });
+  if (!response.ok) throw new Error('Failed to bookmark session');
+}
+
+/**
+ * Get all bookmarked sessions across all browser sessions
+ */
+export async function getBookmarkedSessions(): Promise<BookmarkedSession[]> {
+  const response = await fetch(`${API_BASE}/api/bookmarked-sessions`);
+  if (!response.ok) throw new Error('Failed to fetch bookmarked sessions');
+  const data = await response.json();
+  return data.sessions || [];
+}
+
+/**
+ * Load full data for a bookmarked session from any browser session
+ */
+export async function loadBookmarkedSession(userSessionId: string, browserSessionId: string): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/bookmarked-sessions/${userSessionId}/load?browserSessionId=${browserSessionId}`);
+  if (!response.ok) throw new Error('Failed to load bookmarked session');
+  const data = await response.json();
+  return data.data;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -217,6 +306,7 @@ interface ExportData {
  */
 export async function exportAllSessions(): Promise<ExportData> {
   const response = await fetch(`${API_BASE}/api/export/all`, {
+    headers: getSessionHeaders(),
     credentials: 'include',
   });
 
@@ -232,6 +322,7 @@ export async function exportAllSessions(): Promise<ExportData> {
  */
 export async function exportSession(userSessionId: string): Promise<ExportData> {
   const response = await fetch(`${API_BASE}/api/export/session/${userSessionId}`, {
+    headers: getSessionHeaders(),
     credentials: 'include',
   });
 
@@ -248,9 +339,7 @@ export async function exportSession(userSessionId: string): Promise<ExportData> 
 export async function importSessions(exportData: ExportData): Promise<{ imported: number; sessions: UserSession[] }> {
   const response = await fetch(`${API_BASE}/api/import/sessions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getSessionHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify(exportData),
   });
@@ -269,9 +358,7 @@ export async function importSessions(exportData: ExportData): Promise<{ imported
 export async function importSession(exportData: ExportData): Promise<{ imported: boolean; session: UserSession }> {
   const response = await fetch(`${API_BASE}/api/import/session`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getSessionHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify(exportData),
   });

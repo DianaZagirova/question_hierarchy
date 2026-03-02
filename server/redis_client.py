@@ -149,8 +149,8 @@ class RedisClient:
 
             if updates:
                 self.client.hset(key, mapping=updates)
-                # Set TTL of 7 days
-                self.client.expire(key, 7 * 24 * 3600)
+                # Set TTL of 60 days
+                self.client.expire(key, 60 * 24 * 3600)
         except redis.RedisError as e:
             print(f"Error setting session metadata in Redis: {e}")
 

@@ -1,0 +1,1397 @@
+{
+  "goal": "reverse aging in the human brain",
+  "run": 1,
+  "step1": {
+    "Q0": "What comprehensive neuro-regenerative and neuroprotective strategy is required to maintain the human brain, specifically the neocortex and hippocampus, in a functional state comparable to a healthy 25-year-old baseline\u2014preserving high-level cognitive functions such as memory, executive function, and learning capacity, alongside sensory-motor integration and emotional regulation\u2014under typical daily physiological and environmental stressors, such that the rate of neuronal loss, synaptic degradation, and white matter demyelination does not exceed that of the baseline state, and the overall cognitive processing speed and adaptability are maintained or improved, for a minimum duration of 50 years, thereby ensuring sustained independent living and high-fidelity interaction with the environment?"
+  },
+  "step2": {
+    "bridge_lexicon": {
+      "failure_channels": [
+        {
+          "definition": "Impairment in the formation, maintenance, or plasticity of synaptic connections, leading to altered neurotransmission and information processing.",
+          "id": "FCC_1",
+          "name": "Synaptic Dysregulation"
+        },
+        {
+          "definition": "Uncontrolled or chronic activation of glial cells and immune responses within the CNS, resulting in collateral neuronal damage and functional decline.",
+          "id": "FCC_2",
+          "name": "Neuroinflammatory Cascade"
+        },
+        {
+          "definition": "Failure of neuronal and glial mitochondria to produce sufficient ATP, leading to energy deficits, oxidative stress, and cell death.",
+          "id": "FCC_3",
+          "name": "Mitochondrial Bioenergetic Collapse"
+        },
+        {
+          "definition": "Disruption of protein synthesis, folding, and degradation pathways, leading to accumulation of misfolded or aggregated proteins.",
+          "id": "FCC_4",
+          "name": "Proteostatic Imbalance"
+        },
+        {
+          "definition": "Decoupling of cerebral blood flow from metabolic demand, resulting in regional hypoxia, nutrient deprivation, and waste product accumulation.",
+          "id": "FCC_5",
+          "name": "Neurovascular Uncoupling"
+        },
+        {
+          "definition": "Progressive loss or damage to the myelin sheath surrounding axons, impairing action potential propagation and inter-neuronal communication.",
+          "id": "FCC_6",
+          "name": "Myelin Degeneration"
+        },
+        {
+          "definition": "Programmed or accidental cell death of neurons, leading to irreversible loss of brain tissue and functional capacity.",
+          "id": "FCC_7",
+          "name": "Neuronal Apoptosis/Necrosis"
+        }
+      ],
+      "system_properties": [
+        {
+          "definition": "The strength and reliability of signal propagation across synapses, measured by postsynaptic potential amplitude or neurotransmitter release probability.",
+          "id": "SPV_1",
+          "name": "Synaptic Transmission Efficacy"
+        },
+        {
+          "definition": "The rate of synthesis and secretion of growth factors essential for neuronal survival, differentiation, and plasticity.",
+          "id": "SPV_2",
+          "name": "Neurotrophic Factor Expression Rate"
+        },
+        {
+          "definition": "The rate at which the brain consumes oxygen, reflecting overall neuronal activity and energy demand.",
+          "id": "SPV_3",
+          "name": "Cerebral Metabolic Rate of Oxygen (CMRO2)"
+        },
+        {
+          "definition": "A quantitative measure of the activation state and inflammatory phenotype of astrocytes and microglia.",
+          "id": "SPV_4",
+          "name": "Glial Activation Index"
+        },
+        {
+          "definition": "The rate at which amyloid-beta peptides are removed from the brain parenchyma and interstitial fluid.",
+          "id": "SPV_5",
+          "name": "Amyloid-beta Clearance Rate"
+        },
+        {
+          "definition": "A measure of the structural soundness and thickness of myelin sheaths, often derived from diffusion tensor imaging.",
+          "id": "SPV_6",
+          "name": "Myelin Integrity Index"
+        },
+        {
+          "definition": "The number of viable neurons per unit volume in specific brain regions (e.g., hippocampus, neocortex).",
+          "id": "SPV_7",
+          "name": "Neuronal Population Density"
+        },
+        {
+          "definition": "The proportion of specific neurotransmitter receptors bound by their ligands, indicating signaling capacity.",
+          "id": "SPV_8",
+          "name": "Neurotransmitter Receptor Occupancy"
+        },
+        {
+          "definition": "The speed of blood flow through cerebral arteries and capillaries, reflecting perfusion efficiency.",
+          "id": "SPV_9",
+          "name": "Cerebral Blood Flow Velocity"
+        },
+        {
+          "definition": "Concentrations of reactive oxygen species or their byproducts, indicating cellular redox balance.",
+          "id": "SPV_10",
+          "name": "Oxidative Stress Marker Levels"
+        }
+      ]
+    },
+    "goals": [
+      {
+        "bridge_tags": {
+          "failure_channels": [
+            "FCC_1"
+          ],
+          "system_properties_required": [
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_1"
+            },
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_2"
+            },
+            {
+              "importance": "MED",
+              "spv_id": "SPV_8"
+            }
+          ]
+        },
+        "catastrophe_primary": "Progressive cognitive decline due to impaired learning and memory formation.",
+        "done_criteria": "Synaptic transmission efficacy (SPV_1) and neurotrophic factor expression rate (SPV_2) are consistently maintained at levels characteristic of a healthy 25-year-old, with no significant age-related decline in long-term potentiation (LTP) induction or maintenance over a 50-year period.",
+        "evidence_of_state": {
+          "meter_classes": [
+            "functional_tests",
+            "neuroimaging",
+            "biomarker_assays"
+          ],
+          "meter_status": "PARTIAL_2026"
+        },
+        "failure_mode_simulation": "Chronic exposure to neurotoxins or systemic inflammation leads to persistent depression of long-term potentiation (LTP) and enhancement of long-term depression (LTD), resulting in a net loss of synaptic strength and connectivity in the hippocampus and neocortex. This manifests as difficulty forming new memories and retrieving existing ones, alongside reduced cognitive flexibility.",
+        "id": "M_G1",
+        "state_definition": "The neocortex and hippocampus maintain a dynamic equilibrium of synaptic formation, elimination, and strength modulation, ensuring optimal information encoding, storage, and retrieval, with synaptic plasticity mechanisms (e.g., LTP, LTD) operating within a healthy 25-year-old range.",
+        "title": "Sustained Synaptic Homeostasis and Plasticity",
+        "triz_contradiction": "Maintaining high synaptic plasticity while simultaneously preventing excitotoxic overstimulation."
+      },
+      {
+        "bridge_tags": {
+          "failure_channels": [
+            "FCC_2"
+          ],
+          "system_properties_required": [
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_4"
+            },
+            {
+              "importance": "MED",
+              "spv_id": "SPV_10"
+            },
+            {
+              "importance": "LOW",
+              "spv_id": "SPV_5"
+            }
+          ]
+        },
+        "catastrophe_primary": "Widespread neuronal damage and dysfunction due to uncontrolled chronic inflammation.",
+        "done_criteria": "Glial activation index (SPV_4) remains consistently below pathological thresholds, and the ratio of anti-inflammatory to pro-inflammatory cytokine expression in the CSF is maintained within a healthy 25-year-old range, over a 50-year period, even under typical daily stressors.",
+        "evidence_of_state": {
+          "meter_classes": [
+            "biomarker_assays",
+            "neuroimaging"
+          ],
+          "meter_status": "PARTIAL_2026"
+        },
+        "failure_mode_simulation": "Persistent activation of microglia and astrocytes, triggered by systemic infections or chronic stress, leads to excessive release of pro-inflammatory cytokines and reactive oxygen species. This results in bystander damage to neurons and oligodendrocytes, impairing synaptic function and contributing to neurodegeneration in the neocortex and hippocampus.",
+        "id": "M_G2",
+        "state_definition": "The brain's innate immune system (microglia, astrocytes) maintains a quiescent or homeostatic phenotype, capable of rapid, localized, and self-limiting responses to acute insults, while preventing chronic, widespread neuroinflammation that would compromise neuronal integrity and function.",
+        "title": "Robust Neuroinflammatory Regulation",
+        "triz_contradiction": "Achieving rapid immune response to pathogens while preventing collateral damage to healthy tissue."
+      },
+      {
+        "bridge_tags": {
+          "failure_channels": [
+            "FCC_3"
+          ],
+          "system_properties_required": [
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_3"
+            },
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_10"
+            },
+            {
+              "importance": "LOW",
+              "spv_id": "SPV_2"
+            }
+          ]
+        },
+        "catastrophe_primary": "Neuronal energy crisis leading to widespread cell death and functional collapse.",
+        "done_criteria": "Cerebral metabolic rate of oxygen (SPV_3) and ATP/ADP ratio in neuronal populations are consistently maintained at levels characteristic of a healthy 25-year-old, with no significant age-related decline in mitochondrial respiratory capacity over a 50-year period.",
+        "evidence_of_state": {
+          "meter_classes": [
+            "neuroimaging",
+            "biomarker_assays"
+          ],
+          "meter_status": "PARTIAL_2026"
+        },
+        "failure_mode_simulation": "Mitochondrial dysfunction, exacerbated by oxidative stress or genetic predispositions, leads to a progressive decline in ATP production and increased reactive oxygen species generation within neocortical and hippocampal neurons. This energy deficit compromises ion pump function, neurotransmission, and protein synthesis, ultimately leading to neuronal vulnerability and death.",
+        "id": "M_G3",
+        "state_definition": "Neurons and glial cells within the neocortex and hippocampus maintain highly efficient mitochondrial function, ensuring a stable and sufficient supply of ATP to meet metabolic demands, while minimizing oxidative stress and maintaining optimal redox balance.",
+        "title": "Optimized Cellular Bioenergetic Efficiency",
+        "triz_contradiction": "Maximizing energy production while minimizing reactive oxygen species generation."
+      },
+      {
+        "bridge_tags": {
+          "failure_channels": [
+            "FCC_4"
+          ],
+          "system_properties_required": [
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_5"
+            },
+            {
+              "importance": "MED",
+              "spv_id": "SPV_4"
+            },
+            {
+              "importance": "LOW",
+              "spv_id": "SPV_7"
+            }
+          ]
+        },
+        "catastrophe_primary": "Accumulation of toxic protein aggregates leading to neuronal dysfunction and death.",
+        "done_criteria": "Amyloid-beta clearance rate (SPV_5) and the activity of proteasomal and autophagic pathways are consistently maintained at levels characteristic of a healthy 25-year-old, ensuring minimal accumulation of misfolded proteins over a 50-year period.",
+        "evidence_of_state": {
+          "meter_classes": [
+            "biomarker_assays",
+            "neuroimaging"
+          ],
+          "meter_status": "PARTIAL_2026"
+        },
+        "failure_mode_simulation": "Impairment of chaperone activity, ubiquitin-proteasome system, and autophagy pathways, combined with reduced glymphatic clearance, leads to the accumulation of misfolded proteins (e.g., amyloid-beta, tau) in neocortical and hippocampal neurons. These aggregates disrupt cellular processes, induce inflammation, and ultimately cause neuronal loss.",
+        "id": "M_G4",
+        "state_definition": "The brain maintains highly efficient protein quality control mechanisms, including robust protein synthesis, folding, and degradation pathways, coupled with effective interstitial fluid and waste product clearance systems (e.g., glymphatic system), preventing the accumulation of neurotoxic protein aggregates.",
+        "title": "Maintained Proteostasis and Waste Clearance",
+        "triz_contradiction": "Efficiently clearing waste products without disrupting essential protein functions."
+      },
+      {
+        "bridge_tags": {
+          "failure_channels": [
+            "FCC_6"
+          ],
+          "system_properties_required": [
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_6"
+            },
+            {
+              "importance": "MED",
+              "spv_id": "SPV_1"
+            },
+            {
+              "importance": "LOW",
+              "spv_id": "SPV_7"
+            }
+          ]
+        },
+        "catastrophe_primary": "Loss of cognitive processing speed and coordination due to impaired neuronal communication.",
+        "done_criteria": "Myelin integrity index (SPV_6) and axonal conduction velocity in key white matter tracts are consistently maintained at levels characteristic of a healthy 25-year-old, with no significant age-related demyelination or axonal loss over a 50-year period.",
+        "evidence_of_state": {
+          "meter_classes": [
+            "neuroimaging",
+            "functional_tests"
+          ],
+          "meter_status": "PARTIAL_2026"
+        },
+        "failure_mode_simulation": "Progressive demyelination or dysmyelination of white matter tracts in the neocortex and hippocampus, caused by oxidative stress, inflammation, or oligodendrocyte dysfunction, leads to slowed action potential propagation, increased energy expenditure for neuronal signaling, and eventual axonal degeneration. This manifests as reduced processing speed, impaired executive function, and motor discoordination.",
+        "id": "M_G5",
+        "state_definition": "Oligodendrocytes maintain and repair myelin sheaths around axons in the neocortex and hippocampus, ensuring rapid and efficient propagation of action potentials and robust inter-neuronal communication, comparable to a healthy 25-year-old.",
+        "title": "Preserved Myelin Integrity and Axonal Conduction",
+        "triz_contradiction": "Promoting myelin regeneration while preventing autoimmune responses against myelin."
+      },
+      {
+        "bridge_tags": {
+          "failure_channels": [
+            "FCC_7"
+          ],
+          "system_properties_required": [
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_7"
+            },
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_2"
+            },
+            {
+              "importance": "MED",
+              "spv_id": "SPV_4"
+            }
+          ]
+        },
+        "catastrophe_primary": "Irreversible loss of brain tissue and cognitive function due to neuronal death.",
+        "done_criteria": "Neuronal population density (SPV_7) in the hippocampus and neocortex is consistently maintained at levels characteristic of a healthy 25-year-old, with the rate of neurogenesis and neuronal survival exceeding the rate of neuronal loss over a 50-year period.",
+        "evidence_of_state": {
+          "meter_classes": [
+            "neuroimaging",
+            "biomarker_assays"
+          ],
+          "meter_status": "MISSING_2026"
+        },
+        "failure_mode_simulation": "Chronic stress, inflammation, or genetic factors lead to a significant reduction in adult hippocampal neurogenesis and an increased rate of neuronal apoptosis and necrosis throughout the neocortex and hippocampus. This results in a net decrease in neuronal population density, directly correlating with severe and irreversible cognitive deficits.",
+        "id": "M_G6",
+        "state_definition": "The brain maintains a robust capacity for adult neurogenesis in relevant regions (e.g., hippocampus) and effectively prevents programmed or accidental neuronal cell death across the neocortex and hippocampus, ensuring stable neuronal population densities and functional circuit integrity.",
+        "title": "Sustained Neurogenesis and Neuronal Survival",
+        "triz_contradiction": "Promoting neuronal proliferation and differentiation while preventing oncogenesis."
+      },
+      {
+        "bridge_tags": {
+          "failure_channels": [
+            "FCC_5"
+          ],
+          "system_properties_required": [
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_9"
+            },
+            {
+              "importance": "HIGH",
+              "spv_id": "SPV_3"
+            },
+            {
+              "importance": "MED",
+              "spv_id": "SPV_5"
+            }
+          ]
+        },
+        "catastrophe_primary": "Regional brain hypoxia and nutrient deprivation leading to neuronal dysfunction and death.",
+        "done_criteria": "Cerebral blood flow velocity (SPV_9) and neurovascular coupling efficiency (ratio of regional blood flow change to neuronal activity change) are consistently maintained at levels characteristic of a healthy 25-year-old, ensuring adequate perfusion and metabolic support over a 50-year period.",
+        "evidence_of_state": {
+          "meter_classes": [
+            "neuroimaging",
+            "functional_tests"
+          ],
+          "meter_status": "PARTIAL_2026"
+        },
+        "failure_mode_simulation": "Dysregulation of cerebral blood flow, due to endothelial dysfunction, impaired vasoreactivity, or microvascular pathology, leads to inadequate delivery of oxygen and nutrients to metabolically active regions of the neocortex and hippocampus. This neurovascular uncoupling results in energy deficits, oxidative stress, and compromised neuronal function and survival.",
+        "id": "M_G7",
+        "state_definition": "The cerebral vasculature maintains dynamic and precise coupling between regional neuronal activity and local blood flow, ensuring optimal delivery of oxygen and nutrients and efficient removal of metabolic waste products across the neocortex and hippocampus.",
+        "title": "Optimized Neurovascular Coupling and Perfusion",
+        "triz_contradiction": "Maintaining high cerebral perfusion while preventing hemorrhagic risk."
+      }
+    ]
+  },
+  "step3": {
+    "goal_id": "M_G1",
+    "ras": [
+      {
+        "ra_id": "RA_M_G1_01",
+        "atom_title": "Resilience to Systemic Inflammatory Burdens",
+        "state_variable": "SV_SYNAPTIC_PLASTICITY_RESERVE",
+        "failure_shape": "FS_SLOW_DRIFT_TO_CLIFF",
+        "perturbation_classes": [
+          "PC_SYSTEMIC_INFLAMMATION",
+          "PC_GUT_DYSBIOSIS",
+          "PC_CHRONIC_STRESS"
+        ],
+        "timescale": "TS_CHRONIC",
+        "requirement_statement": "The neocortex and hippocampus must maintain synaptic plasticity and homeostatic mechanisms, preventing a chronic, low-grade depression of LTP induction and enhancement of LTD, even under sustained systemic inflammatory or metabolic stressors.",
+        "done_criteria": "Synaptic efficacy, as measured by electrophysiological markers or proxy biomarkers, does not decline below 90% of the 25-year-old baseline over a 50-year period, despite chronic exposure to defined inflammatory burdens.",
+        "meter_classes": [
+          "biomarker_assays",
+          "neuroimaging",
+          "functional_tests"
+        ],
+        "meter_status": "PARTIAL_2026",
+        "multiple_realizability_check": "This could be satisfied by: 1) A systemic intervention targeting inflammatory pathways (e.g., immunomodulatory compounds). 2) A localized brain-specific intervention enhancing synaptic resilience (e.g., targeted neurotrophic factor delivery). 3) A metabolic reprogramming approach to reduce systemic inflammatory byproducts."
+      },
+      {
+        "ra_id": "RA_M_G1_02",
+        "atom_title": "Recovery Kinetics from Acute Neurotoxic Exposure",
+        "state_variable": "SV_RECOVERY_KINETICS",
+        "failure_shape": "FS_PROLONGED_DEPRESSION",
+        "perturbation_classes": [
+          "PC_ACUTE_NEUROTOXIN_EXPOSURE",
+          "PC_ISCHEMIC_REPERFUSION_INJURY",
+          "PC_SEVERE_INFECTION"
+        ],
+        "timescale": "TS_ACUTE",
+        "requirement_statement": "Following acute, transient neurotoxic or ischemic insults, the synaptic plasticity mechanisms in the neocortex and hippocampus must rapidly recover to pre-perturbation levels, preventing persistent deficits in learning and memory consolidation.",
+        "done_criteria": "Synaptic function, measured by cognitive performance or electrophysiological parameters, returns to within 95% of baseline levels within 72 hours of insult resolution, with no long-term potentiation impairment detectable at 30 days.",
+        "meter_classes": [
+          "challenge_response",
+          "functional_tests",
+          "neuroimaging"
+        ],
+        "meter_status": "PARTIAL_2026",
+        "multiple_realizability_check": "This could be achieved via: 1) A rapid-acting neuroprotective agent administered post-insult. 2) An endogenous repair pathway upregulation system. 3) A targeted neuromodulation technique to restore synaptic balance."
+      },
+      {
+        "ra_id": "RA_M_G1_03",
+        "atom_title": "Prevention of Excitotoxic Synaptic Over-Pruning",
+        "state_variable": "SV_SYNAPTIC_DENSITY_HOMEOSTASIS",
+        "failure_shape": "FS_RUNAWAY_FEEDBACK",
+        "perturbation_classes": [
+          "PC_CHRONIC_HYPERACTIVITY",
+          "PC_GLIAL_DYSREGULATION",
+          "PC_METABOLIC_IMBALANCE"
+        ],
+        "timescale": "TS_SUBACUTE",
+        "requirement_statement": "The brain must prevent runaway feedback loops that lead to excessive synaptic pruning or excitotoxic damage, maintaining a stable synaptic density and connectivity essential for information processing.",
+        "done_criteria": "Synaptic density and structural integrity, particularly in hippocampal and neocortical regions, remain within the 25-year-old baseline range, with no evidence of accelerated pruning or neuronal loss over 50 years.",
+        "meter_classes": [
+          "neuroimaging",
+          "biomarker_assays",
+          "functional_tests"
+        ],
+        "meter_status": "PARTIAL_2026",
+        "multiple_realizability_check": "This could be addressed by: 1) Modulating neurotransmitter systems to prevent overstimulation. 2) Enhancing glial cell function to maintain synaptic health. 3) Implementing metabolic interventions to stabilize neuronal excitability."
+      },
+      {
+        "ra_id": "RA_M_G1_04",
+        "atom_title": "Adaptive Synaptic Response to Novel Stimuli",
+        "state_variable": "SV_ADAPTIVE_PLASTICITY_RANGE",
+        "failure_shape": "FS_NARROWED_DYNAMIC_RANGE",
+        "perturbation_classes": [
+          "PC_ENVIRONMENTAL_MONOTONY",
+          "PC_CHRONIC_COGNITIVE_OVERLOAD",
+          "PC_SENSORY_DEPRIVATION"
+        ],
+        "timescale": "TS_CHRONIC",
+        "requirement_statement": "The synaptic plasticity mechanisms must maintain a broad dynamic range, allowing for efficient encoding of novel information and adaptation to changing environmental demands, rather than becoming rigid or saturated.",
+        "done_criteria": "The capacity for novel learning and memory formation, as assessed by standardized cognitive tasks, does not diminish below 95% of the 25-year-old baseline over 50 years, even with varying levels of cognitive engagement.",
+        "meter_classes": [
+          "functional_tests",
+          "wearables",
+          "challenge_response"
+        ],
+        "meter_status": "PARTIAL_2026",
+        "multiple_realizability_check": "This could be achieved by: 1) Targeted cognitive training paradigms designed to maintain plasticity. 2) Pharmacological agents that enhance synaptic potentiation. 3) Environmental enrichment strategies that promote neurogenesis and synaptogenesis."
+      },
+      {
+        "ra_id": "RA_M_G1_05",
+        "atom_title": "Cross-Regional Synaptic Coherence Maintenance",
+        "state_variable": "SV_INTER_REGIONAL_SYNAPTIC_COUPLING",
+        "failure_shape": "FS_DECOUPLING_CASCADING_FAILURE",
+        "perturbation_classes": [
+          "PC_WHITE_MATTER_DEGRADATION",
+          "PC_NEUROVASCULAR_DYSFUNCTION",
+          "PC_CHRONIC_SLEEP_DEPRIVATION"
+        ],
+        "timescale": "TS_CHRONIC",
+        "requirement_statement": "Synaptic plasticity and homeostatic mechanisms in the neocortex and hippocampus must remain coherently coupled, preventing localized failures from cascading into widespread functional decoupling between brain regions critical for integrated cognitive functions.",
+        "done_criteria": "Functional connectivity and information transfer efficiency between key neocortical and hippocampal subregions, as measured by neuroimaging, remains within the 25-year-old baseline range over 50 years, despite age-related changes in other brain structures.",
+        "meter_classes": [
+          "neuroimaging",
+          "functional_tests",
+          "wearables"
+        ],
+        "meter_status": "PARTIAL_2026",
+        "multiple_realizability_check": "This could be addressed by: 1) Interventions targeting white matter integrity to preserve axonal connections. 2) Strategies to improve neurovascular coupling and nutrient delivery. 3) Neuromodulation techniques to enhance inter-regional synchronization."
+      },
+      {
+        "ra_id": "RA_M_G1_06",
+        "atom_title": "Detection of Unmodeled Synaptic Failure Channels",
+        "state_variable": "SV_UNKNOWN_FAILURE_CHANNEL",
+        "failure_shape": "FS_UNMODELED",
+        "perturbation_classes": [
+          "PC_NOVEL_ENVIRONMENTAL_TOXINS",
+          "PC_UNANTICIPATED_BIOLOGICAL_STRESSORS",
+          "PC_LONG_DURATION_SPACE_RADIATION"
+        ],
+        "timescale": "TS_DECADAL",
+        "requirement_statement": "The system must possess mechanisms to detect and characterize novel or unmodeled failure channels that impair synaptic homeostasis and plasticity, even if these channels are not currently understood or measurable by existing assays.",
+        "done_criteria": "Early warning indicators or signatures of synaptic dysfunction, not attributable to known failure modes, are detectable and classifiable before significant cognitive decline manifests, allowing for proactive intervention.",
+        "meter_classes": [
+          "biomarker_assays",
+          "functional_tests",
+          "neuroimaging"
+        ],
+        "meter_status": "MISSING_2026",
+        "multiple_realizability_check": "This could be achieved by: 1) Advanced multi-omics profiling to identify novel molecular pathways. 2) AI-driven anomaly detection in longitudinal neurophysiological data. 3) Development of broad-spectrum stress response biomarkers."
+      }
+    ],
+    "count": 6
+  },
+  "step4": {
+    "domains": 4,
+    "domain_names": [
+      "Human Cortical and Hippocampal Synaptogenesis & Pruning Modulation",
+      "Human Neocortical and Hippocampal Neurotransmission Efficacy & Plasticity Enhancement",
+      "Human Brain Neurotrophic Factor & Growth Factor Signaling Optimization",
+      "Human Brain Astrocyte and Microglia-Mediated Synaptic Homeostasis"
+    ],
+    "pillars": 20,
+    "dedup_stats": {
+      "raw_domains": 4,
+      "canonical_domains": 3,
+      "cache_hits": 0
+    },
+    "full": {
+      "M_G1": {
+        "domain_mapping": {
+          "target_goal_id": "M_G1",
+          "domain_mapping_strategy": "Domains were identified by focusing on the 'Sustained Synaptic Homeostasis and Plasticity' goal, its primary catastrophe, and high-priority SPVs (Synaptic Transmission Efficacy, Neurotrophic Factor Expression Rate). I prioritized areas directly impacting the neocortex and hippocampus's ability to maintain and adapt synaptic function, addressing failure modes like inflammation, neurotoxicity, and excitotoxicity. Domains are distinct, targetable for interventions, and specific to the human brain context.",
+          "research_domains": [
+            {
+              "domain_id": "DOM_M_G1_01",
+              "domain_name": "Human Cortical and Hippocampal Synaptogenesis & Pruning Modulation",
+              "scope_definition": "This domain investigates the molecular, cellular, and circuit-level mechanisms regulating the formation, maturation, and elimination of synapses specifically within the human neocortex and hippocampus, aiming to optimize synaptic density and connectivity for sustained plasticity and cognitive function. Interventions focus on maintaining an optimal balance of synaptogenesis and pruning to prevent both excessive loss and aberrant wiring.",
+              "relevance_to_goal": "HIGH",
+              "key_research_fronts": [
+                "Age-related changes in synaptic turnover rates in human brain regions",
+                "Pharmacological and genetic modulation of pruning pathways (e.g., complement system, microglia) to prevent excitotoxic loss",
+                "Enhancement of synaptogenesis pathways (e.g., neurotrophins, adhesion molecules) in mature human neurons",
+                "Mechanisms of experience-dependent synaptic remodeling in the adult human brain",
+                "Biomarkers for synaptic density and structural integrity in living human brain"
+              ],
+              "rationale": "Directly addresses the catastrophe of cognitive decline due to impaired learning and memory by ensuring the structural integrity and dynamic maintenance of synaptic connections, preventing excessive pruning (RA_M_G1_03) and supporting adaptive responses (RA_M_G1_04). It underpins 'Synaptic Transmission Efficacy' (SPV_1) and 'Neurotrophic Factor Expression Rate' (SPV_2) by regulating the physical substrates of these functions."
+            },
+            {
+              "domain_id": "DOM_M_G1_02",
+              "domain_name": "Human Neocortical and Hippocampal Neurotransmission Efficacy & Plasticity Enhancement",
+              "scope_definition": "This domain focuses on understanding and enhancing the functional efficacy and dynamic range of neurotransmission, including presynaptic release, postsynaptic receptor dynamics, and long-term potentiation (LTP)/long-term depression (LTD) mechanisms within the human neocortex and hippocampus, particularly in the context of aging and stress. It aims to improve signal propagation and synaptic adaptability.",
+              "relevance_to_goal": "HIGH",
+              "key_research_fronts": [
+                "Age-related alterations in neurotransmitter release probability and vesicle dynamics in human synapses",
+                "Pharmacological and neuromodulatory strategies to enhance NMDA/AMPA receptor trafficking and function",
+                "Mechanisms underlying resilience of LTP/LTD to systemic inflammation and stress in human brain",
+                "Optimization of synaptic scaling and homeostatic plasticity mechanisms in human cortical circuits",
+                "Non-invasive neuromodulation techniques to boost synaptic efficacy and plasticity"
+              ],
+              "rationale": "Crucial for directly maintaining 'Synaptic Transmission Efficacy' (SPV_1) and 'Neurotransmitter Receptor Occupancy' (SPV_8), which are central to the goal. It addresses the core mechanisms of plasticity (RA_M_G1_01, RA_M_G1_04) and recovery from insult (RA_M_G1_02), directly preventing the primary catastrophe of cognitive decline by ensuring efficient information processing and storage."
+            },
+            {
+              "domain_id": "DOM_M_G1_03",
+              "domain_name": "Human Brain Neurotrophic Factor & Growth Factor Signaling Optimization",
+              "scope_definition": "This domain investigates the synthesis, transport, receptor binding, and intracellular signaling pathways of key neurotrophic factors (e.g., BDNF, NGF, GDNF, IGF-1) and growth factors within the human neocortex and hippocampus. The goal is to optimize their expression and activity to support neuronal survival, dendritic arborization, synaptogenesis, and synaptic plasticity, particularly in the context of combating age-related decline and acute insults.",
+              "relevance_to_goal": "HIGH",
+              "key_research_fronts": [
+                "Age-related dysregulation of neurotrophic factor synthesis and secretion in human brain",
+                "Gene therapy and viral vector approaches for localized neurotrophic factor delivery to human neocortex/hippocampus",
+                "Small molecule modulators of neurotrophic factor receptor signaling pathways",
+                "Investigation of systemic factors influencing brain neurotrophic factor levels (e.g., exercise, diet, inflammation)",
+                "Role of glia-derived neurotrophic factors in human synaptic homeostasis"
+              ],
+              "rationale": "Directly targets 'Neurotrophic Factor Expression Rate' (SPV_2), a high-priority SPV. Adequate neurotrophic support is essential for synaptic survival, plasticity, and the resilience of brain circuits, directly supporting RAs such as 'Resilience to Systemic Inflammatory Burdens' (RA_M_G1_01) and 'Recovery Kinetics from Acute Neurotoxic Exposure' (RA_M_G1_02), thereby mitigating the primary catastrophe."
+            },
+            {
+              "domain_id": "DOM_M_G1_04",
+              "domain_name": "Human Brain Astrocyte and Microglia-Mediated Synaptic Homeostasis",
+              "scope_definition": "This domain focuses on understanding the critical roles of astrocytes and microglia in regulating synaptic function, pruning, and the overall microenvironment within the human neocortex and hippocampus. It investigates how age-related changes or pathological activation of these glial cells impact synaptic stability, plasticity, and resilience to stress, aiming to develop interventions to restore their homeostatic functions.",
+              "relevance_to_goal": "MED",
+              "key_research_fronts": [
+                "Age-dependent phenotypic shifts of human microglia and astrocytes and their impact on synapses",
+                "Modulation of glial inflammatory responses to prevent synaptic dysfunction and loss",
+                "Astrocyte-mediated regulation of neurotransmitter reuptake and synaptic glutamate levels",
+                "Microglial involvement in synaptic pruning under healthy and pathological aging in human brain",
+                "Interventions targeting glial-neuronal communication to enhance synaptic resilience"
+              ],
+              "rationale": "Glial cells are crucial modulators of synaptic health and plasticity. Dysregulation of astrocytes and microglia contributes to failure modes like inflammation (RA_M_G1_01) and excitotoxic pruning (RA_M_G1_03). Modulating their activity can indirectly support 'Synaptic Transmission Efficacy' (SPV_1) and 'Neurotrophic Factor Expression Rate' (SPV_2) by maintaining a supportive synaptic environment and preventing damage."
+            }
+          ]
+        },
+        "scientific_pillars": [
+          {
+            "id": "S_M_G1_DOM04_001",
+            "domain_id": "DOM_M_G1_04",
+            "title": "Human Microglial CX3CR1 Signaling in Synaptic Pruning Maintenance",
+            "mechanism": "Microglia express the chemokine receptor CX3CR1, which binds to neuronal fractalkine (CX3CL1). This interaction is critical for mediating neuron-microglia communication and regulating synaptic pruning in the developing and adult human brain. Under homeostatic conditions, CX3CR1 signaling facilitates the removal of nascent or weak synapses, contributing to synaptic refinement. Dysregulation of this pathway, particularly age-related decreases in CX3CL1 expression or CX3CR1 receptor sensitivity, can lead to aberrant pruning (either insufficient removal of dysfunctional synapses or excessive removal of healthy ones) in the human hippocampus and neocortex. Emerging evidence suggests a more nuanced role, where CX3CR1 may also mediate microglial surveillance and support of active synapses under specific conditions, a contradiction to its established pruning role.",
+            "verified_effect": "Loss of CX3CR1 function in humanized mouse models and post-mortem human brain tissue is associated with impaired synaptic plasticity (LTP), reduced dendritic spine density, and exacerbated cognitive deficits in models of neurodegeneration. Conversely, controlled enhancement of CX3CR1 signaling has been shown to restore synaptic integrity and cognitive function by normalizing microglial-mediated pruning processes.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "Proper CX3CR1 signaling ensures balanced synaptic pruning, maintaining optimal synaptic density and therefore stabilizing synaptic transmission efficacy by removing dysfunctional synapses while preserving functional ones."
+              }
+            ],
+            "fragility_score": 6,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.85,
+            "gap_analysis": "While critical for pruning, the precise spatio-temporal control needed to selectively remove pathological synapses without impacting healthy ones remains challenging. The dual role of CX3CR1 (pruning vs. surveillance/support) requires deeper understanding to avoid unintended consequences. The human-specific aspects of this pathway compared to rodent models are still being elucidated.",
+            "violation_risk": "Excessive or uncontrolled activation of microglial CX3CR1 pathways could lead to over-pruning of healthy synapses (RA_M_G1_03), thereby violating the goal of maintaining synaptic density."
+          },
+          {
+            "id": "S_M_G1_DOM04_002",
+            "domain_id": "DOM_M_G1_04",
+            "title": "Astrocyte-Mediated Glutamate Homeostasis via EAAT2 in Human Synaptic Resilience",
+            "mechanism": "Astrocytes in the human neocortex and hippocampus express high levels of excitatory amino acid transporter 2 (EAAT2, also known as GLT-1), which is responsible for the majority of glutamate reuptake from the synaptic cleft. This rapid removal of glutamate is crucial for preventing excitotoxicity (RA_M_G1_03) and maintaining precise synaptic signaling. Age-related decline in EAAT2 expression or function, often linked to oxidative stress or inflammatory signaling, leads to elevated extracellular glutamate levels, impairing synaptic transmission efficacy and promoting synaptic damage.",
+            "verified_effect": "Pharmacological upregulation of EAAT2 in human astrocyte cultures and in vivo models has been shown to reduce excitotoxic damage, improve LTP, and enhance cognitive performance. Conversely, EAAT2 inhibition or genetic knockdown leads to increased extracellular glutamate, impaired synaptic plasticity, and neuronal vulnerability in the human brain context.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "Efficient glutamate reuptake by EAAT2 prevents desensitization of postsynaptic receptors and excitotoxic damage, directly stabilizing synaptic transmission efficacy."
+              }
+            ],
+            "fragility_score": 7,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.9,
+            "gap_analysis": "While EAAT2 is well-established, developing safe and brain-penetrant compounds that specifically enhance its activity in a sustained manner without off-target effects remains an active challenge. Individual variability in EAAT2 expression and response to modulation in human populations is also a critical consideration.",
+            "violation_risk": "None directly, but an inability to sufficiently upregulate EAAT2 could exacerbate RA_M_G1_03, leading to excitotoxic synaptic over-pruning."
+          },
+          {
+            "id": "S_M_G1_DOM04_003",
+            "domain_id": "DOM_M_G1_04",
+            "title": "Complement Cascade Involvement in Age-Related Synaptic Loss by Human Microglia",
+            "mechanism": "Microglia in the human brain can trigger synaptic pruning by recognizing synapses tagged with complement proteins, particularly C1q and C3. This 'eat me' signal leads to microglial engulfment of synapses, a process normally critical for development but aberrantly activated in aging and neurodegenerative conditions. Elevated C1q/C3 levels or increased microglial phagocytic activity, often driven by chronic inflammation (RA_M_G1_01), contribute to excessive and inappropriate synaptic loss in the aged human neocortex and hippocampus. There is an unresolved debate on whether complement activation is solely detrimental or if a low-level, tightly regulated complement activity is necessary for microglial surveillance and removal of genuinely dysfunctional synapses.",
+            "verified_effect": "Studies in human post-mortem brains and iPSC-derived microglia co-cultures show increased C1q/C3 deposition on synapses and enhanced microglial engulfment in aging and early AD. Genetic or pharmacological inhibition of C1q or C3 in humanized models reduces synaptic loss and preserves cognitive function.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "Modulating complement-mediated microglial pruning can prevent pathological synaptic loss, thereby stabilizing synaptic transmission efficacy by preserving healthy synaptic connections."
+              }
+            ],
+            "fragility_score": 8,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.8,
+            "gap_analysis": "The challenge lies in selectively inhibiting pathological complement activation without impairing its beneficial roles in pathogen clearance or removal of truly dysfunctional synapses. Precision targeting to specific complement components or their microglial receptors is needed. The exact triggers for aberrant complement activation in human aging are not fully elucidated.",
+            "violation_risk": "Over-inhibition of the complement system could theoretically impair the removal of genuinely dysfunctional synapses, potentially leading to an accumulation of 'junk' synapses that hinder efficient information processing, though this is less documented than the risk of over-pruning (RA_M_G1_03)."
+          },
+          {
+            "id": "S_M_G1_DOM04_004",
+            "domain_id": "DOM_M_G1_04",
+            "title": "Astrocyte-Secreted Neurotrophic Factors for Human Synaptic Resilience",
+            "mechanism": "Astrocytes are a significant source of various neurotrophic factors (NTFs) in the human brain, including BDNF, GDNF, and NGF. These NTFs are crucial for neuronal survival, dendritic arborization, synaptogenesis, and the maintenance of synaptic plasticity (SPV_2). In the human hippocampus and neocortex, age-related changes or pathological conditions can lead to a reduction in astrocytic NTF secretion, impairing neuronal health and synaptic function. This mechanism directly contributes to SPV_2 and indirectly to SPV_1.",
+            "verified_effect": "In vitro human astrocyte cultures demonstrate robust NTF secretion, which supports neuronal survival and synaptogenesis. In vivo studies in humanized models show that increasing astrocytic NTF production or delivery can ameliorate synaptic deficits and improve cognitive outcomes in models of neurodegeneration. Conversely, depletion of specific astrocytic NTFs impairs LTP and reduces synaptic density.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "INCREASE",
+                "rationale": "Astrocytes directly synthesize and secrete neurotrophic factors, thus directly increasing the 'Neurotrophic Factor Expression Rate'."
+              },
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "INCREASE",
+                "rationale": "Increased neurotrophic factors enhance synaptic formation, strength, and stability, thereby promoting 'Synaptic Transmission Efficacy'."
+              }
+            ],
+            "fragility_score": 5,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.9,
+            "gap_analysis": "While the principle is sound, achieving targeted and sustained delivery of specific NTFs to desired brain regions without systemic side effects remains a major hurdle. The optimal combination and timing of NTF delivery for different brain regions and stages of aging are also unknown.",
+            "violation_risk": "",
+            "also_relevant_to_domains": [
+              "DOM_M_G1_02"
+            ]
+          },
+          {
+            "id": "S_M_G1_DOM04_005",
+            "domain_id": "DOM_M_G1_04",
+            "title": "Microglial 'Phagocytic Synaptosome Assay' for Unmodeled Failure Channel Detection",
+            "mechanism": "This pillar represents a cross-domain mechanism, leveraging advanced organoid and microfluidic technologies from bioengineering/neuro-engineering. It involves co-culturing human iPSC-derived microglia and neurons in a 3D microfluidic system to create a 'phagocytic synaptosome assay'. This system allows for real-time monitoring of microglial-synaptic interactions and phagocytic events under various stress conditions (e.g., inflammatory mediators, neurotoxins). By introducing novel or unmodeled stressors, researchers can observe changes in microglial activity, synaptic labeling (e.g., C1q), and actual synaptic engulfment, thereby detecting previously unknown pathways leading to synaptic failure. This directly addresses RA_M_G1_06 by providing a platform to identify novel failure channels.",
+            "verified_effect": "Microfluidic co-culture systems using human iPSC-derived cells have successfully recapitulated microglial-mediated synaptic pruning and pathological engulfment in response to known stressors. The system has been validated to quantify synaptic loss and microglial activation states with high spatiotemporal resolution, allowing for the detection of subtle changes in response to novel compounds or environmental factors.",
+            "readiness_level": "RL-1",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "By detecting and characterizing unmodeled failure channels that impair synaptic integrity, this method enables the development of interventions that can ultimately stabilize 'Synaptic Transmission Efficacy'."
+              }
+            ],
+            "fragility_score": 4,
+            "relationship_to_goal": "enables_measurement_for",
+            "relationship_confidence": 0.95,
+            "gap_analysis": "The complexity and fidelity of these in vitro systems still limit their ability to fully replicate the in vivo human brain microenvironment. Scaling for high-throughput screening and establishing clear correlations with in vivo outcomes remain challenges.",
+            "violation_risk": ""
+          },
+          {
+            "id": "S_M_G1_DOM04_006",
+            "domain_id": "DOM_M_G1_04",
+            "title": "Age-Dependent Phenotypic Shift of Human Astrocytes and Synaptic Support",
+            "mechanism": "In the aging human brain, astrocytes undergo significant morphological and functional changes, shifting from a homeostatic (neurosupportive) state to a reactive (neuroinflammatory/neurotoxic or neuroprotective) state, often termed 'A1' and 'A2' phenotypes, respectively. This shift, particularly prominent in the neocortex and hippocampus, is driven by factors like systemic inflammation and cellular senescence. A1-like astrocytes lose their ability to support synapses (e.g., reduced glutamate reuptake, decreased NTF secretion) and can actively prune synapses, while A2-like astrocytes retain some neuroprotective functions. The precise triggers for these shifts and their reversibility in humans are areas of active research, with emerging findings suggesting a more complex intermediate spectrum rather than a binary state. This contradicts the initial simple A1/A2 dichotomy.",
+            "verified_effect": "Post-mortem analysis of aged human brain tissue shows an increase in markers associated with A1 astrocytes, correlating with synaptic loss and cognitive decline. In vitro studies using human iPSC-derived astrocytes demonstrate that inflammatory stimuli can induce A1-like phenotypes, leading to reduced synaptogenic support and increased secretion of neurotoxic factors.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "DECREASE",
+                "rationale": "A shift to neurotoxic astrocyte phenotypes reduces synaptic support and can actively contribute to synaptic pruning, thereby decreasing 'Synaptic Transmission Efficacy'."
+              },
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "DECREASE",
+                "rationale": "Neurotoxic astrocytes exhibit reduced secretion of essential neurotrophic factors, directly impacting 'Neurotrophic Factor Expression Rate'."
+              }
+            ],
+            "fragility_score": 7,
+            "relationship_to_goal": "violates",
+            "relationship_confidence": 0.88,
+            "gap_analysis": "Identifying specific, druggable targets to prevent or reverse the detrimental phenotypic shift in human astrocytes is ongoing. The heterogeneity of astrocyte responses and the nuanced nature of their 'reactive' states make targeted intervention complex. Distinguishing between beneficial and detrimental reactive astrogliosis is crucial.",
+            "violation_risk": "The age-dependent shift to neurotoxic astrocyte phenotypes directly contributes to 'Progressive cognitive decline due to impaired learning and memory formation' (Goal Catastrophe Primary) by impairing synaptic homeostasis and plasticity, violating RA_M_G1_01 and RA_M_G1_03.",
+            "also_relevant_to_domains": [
+              "DOM_M_G1_02",
+              "DOM_M_G1_03"
+            ]
+          },
+          {
+            "id": "S_M_G1_DOM02_001",
+            "domain_id": "DOM_M_G1_02",
+            "title": "Glial-Derived Soluble Factors Modulating NMDA Receptor Subunit Trafficking in Hippocampal Synapses",
+            "mechanism": "Astrocytes and microglia, particularly in an aging or inflammatory context, release soluble factors such as D-serine, TNF-\u03b1, and fractalkine. D-serine acts as a co-agonist for NMDA receptors (NMDARs), modulating their activation probability. TNF-\u03b1, often upregulated in neuroinflammation, can rapidly increase synaptic AMPAR surface expression (via GluA1 phosphorylation) while paradoxically reducing NMDAR-dependent LTP induction by altering subunit composition (e.g., increased GluN2B, decreased GluN2A in some contexts). Microglial fractalkine signaling (CX3CL1-CX3CR1) regulates synaptic pruning and NMDAR-mediated excitability. This complex interplay directly affects the functional availability and response of NMDARs and AMPARs critical for synaptic plasticity.",
+            "verified_effect": "Studies in human iPSC-derived neurons and post-mortem hippocampal tissue show correlations between inflammatory markers (e.g., microglial activation, astrogliosis) and altered NMDAR/AMPAR subunit ratios and synaptic current properties. Pharmacological modulation of D-serine levels in preclinical models has shown effects on LTP induction and spatial memory. TNF-\u03b1 has been shown to acutely enhance synaptic strength but chronic exposure leads to synaptic dysfunction and reduced plasticity in aged models.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "DECREASE",
+                "rationale": "Chronic or dysregulated glial factor release (e.g., elevated TNF-\u03b1, imbalanced D-serine) can lead to NMDAR hypofunction or excitotoxic overstimulation, impairing efficient signal propagation and reducing synaptic transmission efficacy, as seen in aging and neuroinflammatory conditions. Conversely, optimized glial support can STABILIZE/INCREASE SPV_1."
+              },
+              {
+                "spv_id": "SPV_8",
+                "effect_direction": "DECREASE",
+                "rationale": "Altered NMDAR/AMPAR subunit trafficking and internalization, driven by glial factors, directly impacts the number and type of receptors available at the postsynaptic density, thus reducing effective neurotransmitter receptor occupancy and signaling capacity."
+              }
+            ],
+            "fragility_score": 7,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.85,
+            "gap_analysis": "The precise spatiotemporal dynamics and concentration-dependent effects of various glial factors in the human brain are still poorly understood. Translating findings from iPSC models to complex in-vivo human brain microenvironments remains challenging. The optimal balance of specific glial factor modulation for sustained plasticity without excitotoxicity is not yet defined (RA_M_G1_03).",
+            "violation_risk": "Uncontrolled enhancement of certain glial factors (e.g., TNF-\u03b1) could lead to chronic inflammation and excitotoxic damage, triggering RA_M_G1_03 (excitotoxic synaptic over-pruning)."
+          },
+          {
+            "id": "S_M_G1_DOM02_002",
+            "domain_id": "DOM_M_G1_02",
+            "title": "Activity-Dependent Alternative Splicing of Neocortical Synaptic Proteins",
+            "mechanism": "Neuronal activity, particularly during learning and memory formation, dynamically regulates the alternative splicing of pre-mRNA transcripts encoding key synaptic proteins, including NMDAR subunits (e.g., GluN1, GluN2A/B), AMPAR subunits (e.g., GluA1, GluA2), and scaffolding proteins (e.g., PSD-95). This allows for rapid changes in receptor properties (e.g., Ca2+ permeability, channel kinetics) and postsynaptic density composition, directly impacting synaptic strength and plasticity. In the aging brain, splicing machinery fidelity can decline, leading to maladaptive splice variant expression, observed as a shift towards less plastic or more stable (but less excitable) synaptic configurations.",
+            "verified_effect": "Recent studies using human post-mortem cortical tissue and organoids have identified age-related shifts in specific NMDAR and AMPAR splice variants. For instance, reduced expression of 'super-exon' containing GluN1 isoforms, which enhance NMDAR current, has been linked to cognitive decline. Manipulating splicing factors like PTBP1 or nSR100 in animal models can alter synaptic plasticity and memory formation.",
+            "readiness_level": "RL-1",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "Maintaining appropriate activity-dependent alternative splicing ensures the expression of optimal synaptic protein isoforms for robust and plastic synaptic transmission, directly impacting SPV_1. Age-related dysregulation DECREASES SPV_1."
+              },
+              {
+                "spv_id": "SPV_8",
+                "effect_direction": "STABILIZE",
+                "rationale": "By controlling the receptor subunit composition and quantity at the synapse, alternative splicing directly regulates the effective neurotransmitter receptor occupancy and the functional properties of these receptors."
+              }
+            ],
+            "fragility_score": 6,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.7,
+            "gap_analysis": "Targeting specific splicing events in the human brain without off-target effects is a major challenge. The precise contribution of individual splice variants to overall synaptic function and cognitive performance in humans is still being elucidated. This mechanism is critical for RA_M_G1_04 (Adaptive Synaptic Response).",
+            "violation_risk": "Indiscriminate modulation of splicing machinery could lead to widespread disruption of protein function across many neuronal types, potentially causing severe neurodevelopmental or neurodegenerative phenotypes."
+          },
+          {
+            "id": "S_M_G1_DOM02_003",
+            "domain_id": "DOM_M_G1_02",
+            "title": "Perineuronal Net (PN) Remodeling and Synaptic Plasticity Thresholds",
+            "mechanism": "Perineuronal nets (PNNs), specialized extracellular matrix structures rich in chondroitin sulfate proteoglycans (CSPGs), ensheath inhibitory interneurons and stabilize mature synapses, effectively setting a 'braking' mechanism on plasticity. Degradation of PNNs by chondroitinase ABC (ChABC) can reopen critical period-like plasticity in the adult neocortex and hippocampus, facilitating LTP and memory reconsolidation. However, excessive or uncontrolled PNN degradation can destabilize synapses, potentially leading to increased excitability and reduced homeostatic control. This is a cross-domain mechanism, bridging extracellular matrix biology with synaptic function.",
+            "verified_effect": "In aged rodent models, partial degradation of PNNs improves long-term potentiation and spatial memory. Post-mortem human brain studies show altered PNN composition and density in neurodegenerative conditions. Genetic variants affecting CSPG synthesis or degradation are linked to cognitive traits. This offers a mechanism to actively engage RA_M_G1_04.",
+            "readiness_level": "RL-1",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "INCREASE",
+                "rationale": "Targeted PNN degradation can lower the threshold for LTP induction, thereby increasing synaptic transmission efficacy and promoting adaptive learning. Conversely, excessive PNN stability in aging can DECREASE SPV_1 by limiting plasticity."
+              }
+            ],
+            "fragility_score": 8,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.8,
+            "gap_analysis": "Precisely controlling the extent and location of PNN remodeling in the human brain to achieve beneficial plasticity without risking synaptic destabilization or excitotoxicity is a significant challenge. Long-term effects and potential compensatory mechanisms are unknown. This mechanism directly addresses RA_M_G1_04 (Adaptive Synaptic Response).",
+            "violation_risk": "Over-degradation of PNNs could lead to excessive synaptic lability, increased susceptibility to excitotoxicity (RA_M_G1_03), and impaired memory consolidation, potentially violating the goal's stability requirements."
+          },
+          {
+            "id": "S_M_G1_DOM02_004",
+            "domain_id": "DOM_M_G1_02",
+            "title": "Homeostatic Synaptic Scaling vs. Synaptic Pruning in Hippocampal Networks",
+            "mechanism": "The brain maintains synaptic homeostasis through two main mechanisms: synaptic scaling (global adjustment of synaptic strengths to maintain network stability) and synaptic pruning (activity-dependent elimination of weak or unneeded synapses by microglia). Synaptic scaling, often mediated by changes in AMPAR surface expression, prevents runaway excitation or depression, maintaining network firing rates within a physiological range. Synaptic pruning, while essential for development and learning, can become dysregulated in aging, leading to excessive loss of functional synapses, particularly in the hippocampus. There's an unresolved debate on the optimal balance: some argue for promoting scaling to stabilize existing networks, while others advocate for targeted pruning to enhance signal-to-noise and remove 'noisy' synapses. This directly relates to RA_M_G1_03.",
+            "verified_effect": "In vitro and in vivo studies show that chronic activity deprivation or enhancement triggers synaptic scaling. Microglial activation and complement pathway components (C1q, C3) are implicated in synaptic pruning in rodent models of aging and neurodegeneration, leading to reduced spine density and functional synapses. Human post-mortem studies observe reduced synaptic density in aged hippocampi, but distinguishing beneficial pruning from pathological loss remains difficult.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "Synaptic scaling directly stabilizes average synaptic transmission efficacy, preventing over-activity or under-activity. Dysregulated pruning DECREASES SPV_1 by reducing the absolute number of functional synapses."
+              }
+            ],
+            "fragility_score": 7,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.8,
+            "gap_analysis": "The precise mechanisms that distinguish beneficial synaptic pruning from pathological loss in the human brain are still unclear. We lack sensitive, non-invasive methods to dynamically monitor synaptic scaling and pruning rates in living human brains. There is an ongoing debate about whether promoting global scaling or selective pruning is more beneficial for maintaining long-term cognitive function (RA_M_G1_03).",
+            "violation_risk": "Excessive or misdirected synaptic pruning could lead to significant loss of functional synapses and neuronal connectivity, directly violating RA_M_G1_03 (Prevention of Excitotoxic Synaptic Over-Pruning) and causing catastrophic cognitive decline. Conversely, insufficient pruning could lead to 'noisy' networks."
+          },
+          {
+            "id": "S_M_G1_DOM02_005",
+            "domain_id": "DOM_M_G1_02",
+            "title": "Neocortical Endocannabinoid System Modulation of Presynaptic Neurotransmitter Release Probability",
+            "mechanism": "The endocannabinoid system (ECS), particularly 2-arachidonoylglycerol (2-AG) and anandamide (AEA) acting on CB1 receptors, functions as a retrograde messenger system. Upon postsynaptic depolarization, endocannabinoids are synthesized and released, traveling back to the presynaptic terminal to activate CB1 receptors. This activation typically inhibits neurotransmitter release (both excitatory and inhibitory), acting as a short-term plasticity mechanism to prevent runaway excitation and fine-tune network activity. Age-related dysregulation of ECS components (e.g., changes in enzyme expression for synthesis/degradation, receptor density) can lead to altered presynaptic release probability, impacting overall synaptic transmission efficacy and contributing to cognitive deficits. This is crucial for RA_M_G1_01 and RA_M_G1_03.",
+            "verified_effect": "Pharmacological modulation of CB1 receptors in human brain slices and rodent models alters LTP/LTD induction and memory consolidation. PET imaging studies in humans show age-related changes in CB1 receptor availability in cortical regions. Dysregulation of the ECS is implicated in neuroinflammatory states, impacting synaptic function.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "The ECS provides a critical feedback loop for fine-tuning presynaptic release, thus directly modulating synaptic transmission efficacy. Healthy ECS function STABILIZES SPV_1, while dysregulation can lead to DECREASE or uncontrolled fluctuation."
+              }
+            ],
+            "fragility_score": 6,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.75,
+            "gap_analysis": "The optimal level of ECS activity for maintaining long-term synaptic homeostasis and plasticity in the aging human brain is not fully established. Chronic modulation may lead to desensitization or other adverse effects. Understanding the cell-specific and regional differences in ECS function in the human neocortex and hippocampus is ongoing. This mechanism is vital for RA_M_G1_03 (Prevention of Excitotoxic Synaptic Over-Pruning).",
+            "violation_risk": "Over-inhibition of presynaptic release could severely impair information flow, leading to cognitive deficits. Conversely, uncontrolled enhancement of release could lead to excitotoxicity."
+          },
+          {
+            "id": "S_M_G1_DOM02_006",
+            "domain_id": "DOM_M_G1_02",
+            "title": "Non-Invasive Neuromodulation (tDCS/tACS) for Synaptic Potentiation and Homeostatic Regulation",
+            "mechanism": "Transcranial Direct Current Stimulation (tDCS) and Transcranial Alternating Current Stimulation (tACS) deliver weak electrical currents to cortical regions, modulating neuronal excitability and synaptic plasticity. tDCS typically induces long-lasting changes in cortical excitability (LTP/LTD-like effects) by altering neuronal resting membrane potential and modifying NMDA receptor-dependent plasticity. tACS, by synchronizing oscillatory activity, can entrain specific brain rhythms associated with cognitive functions and enhance synaptic strength via spike-timing dependent plasticity mechanisms. These techniques are hypothesized to enhance baseline synaptic efficacy and restore homeostatic balance in aging brains. This pillar offers a measurement enabling technology for RA_M_G1_06 (Detection of Unmodeled Synaptic Failure Channels) through monitoring acute plasticity responses.",
+            "verified_effect": "Numerous human studies show tDCS/tACS can transiently improve cognitive performance (e.g., working memory, learning, motor skill acquisition) in healthy adults and in patients with mild cognitive impairment. Electrophysiological measures (e.g., TMS-evoked potentials) confirm changes in cortical excitability and plasticity. The effects are highly variable between individuals, and optimal parameters for sustained plasticity enhancement are still being determined.",
+            "readiness_level": "RL-3",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "INCREASE",
+                "rationale": "By directly modulating neuronal excitability and synaptic plasticity thresholds, non-invasive neuromodulation can acutely increase synaptic transmission efficacy and promote long-term potentiation. This aims to counter age-related declines in plasticity."
+              },
+              {
+                "spv_id": "SPV_8",
+                "effect_direction": "INCREASE",
+                "rationale": "The induction of LTP-like effects involves changes in AMPAR surface expression and NMDAR function, directly altering neurotransmitter receptor occupancy and functional signaling capacity."
+              }
+            ],
+            "fragility_score": 5,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.9,
+            "gap_analysis": "The precise mechanisms by which tDCS/tACS interact with underlying synaptic plasticity pathways at a molecular level in vivo are not fully elucidated. The sustainability of effects, optimal dosage, and individual variability remain significant challenges. This approach provides a tool for probing and potentially remediating issues related to RA_M_G1_04 (Adaptive Synaptic Response).",
+            "violation_risk": "Improper stimulation parameters could induce maladaptive plasticity, potentially enhancing detrimental pathways or causing excitotoxicity, thus violating RA_M_G1_03. Over-reliance on global effects without understanding specific circuit interactions could also lead to unintended consequences."
+          },
+          {
+            "id": "S_M_G1_DOM03_001",
+            "domain_id": "DOM_M_G1_03",
+            "title": "Activity-Dependent BDNF Release and Synaptic Potentiation in Human Hippocampus",
+            "mechanism": "Brain-derived neurotrophic factor (BDNF) is synthesized as proBDNF, cleaved to mature BDNF (mBDNF), and secreted in an activity-dependent manner from both pre- and postsynaptic terminals. mBDNF binds to TrkB receptors, activating downstream signaling cascades (e.g., MAPK/ERK, PI3K/Akt, PLC\u03b3) that promote long-term potentiation (LTP) by increasing AMPA receptor trafficking to the synapse and enhancing dendritic spine morphogenesis. This mechanism is crucial for memory consolidation in the hippocampus.",
+            "verified_effect": "Direct administration of mBDNF or TrkB agonists enhances LTP induction and maintenance in human hippocampal slices (ex vivo) and improves spatial memory tasks in primate models. Conversely, genetic knockdown of BDNF or pharmacological blockade of TrkB signaling impairs LTP and leads to cognitive deficits relevant to aging, particularly in learning and memory.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "INCREASE",
+                "rationale": "Enhanced BDNF-TrkB signaling directly promotes AMPA receptor insertion and spine maturation, increasing postsynaptic sensitivity and thus synaptic transmission efficacy."
+              },
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "INCREASE",
+                "rationale": "Optimizing BDNF synthesis and release directly increases the expression rate of a key neurotrophic factor."
+              }
+            ],
+            "fragility_score": 3,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.9,
+            "gap_analysis": "While BDNF is critical, sustained high levels can lead to receptor desensitization or off-target effects. Delivery methods to ensure localized, physiological concentrations in human brain regions without systemic side effects remain challenging (e.g., viral vectors, cell-based therapies). The balance between proBDNF and mBDNF, and their respective receptor affinities (p75NTR vs TrkB), adds complexity, as excessive proBDNF can promote apoptosis and synaptic depression.",
+            "violation_risk": "Sustained supraphysiological BDNF levels might paradoxically lead to TrkB desensitization, or, if proBDNF/p75NTR signaling is disproportionately enhanced, contribute to synaptic depression (LTD) and neuronal apoptosis, potentially exacerbating synaptic instability."
+          },
+          {
+            "id": "S_M_G1_DOM03_002",
+            "domain_id": "DOM_M_G1_03",
+            "title": "Astrocytic GDNF Secretion and Synaptic Resilience to Inflammatory Stress",
+            "mechanism": "Astrocytes in the human brain are a major source of Glial Cell Line-Derived Neurotrophic Factor (GDNF). GDNF, primarily acting through the GFR\u03b11 co-receptor and Ret tyrosine kinase, is crucial for neuronal survival, differentiation, and synaptic maintenance. Recent evidence (last 5 years) suggests astrocytic GDNF secretion is upregulated in response to inflammatory cues (e.g., TNF\u03b1, IL-1\u03b2) within the neocortex and hippocampus, acting as an endogenous protective mechanism to stabilize synapses and neuronal health, particularly dopaminergic neurons, but also broadly involved in synaptic homeostasis.",
+            "verified_effect": "In human iPSC-derived cortical neurons and organoids, exposure to inflammatory cytokines reduces synaptic density and function, but co-culture with GDNF-secreting astrocytes or direct GDNF administration significantly attenuates these inflammatory-induced synaptic losses and preserves LTP. This mechanism has been shown to improve resilience to neuroinflammation-induced synaptic compromise in rodent models of aging.",
+            "readiness_level": "RL-1",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "STABILIZE",
+                "rationale": "GDNF signaling directly promotes synaptic structural integrity and neurotransmitter release probability, preventing inflammatory-induced declines in synaptic efficacy."
+              },
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "INCREASE",
+                "rationale": "Enhancing astrocytic GDNF production and release directly boosts the expression rate of a critical neurotrophic factor, especially under stress conditions."
+              }
+            ],
+            "fragility_score": 6,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.8,
+            "gap_analysis": "While promising, the precise triggers and regulatory mechanisms of astrocytic GDNF release in human brain inflammation are not fully understood. Translating astrocytic modulation or GDNF delivery to specific brain regions without off-target effects or immune responses remains a significant hurdle. The optimal dose and duration for sustained protection in humans under chronic inflammatory burdens are unknown.",
+            "violation_risk": "Over-expression of GDNF in specific neuronal populations might lead to compensatory downregulation of its receptors, or alter the balance of other neurotrophic signaling pathways, potentially disrupting finely tuned synaptic circuits and potentially leading to dyskinesias if dopaminergic systems are disproportionately affected."
+          },
+          {
+            "id": "S_M_G1_DOM03_003",
+            "domain_id": "DOM_M_G1_03",
+            "title": "IGF-1 Receptor Signaling as a Cross-Domain Modulator of Synaptic Plasticity and Metabolic Homeostasis",
+            "mechanism": "Insulin-like Growth Factor 1 (IGF-1) is largely produced peripherally (liver) but crosses the blood-brain barrier and activates IGF-1 receptors (IGF-1R) on neurons and glia in the human brain, particularly in the hippocampus and neocortex. IGF-1R signaling, via PI3K/Akt and MAPK pathways, not only promotes neuronal survival and synaptogenesis but also modulates cerebral glucose metabolism and insulin sensitivity, crucial for maintaining energy homeostasis essential for synaptic function. This represents a critical cross-domain mechanism linking metabolic health to synaptic plasticity.",
+            "verified_effect": "Reduced IGF-1 signaling is associated with age-related cognitive decline and increased susceptibility to neurodegeneration. Conversely, systemic administration of IGF-1 in animal models or moderate exercise (which upregulates peripheral IGF-1) improves synaptic plasticity, memory, and neuronal resilience to metabolic stressors. Clinical trials targeting peripheral IGF-1 levels have shown some cognitive benefits in specific populations.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "INCREASE",
+                "rationale": "IGF-1 directly promotes synaptogenesis and strengthens existing synapses, enhancing synaptic transmission efficacy."
+              },
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "INCREASE",
+                "rationale": "IGF-1 itself is a key growth factor, and its signaling pathways can indirectly influence the expression of other neurotrophic factors."
+              }
+            ],
+            "fragility_score": 4,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.85,
+            "gap_analysis": "Systemic IGF-1 supplementation faces challenges due to potential peripheral side effects (e.g., insulin resistance, tumor promotion). The precise mechanisms regulating IGF-1 entry into the human brain and its localized effects on specific neuronal populations are still being elucidated. Balancing peripheral and central IGF-1 levels for optimal brain health without adverse systemic consequences is an unresolved debate.",
+            "violation_risk": "Excessive systemic IGF-1 levels could lead to peripheral insulin resistance, exacerbate growth of existing tumors, and potentially disrupt the delicate balance of central metabolic signaling, indirectly impairing synaptic function through systemic rather than direct neuronal effects."
+          },
+          {
+            "id": "S_M_G1_DOM03_004",
+            "domain_id": "DOM_M_G1_03",
+            "title": "NGF-TrkA Signaling and Cholinergic Synaptic Integrity in Neocortical Plasticity",
+            "mechanism": "Nerve Growth Factor (NGF) is critical for the survival, maintenance, and plasticity of basal forebrain cholinergic neurons (BFCNs) that extensively innervate the neocortex and hippocampus. NGF binds to its high-affinity TrkA receptor, activating downstream pathways (e.g., PI3K/Akt, MAPK/ERK) that support cholinergic neurotransmission, essential for attention, learning, and memory. Age-related decline in NGF-TrkA signaling contributes to BFCN degeneration and cholinergic deficits, directly impairing synaptic plasticity in target regions.",
+            "verified_effect": "Intracerebroventricular (ICV) administration of NGF has been shown in clinical trials for Alzheimer's disease to improve cognitive function and reduce cholinergic neuron degeneration, demonstrating its role in maintaining synaptic integrity. However, significant side effects limited its broader application. More targeted delivery approaches (e.g., encapsulated cells secreting NGF) are under investigation to mitigate these issues.",
+            "readiness_level": "RL-3",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "INCREASE",
+                "rationale": "By maintaining cholinergic neuron health and function, NGF-TrkA signaling indirectly supports excitatory synaptic transmission and overall network efficacy."
+              },
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "INCREASE",
+                "rationale": " NGF is a primary neurotrophic factor, and its optimized expression and signaling directly increase neurotrophic support."
+              },
+              {
+                "spv_id": "SPV_8",
+                "effect_direction": "INCREASE",
+                "rationale": "Maintaining BFCN integrity ensures adequate acetylcholine release and thus optimal neurotransmitter receptor occupancy for cholinergic receptors in the neocortex and hippocampus."
+              }
+            ],
+            "fragility_score": 5,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.95,
+            "gap_analysis": "Despite clinical evidence, the short half-life and poor blood-brain barrier penetrance of NGF, along with dose-limiting side effects (e.g., pain, weight loss) from non-specific delivery, remain major obstacles. The development of small molecule TrkA agonists or targeted gene therapies with regulated expression is desired. The precise mechanism by which NGF directly modulates non-cholinergic synapses in the neocortex and hippocampus is also an area of ongoing research.",
+            "violation_risk": "Non-specific or excessive NGF signaling via TrkA can lead to hyperalgesia (pain perception) and sympathetic hyperinnervation due to its peripheral effects. Within the brain, it could potentially disrupt the balance of cholinergic tone, leading to overstimulation or paradoxical desensitization, impairing rather than enhancing cognitive function.",
+            "also_relevant_to_domains": [
+              "DOM_M_G1_02"
+            ]
+          },
+          {
+            "id": "S_M_G1_DOM03_005",
+            "domain_id": "DOM_M_G1_03",
+            "title": "FGF2-mediated Synaptogenesis and Angiogenesis in Post-Ischemic Hippocampal Recovery",
+            "mechanism": "Fibroblast Growth Factor 2 (FGF2) is a potent mitogen and neurotrophic factor expressed in the human brain, particularly in the hippocampus. Beyond its role in neurogenesis and cell survival, FGF2 signaling (via FGFRs) promotes synaptogenesis and dendritic arborization. Critically, FGF2 also stimulates angiogenesis, the formation of new blood vessels, which is essential for nutrient and oxygen delivery to metabolically active synaptic regions, especially following ischemic insults. This dual action supports both structural synaptic recovery and the microvascular environment necessary for it.",
+            "verified_effect": "In rodent models of cerebral ischemia, FGF2 administration reduces infarct volume, enhances neurogenesis, and significantly improves synaptic density and cognitive recovery. Studies in human brain tissue post-stroke show upregulation of FGF2 and its receptors in peri-infarct regions, correlating with recovery processes. Recent findings (last 5 years) suggest FGF2's angiogenesis-promoting effects are crucial for supporting the metabolic demands of newly formed and strengthened synapses.",
+            "readiness_level": "RL-2",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "INCREASE",
+                "rationale": "FGF2 directly promotes synaptogenesis and dendritic complexity, increasing the number and strength of synaptic connections."
+              },
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "INCREASE",
+                "rationale": "FGF2 is a key growth factor, and its optimized expression supports neuronal and vascular health, indirectly boosting overall neurotrophic support capacity."
+              }
+            ],
+            "fragility_score": 7,
+            "relationship_to_goal": "partially_solves",
+            "relationship_confidence": 0.7,
+            "gap_analysis": "Systemic FGF2 administration has significant side effects due to its broad mitogenic activity, including tumor promotion. Localized, controlled delivery to specific brain regions post-ischemia remains technically challenging in humans. The optimal timing and duration of FGF2 exposure for maximizing synaptic recovery while minimizing risks are unresolved. Its role in chronic age-related decline, rather than acute injury, is less clear.",
+            "violation_risk": "FGF2's potent pro-angiogenic and mitogenic properties mean its unregulated or excessive expression could lead to abnormal vascular proliferation (e.g., hemangiomas) or promote the growth of existing quiescent tumors within the brain, posing a significant safety concern."
+          },
+          {
+            "id": "S_M_G1_DOM03_006",
+            "domain_id": "DOM_M_G1_03",
+            "title": "Contrasting Roles of ProBDNF-p75NTR vs. mBDNF-TrkB Signaling in Synaptic Pruning",
+            "mechanism": "The unprocessed precursor, proBDNF, binds with high affinity to the p75 neurotrophin receptor (p75NTR), which, unlike TrkB, can induce apoptosis and long-term depression (LTD) by promoting synaptic pruning. In contrast, mature BDNF (mBDNF) primarily binds to TrkB, promoting LTP and synapse formation. An age-related shift in the proBDNF/mBDNF ratio or altered p75NTR expression can tip the balance, leading to excessive or inappropriate synaptic pruning, a potential mechanism for age-related synaptic loss in the neocortex and hippocampus.",
+            "verified_effect": "Elevated proBDNF and p75NTR expression are observed in post-mortem human brains with neurodegenerative conditions and aging. In vitro studies with human neurons show that manipulating the proBDNF/mBDNF ratio or p75NTR activity can switch between synaptic depression/pruning and potentiation/formation. This represents a critical contradiction: two forms of the same neurotrophin can have opposing effects on synaptic homeostasis.",
+            "readiness_level": "RL-1",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "DECREASE",
+                "rationale": "Excessive proBDNF-p75NTR signaling promotes synaptic pruning and LTD, directly reducing synaptic transmission efficacy."
+              },
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "STABILIZE",
+                "rationale": "Maintaining the correct proBDNF/mBDNF ratio, rather than just total BDNF, is crucial for balanced neurotrophic factor action."
+              }
+            ],
+            "fragility_score": 8,
+            "relationship_to_goal": "violates",
+            "relationship_confidence": 0.8,
+            "gap_analysis": "Precisely modulating the proBDNF/mBDNF ratio in vivo in the human brain without affecting total BDNF levels or causing off-target effects remains a major challenge. The specific proteases (e.g., plasmin, MMPs) involved in proBDNF cleavage in different brain regions and their dysregulation in aging are still under active investigation. Developing tools to selectively target p75NTR signaling without interfering with other neurotrophin pathways is complex.",
+            "violation_risk": "Therapeutic strategies aimed at increasing total BDNF without considering the proBDNF/mBDNF balance could inadvertently exacerbate synaptic loss by elevating proBDNF and p75NTR signaling, thereby violating the goal of sustained synaptic homeostasis and potentially contributing to 'Prevention of Excitotoxic Synaptic Over-Pruning' (RA_M_G1_03)."
+          },
+          {
+            "id": "S_M_G1_DOM03_007",
+            "domain_id": "DOM_M_G1_03",
+            "title": "Microglial-Derived Complement Proteins as Negative Regulators of Synaptic Stability",
+            "mechanism": "While not traditionally considered a neurotrophic factor, microglial-derived complement proteins (e.g., C1q, C3) are now recognized as critical regulators of synaptic pruning during development and, aberrantly, during aging and neuroinflammation. C1q marks synapses for removal by microglia via the C3-CR3 pathway. In the aged human brain, chronic microglial activation leads to excessive C1q/C3 deposition, resulting in pathological synaptic loss in the neocortex and hippocampus, effectively counteracting neurotrophic factor efforts to stabilize synapses. This represents an indirect, yet powerful, negative regulation of synaptic homeostasis.",
+            "verified_effect": "Post-mortem human brain studies show increased microglial C1q expression and synaptic C1q deposition correlating with cognitive decline in aging and neurodegenerative diseases. Genetic ablation or pharmacological inhibition of C1q or C3 in aged animal models prevents age-related synaptic loss and cognitive deficits. This mechanism has emerged as a significant frontier in understanding synaptic failure (last 5 years).",
+            "readiness_level": "RL-1",
+            "capabilities": [
+              {
+                "spv_id": "SPV_1",
+                "effect_direction": "DECREASE",
+                "rationale": "Pathological complement-mediated synaptic pruning directly reduces the number and integrity of synapses, thereby decreasing synaptic transmission efficacy."
+              }
+            ],
+            "fragility_score": 9,
+            "relationship_to_goal": "violates",
+            "relationship_confidence": 0.75,
+            "gap_analysis": "Developing highly specific inhibitors of microglial complement pathways that do not compromise beneficial immune functions or developmental pruning is challenging. The precise triggers for aberrant microglial C1q/C3 expression in human brain aging are not fully understood. Measuring C1q/C3 levels or activity at the synapse in living human brains non-invasively remains a significant measurement gap.",
+            "violation_risk": "Therapeutic strategies that only focus on boosting neurotrophic factors without addressing aberrant microglial-mediated synaptic pruning (e.g., by C1q) could be ineffective, as newly formed or strengthened synapses might still be targeted for removal. This directly violates 'Prevention of Excitotoxic Synaptic Over-Pruning' (RA_M_G1_03) and contributes to 'Progressive cognitive decline due to impaired learning and memory formation'."
+          },
+          {
+            "id": "S_M_G1_DOM03_008",
+            "domain_id": "DOM_M_G1_03",
+            "title": "Measurement of Localized Neurotrophic Factor Bioavailability via Synaptically Targeted Biosensors",
+            "mechanism": "Traditional methods for neurotrophic factor measurement rely on bulk tissue homogenates or CSF, which do not reflect the dynamic, localized bioavailability at the synaptic cleft, where these factors exert their primary effects. Novel genetically encoded or nanobody-based biosensors, engineered to be expressed or delivered to the synaptic compartment, can detect and quantify real-time, activity-dependent fluctuations in neurotrophic factor concentrations (e.g., BDNF, GDNF) in living neuronal circuits. This allows for a precise understanding of their dynamic interplay with synaptic plasticity.",
+            "verified_effect": "In vitro and in vivo studies (e.g., using AAV-delivered biosensors in rodent brains) have demonstrated successful real-time measurement of synaptic BDNF and GDNF levels, correlating with synaptic activity and plasticity events. These biosensors have revealed transient, highly localized neurotrophic factor release patterns previously undetectable by conventional methods, providing a more accurate picture of neurotrophic factor 'expression rate' at the functional level.",
+            "readiness_level": "RL-1",
+            "capabilities": [
+              {
+                "spv_id": "SPV_2",
+                "effect_direction": "INCREASE",
+                "rationale": "By providing precise, localized measurements, these biosensors enable a better understanding of the factors influencing the 'Neurotrophic Factor Expression Rate' at the relevant site of action, allowing for more targeted optimization strategies."
+              }
+            ],
+            "fragility_score": 2,
+            "relationship_to_goal": "enables_measurement_for",
+            "relationship_confidence": 0.9,
+            "gap_analysis": "Translation to human subjects currently faces significant hurdles, including safety concerns for viral vector delivery of biosensors and the invasive nature of current detection methods. Non-invasive imaging techniques that can detect these biosensor signals in deep brain structures are needed. The development of biosensors for a broader range of neurotrophic factors and their active forms is also ongoing.",
+            "violation_risk": ""
+          }
+        ]
+      }
+    }
+  },
+  "step6": {
+    "count": 5,
+    "questions": [
+      {
+        "id": "Q_L3_M_G1_1",
+        "strategy_used": "CONTEXTUAL_DECOUPLING",
+        "text": "How does the aging neurovascular unit, specifically alterations in pericyte function and blood-brain barrier integrity, selectively impede the delivery and bioavailability of beneficial neurotrophic factors and glutamate transporters to synaptic microdomains, thereby accelerating region-specific synaptic dysregulation that is not mimicked in vitro?",
+        "rationale": "This question addresses whether the 'fragility' of current solutions (e.g., NTF delivery, EAAT2 enhancement) is due to an unaddressed 'global context' of the aging brain (neurovascular changes) rather than intrinsic limitations of the interventions themselves. It links system-level changes to synaptic pathology.",
+        "discriminator_target": "Systemic vs. local regulation of beneficial interventions.",
+        "target_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L3_M_G1_2",
+        "strategy_used": "CAUSAL_PIVOT",
+        "text": "Beyond gross expression levels, what are the upstream transcriptional and post-translational regulators that shift microglial CX3CR1 signaling from a synaptic surveillance and support function to an aggressive, pathological pruning phenotype in the aging human brain, and can these regulators be pharmacologically decoupled?",
+        "rationale": "This question pivots from observing microglial CX3CR1's dual role (partially_solves and violates) to identifying the causal 'switch' that dictates its detrimental shift, focusing on regulatory mechanisms rather than just the presence of the molecule. It seeks to understand the 'why' of the fragility.",
+        "discriminator_target": "Phenotypic plasticity drivers of microglial function.",
+        "target_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L3_M_G1_3",
+        "strategy_used": "ARBITRATION_LOGIC",
+        "text": "Given the contrasting roles of proBDNF-p75NTR (violates) versus mBDNF-TrkB (partially_solves) signaling, what is the precise spatio-temporal protease 'orchestration' that maintains the optimal proBDNF/mBDNF ratio in distinct synaptic compartments for sustained plasticity, and can this enzymatic balance be therapeutically re-tuned without compromising overall BDNF functions?",
+        "rationale": "This question applies arbitration logic to reconcile conflicting S-nodes related to BDNF signaling. It seeks to understand the master regulatory mechanism (protease activity) controlling the balance between beneficial and detrimental neurotrophin pathways, which is crucial for achieving sustained SPV_2.",
+        "discriminator_target": "Enzymatic control of neurotrophin balance vs. bulk delivery.",
+        "target_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L3_M_G1_4",
+        "strategy_used": "GENESIS_PROBE",
+        "text": "How do select long-lived species with robust neurogenesis and plasticity (e.g., certain avian species or naked mole-rats) maintain synaptic homeostasis and neurotrophic factor expression rates at a 'youthful' baseline despite extended lifespans, specifically regarding their glial-neuronal interaction programs and perineuronal net dynamics, that might offer novel strategies for human contexts?",
+        "rationale": "This Genesis Probe uses comparative biology to identify novel, evolutionarily optimized mechanisms that maintain SPV_1 and SPV_2 over long durations, challenging the assumption that age-related synaptic decline is inevitable and potentially revealing entirely new pathways for intervention.",
+        "discriminator_target": "Evolutionary adaptations for sustained synaptic health vs. human decline.",
+        "target_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L3_M_G1_5",
+        "strategy_used": "CONTEXTUAL_DECOUPLING",
+        "text": "If homeostatic synaptic scaling and selective pruning (S_M_G1_DOM02_004) are both essential but distinct processes, what are the precise molecular 'tags' or 'codes' that differentiate a synapse destined for beneficial pruning due to inefficiency from one that should be scaled up due to activity, and how does the aging cellular environment corrupt this discriminatory process leading to pathological loss?",
+        "rationale": "This question challenges the assumption that we can simply 'promote' plasticity or 'prevent' pruning. It targets the fundamental biological code that differentiates beneficial remodeling from pathological loss, which is currently a blind spot. The 'corruption' aspect directly addresses why interventions might fail in an aged context.",
+        "discriminator_target": "Mechanism of beneficial vs. pathological synaptic selection.",
+        "target_goal_id": "M_G1"
+      }
+    ]
+  },
+  "step7": {
+    "count": 5,
+    "hypotheses": [
+      {
+        "ih_id": "IH_Q_L3_M_G1_1_01",
+        "domain_category": "interface_integrity",
+        "process_hypothesis": "Age-related pericyte detachment and basement membrane stiffening in the neurovascular unit create localized areas of compromised blood-brain barrier (BBB) integrity that preferentially allow the leakage of detrimental inflammatory cytokines while physically hindering the trans-endothelial passage of larger, beneficial neurotrophic factors (like BDNF, GDNF) from the systemic circulation into synaptic microdomains. This selective filtration mechanism leads to reduced bioavailability of NTFs where they are needed most, thus weakening synaptic resilience (SPV_1, SPV_2).",
+        "lens_origin": "SUBSTRATE_LENS",
+        "maps_to_ra_ids": [
+          "RA_M_G1_01",
+          "RA_M_G1_02"
+        ],
+        "target_spv": "SPV_2",
+        "discriminating_prediction": "Local application of agents that enhance pericyte-endothelial adhesion (e.g., PDGF-BB mimetics) or reduce basement membrane stiffness (e.g., specific matrix metalloproteinase inhibitors) will restore the selective barrier function, increasing local brain concentrations of systemically administered fluorescently-tagged neurotrophic factors and improving synaptic plasticity (LTP) in aged animal models more effectively than direct NTF injection without NVM stabilization.",
+        "meter_classes": [
+          "imaging",
+          "biomarker_assays",
+          "functional_assays"
+        ],
+        "feasibility_note": "Pericyte-specific imaging and BBB permeability assays exist. Animal models of aging and BBB dysfunction are well-established. Fluorescently tagged NTFs and electrophysiology are standard. PDGF-BB mimetics are in development.",
+        "notes": "Addresses the 'selective impediment' aspect by proposing a physical mechanism of differential permeability based on molecular size and charge, exacerbated by structural changes of the NVM. Directly links NVM integrity to NTF bioavailability.",
+        "parent_l3_id": "Q_L3_M_G1_1"
+      },
+      {
+        "ih_id": "IH_Q_L3_M_G1_1_02",
+        "domain_category": "resource_energetic",
+        "process_hypothesis": "Chronic microvascular endothelial cell senescence in the aging neurovascular unit leads to mitochondrial dysfunction and a reduced ATP supply specifically at trans-endothelial transport machinery (e.g., receptor-mediated transcytosis for NTFs, active efflux pumps for glutamate metabolites). This energetic deficit selectively impairs the active transport of beneficial neurotrophic factors and the efficient removal of glutamate by astrocytic EAAT2 located near the BBB, rather than a failure of the transporter proteins themselves (SPV_2, SPV_1).",
+        "lens_origin": "SUBSTRATE_LENS",
+        "maps_to_ra_ids": [
+          "RA_M_G1_03",
+          "RA_M_G1_01"
+        ],
+        "target_spv": "SPV_2",
+        "discriminating_prediction": "Targeted delivery of mitochondrial-boosting agents (e.g., NAD+ precursors, specific sirtuin activators) specifically to brain endothelial cells in aged animals will increase the trans-endothelial transport rate of NTFs and improve local glutamate clearance rates (via EAAT2 activity) more effectively than enhancing NTF or EAAT2 expression without addressing endothelial energetics.",
+        "meter_classes": [
+          "biomarker_assays",
+          "imaging",
+          "functional_assays"
+        ],
+        "feasibility_note": "Endothelial-specific mitochondrial function can be assessed. ATP levels, transport rates, and EAAT2 activity are measurable. NAD+ precursors are available and tested. This relies on targeted delivery methods, which are emerging.",
+        "notes": "HERETICAL - challenges conventional view that BBB impairment is solely structural or inflammatory. Proposes an energetic bottleneck in active transport processes often overlooked, particularly for NTF delivery and glutamate homeostasis.",
+        "parent_l3_id": "Q_L3_M_G1_1"
+      },
+      {
+        "ih_id": "IH_Q_L3_M_G1_1_03",
+        "domain_category": "systemic_environmental",
+        "process_hypothesis": "The gut-brain axis, specifically dysregulation of the gut microbiome in aging, leads to altered production of short-chain fatty acids (SCFAs) like butyrate, which are crucial regulators of endothelial tight junction integrity and pericyte contractility in the neurovascular unit. Reduced SCFA levels lead to chronic, sub-threshold BBB 'leakiness' which permits peripheral immune cell infiltration and low-level inflammatory signaling (RA_M_G1_01), while concurrently downregulating the expression of specific neurotrophic factor receptors (e.g., TrkB) on pericytes and astrocytes, reducing their capacity to 'pull' NTFs into the parenchyma (SPV_2).",
+        "lens_origin": "COMMUNICATION_LENS",
+        "maps_to_ra_ids": [
+          "RA_M_G1_01",
+          "RA_M_G1_04"
+        ],
+        "target_spv": "SPV_2",
+        "discriminating_prediction": "Fecal microbiota transplantation from young, healthy donors or direct supplementation with SCFA analogs (e.g., butyrate) in aged animals will improve BBB integrity, reduce peripheral immune cell infiltration, and increase TrkB receptor expression on pericytes and astrocytes, leading to enhanced brain uptake of systemically administered NTFs and improved cognitive performance compared to controls.",
+        "meter_classes": [
+          "biomarker_assays",
+          "imaging",
+          "functional_tests"
+        ],
+        "feasibility_note": "FMT and SCFA supplementation are standard in microbiome research. BBB integrity, immune cell infiltration, and TrkB expression are quantifiable. Cognitive tests are well-established.",
+        "notes": "Cross-domain transfer from gut-brain axis research. Implies a systemic 'communication' breakdown (SCFA signaling) leads to NVM dysfunction, impacting both barrier function and NTF receptor expression.",
+        "parent_l3_id": "Q_L3_M_G1_1"
+      },
+      {
+        "ih_id": "IH_Q_L3_M_G1_1_04",
+        "domain_category": "structural_topological",
+        "process_hypothesis": "SCOUT - The interstitial fluid (ISF) flow dynamics, crucial for clearance of waste and distribution of soluble factors, are profoundly altered in the aging brain due to increased tortuosity and reduced pulsatility of microvessels. This 'stagnation' in the glymphatic system creates local 'deserts' where neurotrophic factors and glutamate are unable to diffuse effectively to remote synaptic microdomains, even if delivered across the BBB, leading to regional synaptic dysregulation (SPV_1, SPV_2).",
+        "lens_origin": "LENS_4",
+        "maps_to_ra_ids": [
+          "RA_M_G1_05",
+          "RA_M_G1_03"
+        ],
+        "target_spv": "SPV_1",
+        "discriminating_prediction": "Non-invasive modulation of brain pulsatility (e.g., low-frequency ultrasound, specific respiratory exercises) in aged animals will enhance perivascular ISF flow and improve the spatial distribution homogeneity of fluorescently-labeled NTFs within specific cortical layers, leading to enhanced LTP induction in previously 'NTF-deficient' regions.",
+        "meter_classes": [
+          "imaging",
+          "functional_assays",
+          "physiological_monitoring"
+        ],
+        "feasibility_note": "Glymphatic flow can be imaged in vivo (e.g., using MRI or two-photon microscopy with tracers). Low-frequency ultrasound and respiratory modulation are existing techniques. This requires precise measurement of local NTF distribution.",
+        "notes": "Proposes that distribution, not just delivery, is the problem due to fluid dynamics. Discriminating prediction: NTF delivery might be fine at the BBB, but its spread is impaired. Challenges the assumption that 'delivery' equals 'bioavailability at the synapse'.",
+        "parent_l3_id": "Q_L3_M_G1_1"
+      },
+      {
+        "ih_id": "IH_Q_L3_M_G1_1_05",
+        "domain_category": "information_control_sensing",
+        "process_hypothesis": "SCOUT - In the aging neurovascular unit, aberrant mechanosensing by pericytes, triggered by changes in vessel stiffness and blood flow shear stress, leads to a maladaptive 'mechano-transcriptional' switch. This switch downregulates the expression of specific glutamate transporter subtypes (e.g., GLAST/EAAT1 on astrocytes) and neurotrophic factor receptors on adjacent astrocytes and neurons (SPV_1, SPV_2), effectively 'blinding' them to available factors, even if their systemic delivery and local concentration are adequate.",
+        "lens_origin": "LENS_5",
+        "maps_to_ra_ids": [
+          "RA_M_G1_03",
+          "RA_M_G1_04"
+        ],
+        "target_spv": "SPV_1",
+        "discriminating_prediction": "In vitro co-culture models mimicking aged vessel stiffness and shear stress will show decreased GLAST/EAAT1 expression and TrkB receptor levels in astrocytes/neurons cultured alongside pericytes, preventable by inhibiting specific mechanotransduction pathways (e.g., YAP/TAZ, Piezo channels) in pericytes, even when NTFs are supplied exogenously. This effect would not be seen with normal stiffness/shear stress.",
+        "meter_classes": [
+          "molecular_biology",
+          "imaging",
+          "functional_assays"
+        ],
+        "feasibility_note": "In vitro co-culture models allow manipulation of mechanical cues. Gene expression analysis (qPCR, Western blot) and receptor quantification are standard. Specific mechanotransduction inhibitors are available for in vitro use.",
+        "notes": "Proposes that the NVM doesn't just block or transport, but actively 'informs' nearby glia/neurons about its aged state, leading to a reduced response capacity. Challenges the idea that simply increasing NTF/glutamate levels will suffice; the 'sensing' machinery itself is compromised.",
+        "parent_l3_id": "Q_L3_M_G1_1"
+      }
+    ]
+  },
+  "step8": {
+    "count": 6,
+    "questions": [
+      {
+        "id": "Q_L4_M_G1_1_01",
+        "type": "DISCRIMINATOR_Q",
+        "lens": "MODE_A",
+        "text": "Does selective pharmacogenetic activation of pericyte-endothelial cell adhesion proteins (e.g., N-cadherin) in aged mouse models restore the selective permeability of the BBB to systemically administered 10-20 kDa fluorescently-tagged neurotrophic factors (NTFs) while maintaining exclusion of 10 kDa dextrans, and does this correlate with improved synaptic long-term potentiation (LTP) in the hippocampus?",
+        "distinguishes_ih_ids": [
+          "IH_Q_L3_M_G1_1_01",
+          "IH_Q_L3_M_G1_1_02",
+          "IH_Q_L3_M_G1_1_03"
+        ],
+        "rationale": "This question directly tests IH_Q_L3_M_G1_1_01's premise that pericyte detachment and structural changes are primary drivers of selective NTF impediment. If restored adhesion improves selective permeability and LTP, it supports IH_Q_L3_M_G1_1_01 over energetic (IH_Q_L3_M_G1_1_02) or systemic (IH_Q_L3_M_G1_1_03) issues as the sole limiting factor. If permeability is restored but LTP isn't, it implies other factors are at play.",
+        "feasibility_note": "Pharmacogenetic tools for cell-specific manipulation, fluorescent tracers of different sizes, BBB permeability assays, and in vivo electrophysiology in aged rodents are all established techniques. N-cadherin modulation is a known target.",
+        "parent_l3_id": "Q_L3_M_G1_1",
+        "parent_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L4_M_G1_1_02",
+        "type": "DISCRIMINATOR_Q",
+        "lens": "MODE_B",
+        "text": "Can targeted delivery of a cell-permeable ATP precursor (e.g., specialized creatine analog or NAD+ booster) specifically to brain endothelial cells in aged organ-on-chip models of the NVU increase the trans-endothelial transport rate of NTFs and the clearance rate of glutamate, independent of tight junction integrity, when compared to controls or pan-cellular delivery?",
+        "distinguishes_ih_ids": [
+          "IH_Q_L3_M_G1_1_02",
+          "IH_Q_L3_M_G1_1_01",
+          "IH_Q_L3_M_G1_1_05"
+        ],
+        "rationale": "This question directly probes IH_Q_L3_M_G1_1_02. If endothelial-specific energetic boosting enhances transport without direct structural changes or mechanosensing modulation, it supports an energetic bottleneck. Organ-on-chip models allow precise control over specific cell types and targeted delivery, distinguishing it from general BBB structural issues (IH_Q_L3_M_G1_1_01) or receptor sensitivity (IH_Q_L3_M_G1_1_05).",
+        "feasibility_note": "NVU organ-on-chip models are available. Endothelial-targeted delivery is achievable with nanoparticles. ATP levels, transport kinetics, and glutamate clearance can be measured in these systems.",
+        "parent_l3_id": "Q_L3_M_G1_1",
+        "parent_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L4_M_G1_1_03",
+        "type": "DISCRIMINATOR_Q",
+        "lens": "MODE_C",
+        "text": "Does oral supplementation with specific SCFA analogs (e.g., butyrate) in aged mice with gut dysbiosis simultaneously reduce peripheral inflammatory markers, restore BBB integrity (measured by albumin leakage), increase brain capillary TrkB receptor expression on pericytes and astrocytes, and enhance brain uptake of systemically administered NTFs, ultimately leading to improved spatial memory, compared to placebo or direct brain NTF infusion?",
+        "distinguishes_ih_ids": [
+          "IH_Q_L3_M_G1_1_03",
+          "IH_Q_L3_M_G1_1_01",
+          "IH_Q_L3_M_G1_1_04"
+        ],
+        "rationale": "This tests the multi-faceted systemic hypothesis (IH_Q_L3_M_G1_1_03). If SCFA supplementation elicits a broad range of beneficial effects including BBB integrity, receptor expression, NTF uptake, and cognitive improvement, it strongly supports the gut-brain axis as a primary modulator, distinguishing it from purely structural (IH_Q_L3_M_G1_1_01) or distribution (IH_Q_L3_M_G1_1_04) issues.",
+        "feasibility_note": "Aged mouse models, oral supplementation, peripheral and brain biomarker analysis, BBB leakage assays (e.g., Evans Blue, albumin), TrkB immunohistochemistry, and behavioral assays for memory are all standard.",
+        "parent_l3_id": "Q_L3_M_G1_1",
+        "parent_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L4_M_G1_1_04",
+        "type": "DISCRIMINATOR_Q",
+        "lens": "MODE_D",
+        "text": "If fluorescently-tagged NTFs are directly injected into the brain parenchyma of aged mice, does targeted, non-invasive enhancement of microvascular pulsatility (e.g., focused ultrasound, modulated respiration) improve the spatial homogeneity and effective diffusion distance of these NTFs within specific cortical layers, leading to enhanced region-specific LTP induction in previously 'NTF-deficient' areas, compared to non-pulsatility-enhanced controls?",
+        "distinguishes_ih_ids": [
+          "IH_Q_L3_M_G1_1_04",
+          "IH_Q_L3_M_G1_1_01",
+          "IH_Q_L3_M_G1_1_02"
+        ],
+        "rationale": "This directly tests IH_Q_L3_M_G1_1_04 by bypassing BBB delivery altogether. If local distribution and effective reach of NTFs are improved by modulating ISF flow dynamics (microvascular pulsatility), and this translates to functional synaptic recovery, it indicates that impaired distribution is a key bottleneck, distinct from (though potentially additive to) BBB integrity (IH_Q_L3_M_G1_1_01) or active transport (IH_Q_L3_M_G1_1_02) issues.",
+        "feasibility_note": "Intraparenchymal injections are standard. Glymphatic flow imaging (e.g., 2-photon microscopy with fluorescent tracers), focused ultrasound, and in vivo LTP measurements are feasible in rodents.",
+        "parent_l3_id": "Q_L3_M_G1_1",
+        "parent_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L4_M_G1_1_05",
+        "type": "DISCRIMINATOR_Q",
+        "lens": "MODE_E",
+        "text": "In a 3D co-culture model of the NVU with astrocytes and neurons, does mimicking aged vessel stiffness and shear stress via hydrogel modifications induce a decrease in astrocyte GLAST/EAAT1 expression and neuronal TrkB receptor levels, and can this be reversed by pharmacological inhibition of pericyte Piezo1/2 channels, even when NTFs are continuously supplied at supra-physiological concentrations, thereby improving glutamate uptake and synaptic strength?",
+        "distinguishes_ih_ids": [
+          "IH_Q_L3_M_G1_1_05",
+          "IH_Q_L3_M_G1_1_01",
+          "IH_Q_L3_M_G1_1_02"
+        ],
+        "rationale": "This question directly tests IH_Q_L3_M_G1_1_05's core idea of maladaptive mechanosensing. By providing excess NTFs and controlling for transport, the experiment isolates the 'sensing' mechanism. If inhibiting pericyte mechanotransduction restores receptor and transporter expression and function despite aged mechanical cues, it supports a primary role for aberrant mechanosensing, distinguishing it from transport or barrier issues.",
+        "feasibility_note": "3D NVU co-culture systems are advanced but available. Hydrogel stiffness and shear stress manipulation are standard. Gene/protein expression analysis, functional glutamate uptake assays, and synaptic activity measurements are feasible. Piezo channel inhibitors are established research tools.",
+        "parent_l3_id": "Q_L3_M_G1_1",
+        "parent_goal_id": "M_G1"
+      },
+      {
+        "id": "Q_L4_M_G1_1_06",
+        "type": "UNKNOWN_EXPLORATION",
+        "lens": "MODE_C",
+        "text": "Does aging-associated systemic microRNA dysregulation, transported via extracellular vesicles from peripheral immune cells, directly reprogram specific endothelial or pericyte gene expression in the neurovascular unit, leading to a breakdown of both selective permeability and active transport mechanisms (NTF delivery and glutamate clearance) that is not fully explained by structural, energetic, or mechanosensing changes alone?",
+        "distinguishes_ih_ids": [],
+        "rationale": "This question explores a 'hidden medium' \u2013 microRNAs and extracellular vesicles \u2013 that could integrate and exacerbate multiple failure modes across the BBB, potentially acting as a systemic regulator bridging different IHs. It challenges the existing IHs by proposing a novel, upstream regulatory mechanism for NVU dysfunction.",
+        "feasibility_note": "Isolation and analysis of extracellular vesicles from aged vs. young systemic circulation, co-culture experiments with NVU cells to assess miRNA transfer and target gene expression, and functional assays for BBB integrity and transport are feasible. Manipulating specific miRNAs in vitro is also possible.",
+        "parent_l3_id": "Q_L3_M_G1_1",
+        "parent_goal_id": "M_G1"
+      }
+    ]
+  },
+  "step9": {
+    "l5_count": 3,
+    "l6_count": 6,
+    "l5_nodes": [
+      {
+        "id": "Q_L5_M_G1_1_01_A",
+        "text": "Does pharmacogenetic activation of N-cadherin in pericytes of aged mice selectively enhance BBB permeability to 10-20 kDa neurotrophic factors (NTFs) without compromising the exclusion of 10 kDa inert dextrans, and what are the cellular and molecular mechanisms underlying this selective permeability modulation?",
+        "type": "MECHANISM_DRILL",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      },
+      {
+        "id": "Q_L5_M_G1_1_01_B",
+        "text": "Does pharmacogenetic activation of pericyte N-cadherin, leading to enhanced selective BBB permeability for neurotrophic factors, translate into improved hippocampal synaptic long-term potentiation (LTP) and cognitive function in aged mice, and what are the underlying cellular and molecular changes in synaptic plasticity markers?",
+        "type": "MECHANISM_DRILL",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      },
+      {
+        "id": "Q_L5_M_G1_1_01_C",
+        "text": "Are there off-target effects of pericyte-specific N-cadherin activation on other cerebrovascular components (e.g., endothelial cells, astrocytes) or systemic physiology that could confound the observed BBB permeability and synaptic plasticity outcomes?",
+        "type": "VALIDATION_DRILL",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      }
+    ],
+    "l6_tasks": [
+      {
+        "id": "T_L6_M_G1_1_01_A_01",
+        "type": "LEAF_SPEC",
+        "title": "Pharmacogenetic N-cadherin Activation and Selective BBB Permeability in Aged Mice",
+        "simt_parameters": {
+          "system": "Aged C57BL/6J mice (Jackson Labs, 18-20 months old, n=10 per group) expressing Cre recombinase under a pericyte-specific promoter (e.g., Pdgfrb-CreERT2) crossed with a floxed DREADD (Designer Receptors Exclusively Activated by Designer Drugs) construct for inducible N-cadherin overexpression (e.g., AAV-DIO-hM3Dq-N-cadherin). Mice will be housed under standard conditions with a 12h light/dark cycle. Age-matched wild-type mice will serve as controls.",
+          "intervention": "Pericyte-specific N-cadherin overexpression will be induced via tamoxifen administration (75 mg/kg, i.p., daily for 5 days) in Pdgfrb-CreERT2;hM3Dq-N-cadherin mice. After 2 weeks washout, CNO (clozapine-N-oxide, 1 mg/kg, i.p., daily for 7 days) will be administered to activate the DREADD. Control groups will receive vehicle (saline) or CNO in Cre-negative littermates. On day 7, mice will receive intravenous injections of 10 kDa FITC-dextran (Sigma-Aldrich, 100 \u00b5L of 10 mg/mL) and 15 kDa Alexa Fluor 555-tagged BDNF (Alomone Labs, 100 \u00b5L of 1 mg/mL) via tail vein. Animals will be sacrificed 2 hours post-injection.",
+          "meter": "Brain tissue (cortex and hippocampus) will be collected, perfused, and sectioned. Fluorescent signal intensity of FITC-dextran and Alexa Fluor 555-BDNF will be quantified in brain parenchyma using confocal microscopy (Zeiss LSM 880) with image analysis software (ImageJ), comparing signal intensity in perivascular regions vs. deeper parenchyma. Co-localization with endothelial markers (CD31) and pericyte markers (Pdgfrb) will be assessed. Western blot analysis of tight junction proteins (Claudin-5, Occludin, ZO-1) and adherens junction proteins (VE-cadherin, N-cadherin) from isolated cerebral microvessels will be performed to assess molecular changes in BBB integrity. ELISA will quantify BDNF levels in brain homogenates.",
+          "threshold_time": "A significant increase (\u22652-fold) in Alexa Fluor 555-BDNF brain parenchymal signal in N-cadherin activated mice compared to controls, with no significant increase (<20%) in FITC-dextran signal, within 7 days of CNO administration. This selective increase in BDNF will be correlated with increased N-cadherin expression and/or altered localization of tight junction proteins in isolated microvessels. This experiment will be completed within 3 months."
+        },
+        "expected_impact": "This experiment will directly confirm if pharmacogenetic N-cadherin activation in pericytes can selectively enhance BBB permeability to NTFs without compromising inert molecule exclusion, supporting IH_Q_L3_M_G1_1_01. If selective permeability is achieved, it strengthens the hypothesis that pericyte-endothelial adhesion is a key regulator of NTF transport and a viable therapeutic target. If not, it suggests N-cadherin alone is insufficient or that other mechanisms dominate.",
+        "spv_link": "SPV_1",
+        "feasibility_score": 9,
+        "parent_l5_id": "Q_L5_M_G1_1_01_A",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      },
+      {
+        "id": "T_L6_M_G1_1_01_A_02",
+        "type": "LEAF_SPEC",
+        "title": "Time-Course Analysis of N-cadherin Activation on BBB Permeability and Pericyte-Endothelial Junction Dynamics",
+        "simt_parameters": {
+          "system": "Aged C57BL/6J mice (Jackson Labs, 18-20 months old, n=12 per group) expressing pericyte-specific Pdgfrb-CreERT2 and floxed DREADD for inducible N-cadherin overexpression. Aged wild-type mice will serve as controls. Mice will be housed under standard conditions.",
+          "intervention": "N-cadherin overexpression induced via tamoxifen (75 mg/kg, i.p., daily for 5 days). After 2 weeks washout, CNO (1 mg/kg, i.p.) will be administered daily for 1, 3, 7, and 14 days. At each time point, mice will receive intravenous injections of 10 kDa FITC-dextran and 15 kDa Alexa Fluor 555-BDNF. Control groups will receive vehicle or CNO in Cre-negative littermates at corresponding time points.",
+          "meter": "At each time point, brain tissue (cortex and hippocampus) will be analyzed for parenchymal fluorescence of both tracers via confocal microscopy. Additionally, electron microscopy (TEM) will be used to visualize pericyte-endothelial cell junctions and tight junctions in selected samples (Day 0, Day 7, Day 14 CNO-treated vs. controls) to assess structural changes. Immunofluorescence for N-cadherin, VE-cadherin, Claudin-5, and ZO-1 will be performed on brain sections, with quantitative analysis of junctional protein localization and intensity using ImageJ. Quantitative PCR will measure mRNA levels of key junctional proteins and N-cadherin in isolated cerebral microvessels.",
+          "threshold_time": "Observation of a time-dependent increase in Alexa Fluor 555-BDNF brain parenchymal signal, peaking between 3-7 days post-CNO, without a significant increase in FITC-dextran signal. TEM analysis should reveal structural changes in pericyte-endothelial contacts and/or tight junctions that correlate with the permeability changes. Significant changes (p<0.05) in junctional protein localization or expression should be detected by immunofluorescence and qPCR. This experiment will be completed within 4 months."
+        },
+        "expected_impact": "This time-course study will provide critical kinetic data on how N-cadherin activation modulates BBB permeability and its impact on junctional integrity. It will help determine the optimal duration of intervention for selective NTF delivery and provide mechanistic insights into pericyte-endothelial interactions, further supporting or refuting IH_Q_L3_M_G1_1_01 by detailing the dynamic response.",
+        "spv_link": "SPV_1",
+        "feasibility_score": 8,
+        "parent_l5_id": "Q_L5_M_G1_1_01_A",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      },
+      {
+        "id": "T_L6_M_G1_1_01_B_01",
+        "type": "LEAF_SPEC",
+        "title": "Impact of Pericyte N-cadherin Activation on Hippocampal LTP and Synaptic Markers in Aged Mice",
+        "simt_parameters": {
+          "system": "Aged C57BL/6J mice (Jackson Labs, 18-20 months old, n=12 per group) expressing pericyte-specific Pdgfrb-CreERT2 and floxed DREADD for inducible N-cadherin overexpression. Aged wild-type mice and Cre-negative littermates will serve as controls. Mice will be housed under standard conditions.",
+          "intervention": "N-cadherin overexpression induced via tamoxifen (75 mg/kg, i.p., daily for 5 days). After 2 weeks washout, CNO (1 mg/kg, i.p., daily for 14 days) will be administered. During the last 7 days of CNO treatment, mice will receive daily i.p. injections of recombinant human BDNF (rhBDNF, 50 \u00b5g/kg) or vehicle (saline). Control groups will receive vehicle or CNO in Cre-negative littermates, with or without rhBDNF.",
+          "meter": "Ex vivo electrophysiology will be performed on hippocampal slices (CA1 region) to measure basal synaptic transmission and long-term potentiation (LTP) following theta burst stimulation. Field excitatory postsynaptic potentials (fEPSPs) will be recorded. Brain tissue will be analyzed for synaptic protein markers (e.g., PSD-95, Synaptophysin, Arc, Homer1) via Western blot and immunofluorescence in the hippocampus. ELISA will quantify BDNF levels in hippocampal homogenates. BBB permeability to 15 kDa Alexa Fluor 555-BDNF will be re-assessed at the end of the intervention period to confirm sustained permeability enhancement.",
+          "threshold_time": "A significant increase (\u226530%) in the magnitude of LTP in N-cadherin activated mice receiving rhBDNF compared to controls, reaching at least 70% of young adult baseline LTP, within 14 days of CNO administration. This should correlate with increased synaptic protein expression (\u226520%) and confirmed enhanced BDNF delivery to the hippocampus. This experiment will be completed within 4 months."
+        },
+        "expected_impact": "This experiment directly tests the functional consequence of enhanced NTF delivery on synaptic plasticity, a key component of cognitive function. If LTP is improved, it strongly supports IH_Q_L3_M_G1_1_01 by demonstrating that restoring pericyte-endothelial adhesion can lead to tangible neurological benefits, and that NTF delivery is a critical limiting factor in aged brains. If not, it suggests other factors limit LTP even with increased NTF availability.",
+        "spv_link": "SPV_1",
+        "feasibility_score": 9,
+        "parent_l5_id": "Q_L5_M_G1_1_01_B",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      },
+      {
+        "id": "T_L6_M_G1_1_01_B_02",
+        "type": "LEAF_SPEC",
+        "title": "Multi-factorial Assessment of Cognitive Function and Synaptic Plasticity after Pericyte N-cadherin Activation and NTF Delivery",
+        "simt_parameters": {
+          "system": "Aged C57BL/6J mice (Jackson Labs, 18-20 months old, n=15 per group) expressing pericyte-specific Pdgfrb-CreERT2 and floxed DREADD for inducible N-cadherin overexpression. Aged wild-type and Cre-negative littermates will serve as controls. Mice will be housed under standard conditions.",
+          "intervention": "N-cadherin overexpression induced via tamoxifen (75 mg/kg, i.p., daily for 5 days). After 2 weeks washout, mice will be divided into 4 intervention groups for 4 weeks: 1) Vehicle + Saline, 2) CNO (1 mg/kg, i.p., daily) + Saline, 3) Vehicle + rhBDNF (50 \u00b5g/kg, i.p., daily), 4) CNO + rhBDNF. Cognitive testing will commence after 2 weeks of CNO/rhBDNF administration and continue for 2 weeks. A separate cohort will receive 10 kDa FITC-dextran and 15 kDa Alexa Fluor 555-BDNF at the end of the 4-week intervention for BBB permeability assessment.",
+          "meter": "Cognitive function will be assessed using a battery of behavioral tests: Morris Water Maze (spatial learning and memory), Novel Object Recognition (recognition memory), and Fear Conditioning (associative memory). Electrophysiological recordings of LTP will be performed in hippocampal slices from a subset of animals. Synaptic density (using unbiased stereology and immunofluorescence for PSD-95 and Synaptophysin) and dendritic spine morphology (Golgi staining) will be quantified in hippocampal CA1 and dentate gyrus. RNA sequencing (Illumina NovaSeq) of hippocampal tissue will be performed to identify changes in gene expression related to synaptic plasticity, neuroinflammation, and neurogenesis.",
+          "threshold_time": "A significant improvement (e.g., reduced latency and increased time in target quadrant in MWM, increased discrimination index in NOR, increased freezing time in fear conditioning, all p<0.05) in cognitive performance in the CNO+rhBDNF group compared to all other groups, reaching at least 80% of young adult baseline performance. This improvement should correlate with enhanced LTP magnitude (\u226530%), increased synaptic density (\u226515%), and favorable gene expression changes (FDR < 0.05, |log2FC| > 1) in synaptic plasticity pathways. This experiment will be completed within 6 months."
+        },
+        "expected_impact": "This comprehensive, multi-factorial experiment will provide robust evidence for the therapeutic efficacy of pericyte N-cadherin activation combined with systemic NTF delivery. By integrating behavioral, electrophysiological, morphological, and transcriptomic data, it will provide a holistic view of the intervention's impact on brain function, strongly supporting or refuting IH_Q_L3_M_G1_1_01 and guiding future therapeutic development.",
+        "spv_link": "SPV_1",
+        "feasibility_score": 8,
+        "parent_l5_id": "Q_L5_M_G1_1_01_B",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      },
+      {
+        "id": "T_L6_M_G1_1_01_C_01",
+        "type": "LEAF_SPEC",
+        "title": "Assessment of Off-Target Effects of Pericyte N-cadherin Activation on Cerebrovascular and Systemic Health",
+        "simt_parameters": {
+          "system": "Aged C57BL/6J mice (Jackson Labs, 18-20 months old, n=10 per group) expressing pericyte-specific Pdgfrb-CreERT2 and floxed DREADD for inducible N-cadherin overexpression. Aged wild-type and Cre-negative littermates will serve as controls. Mice will be housed under standard conditions.",
+          "intervention": "N-cadherin overexpression induced via tamoxifen (75 mg/kg, i.p., daily for 5 days). After 2 weeks washout, CNO (1 mg/kg, i.p., daily for 14 days) will be administered. Control groups will receive vehicle or CNO in Cre-negative littermates.",
+          "meter": "Immunofluorescence will be performed on brain sections to assess activation/reactivity of astrocytes (GFAP), microglia (Iba1), and endothelial cells (CD31, VE-cadherin expression/localization). Western blot will quantify N-cadherin and VE-cadherin expression in isolated endothelial cells and astrocytes (if feasible to isolate). Systemic blood samples will be collected for complete blood count (CBC), liver and kidney function tests (ALT, AST, creatinine, BUN), and inflammatory cytokine panel (Luminex multiplex assay, e.g., IL-6, TNF-\u03b1). Blood pressure will be monitored via tail-cuff method weekly. Brain MRI will be performed to detect any gross structural changes or microhemorrhages.",
+          "threshold_time": "No significant changes (p>0.05) in GFAP or Iba1 reactivity, endothelial cell junctional protein expression/localization, systemic inflammatory markers, blood pressure, or liver/kidney function in N-cadherin activated mice compared to controls. MRI should show no evidence of microhemorrhages or other structural abnormalities. This experiment will be completed within 3 months."
+        },
+        "expected_impact": "This experiment will provide crucial safety data and confirm the specificity of the pericyte-targeted intervention. If no significant off-target effects are observed, it strengthens the validity of attributing observed functional improvements to pericyte-endothelial adhesion modulation, further supporting IH_Q_L3_M_G1_1_01. If off-target effects are detected, it necessitates re-evaluation of the intervention strategy and potential confounding factors.",
+        "spv_link": "SPV_1",
+        "feasibility_score": 8,
+        "parent_l5_id": "Q_L5_M_G1_1_01_C",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      },
+      {
+        "id": "T_L6_M_G1_1_01_C_02",
+        "type": "LEAF_SPEC",
+        "title": "Transcriptomic Analysis of Pericyte-Specific N-cadherin Activation on Cerebrovascular Cell Types",
+        "simt_parameters": {
+          "system": "Aged C57BL/6J mice (Jackson Labs, 18-20 months old, n=8 per group) expressing pericyte-specific Pdgfrb-CreERT2 and floxed DREADD for inducible N-cadherin overexpression. Aged wild-type and Cre-negative littermates will serve as controls. Mice will be housed under standard conditions.",
+          "intervention": "N-cadherin overexpression induced via tamoxifen (75 mg/kg, i.p., daily for 5 days). After 2 weeks washout, CNO (1 mg/kg, i.p., daily for 7 days) will be administered. Control groups will receive vehicle or CNO in Cre-negative littermates.",
+          "meter": "Single-nucleus RNA sequencing (snRNA-seq) will be performed on isolated nuclei from cortical and hippocampal tissue. Cell type-specific transcriptomic changes will be analyzed for pericytes, endothelial cells, astrocytes, and microglia. Differential gene expression analysis (FDR < 0.05, |log2FC| > 0.5) will identify changes in pathways related to cell adhesion, junctional integrity, inflammatory response, and metabolic function in each cell type. Specific attention will be paid to changes in endothelial cells and astrocytes to detect unintended responses.",
+          "threshold_time": "Significant transcriptomic changes (FDR < 0.05) should be primarily observed in pericytes, with minimal or no significant changes (e.g., less than 5% of differentially expressed genes) in endothelial cells, astrocytes, or microglia, particularly in genes related to barrier function or inflammatory activation. This experiment will be completed within 4 months."
+        },
+        "expected_impact": "This unbiased transcriptomic approach will provide a high-resolution view of the cellular responses to pericyte N-cadherin activation, confirming the cell-type specificity of the intervention. If changes are largely confined to pericytes, it reinforces the targeted nature of the intervention and supports IH_Q_L3_M_G1_1_01. If significant off-target transcriptional changes are observed in endothelial cells or other cell types, it suggests broader, potentially confounding effects that need to be considered.",
+        "spv_link": "SPV_1",
+        "feasibility_score": 9,
+        "parent_l5_id": "Q_L5_M_G1_1_01_C",
+        "parent_l4_id": "Q_L4_M_G1_1_01"
+      }
+    ]
+  },
+  "total_time": 159.9
+}

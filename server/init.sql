@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,  -- Optional user binding
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_accessed_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '7 days'),
+    expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '60 days'),
     session_metadata JSONB DEFAULT '{}',
     is_active BOOLEAN DEFAULT TRUE
 );
@@ -109,6 +109,27 @@ CREATE TRIGGER trigger_update_session_state_timestamp
     BEFORE UPDATE ON session_state
     FOR EACH ROW
     EXECUTE FUNCTION update_timestamp();
+
+-- ============================================================
+-- Node Feedback Table
+-- Stores user feedback (rating, comment, category) on graph nodes
+-- ============================================================
+CREATE TABLE IF NOT EXISTS node_feedback (
+    feedback_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL,
+    user_session_id VARCHAR(100) NOT NULL,
+    node_id VARCHAR(200) NOT NULL,
+    node_type VARCHAR(50) NOT NULL,
+    rating SMALLINT CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    category VARCHAR(50),
+    author VARCHAR(100),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_feedback_session ON node_feedback(session_id, user_session_id);
+CREATE INDEX IF NOT EXISTS idx_node_feedback_node ON node_feedback(node_id);
 
 -- ============================================================
 -- Grant permissions (optional, for production security)

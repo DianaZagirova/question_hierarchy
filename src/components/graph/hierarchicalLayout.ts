@@ -143,7 +143,7 @@ export function createGroupNode(
       fontWeight: '700',
       width: 200,
       minHeight: 80,
-      boxShadow: `0 0 18px ${color}40`,
+      outline: `1px solid ${color}30`,
       cursor: 'pointer',
       textAlign: 'center' as const,
     },

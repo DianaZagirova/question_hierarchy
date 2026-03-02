@@ -1,0 +1,26 @@
+# Step 4 Optimized Pipeline Requirements
+# Install with: pip install -r requirements_step4.txt
+
+# Core dependencies (required)
+psycopg2-binary>=2.9.0          # PostgreSQL driver
+sentence-transformers>=2.2.0    # Embedding model
+torch>=2.0.0                    # PyTorch (CPU version by default)
+aiohttp>=3.8.0                  # Async HTTP for research APIs
+numpy>=1.24.0                   # Numerical computing
+scikit-learn>=1.3.0             # Similarity metrics
+
+# Optional: GPU support (uncomment for CUDA 11.8)
+# torch @ https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp311-cp311-linux_x86_64.whl
+
+# Already installed in Omega Point (verify these exist)
+openai>=1.0.0                   # OpenRouter client
+flask>=2.3.0                    # Web framework
+python-dotenv>=1.0.0            # Environment variables
+flask-cors>=4.0.0               # CORS support
+sqlalchemy>=2.0.0               # Database ORM
+redis>=4.5.0                    # Redis client
+
+# Development/testing (optional)
+pytest>=7.4.0                   # Testing framework
+black>=23.0.0                   # Code formatting
+mypy>=1.5.0                     # Type checking

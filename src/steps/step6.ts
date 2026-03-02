@@ -20,12 +20,9 @@ export async function runStep6(
   const { goals, error } = extractGoals(steps, selectedGoalId);
   if (error) throw new Error(error);
 
-  const { allSPVs } = extractBridgeLexicon(steps);
+  const { bridgeLexicon, allSPVs } = extractBridgeLexicon(steps);
 
   log.info(`Processing ${goals.length} goal(s) for L3 question generation`);
-
-  const step2Data = steps[1]?.output;
-  const step3Output = steps[2]?.output; // RAs keyed by goal ID: { M_G1: [...], M_G2: [...] }
 
   // Filter out goals that have no S-nodes from Step 4
   const goalsWithSNodes = goals.filter((goal: any) => {
@@ -52,10 +49,8 @@ export async function runStep6(
     return {
       Q0_reference: fullQ0(steps),
       goal_pillar: enrichedGoal,
-      step2: step2Data,
-      step3: step3Output?.[goal.id] || [], // Only this goal's RAs
+      bridge_lexicon: bridgeLexicon,
       step4: { [goal.id]: goalStep4Data },
-      step5: { [goal.id]: goalStep4Data }, // Pass Step 4 as Step 5 since Judge is skipped
       goal: currentGoal,
     };
   });

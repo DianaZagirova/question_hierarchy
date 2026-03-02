@@ -49,3 +49,12 @@ build
 *.md 
 ./docs
 !README.md    
+
+
+#JSON
+quick*.json
+genius*.json
+test-step*.json
+v3-run*.json
+*runs*.json
+*test*.json

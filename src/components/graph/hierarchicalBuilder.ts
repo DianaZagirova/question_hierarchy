@@ -108,7 +108,7 @@ export function buildL3Hierarchy(
           fontSize: '10px',
           fontWeight: '600',
           width: 260,
-          boxShadow: `0 0 18px ${NODE_COLORS.l3}40`,
+          outline: `1px solid ${NODE_COLORS.l3}30`,
         },
       });
 
@@ -271,7 +271,7 @@ function buildIHGroup(
           fontSize: '9px',
           fontWeight: '600',
           width: 240,
-          boxShadow: `0 0 15px ${NODE_COLORS.ih}40`,
+          outline: `1px solid ${NODE_COLORS.ih}30`,
         },
       });
 
@@ -370,7 +370,7 @@ function buildL4Group(
           fontSize: '9px',
           fontWeight: '600',
           width: 200,
-          boxShadow: `0 0 15px ${NODE_COLORS.l4}40`,
+          outline: `1px solid ${NODE_COLORS.l4}30`,
         },
       });
 
@@ -478,7 +478,7 @@ function buildL5L6Hierarchy(
           fontSize: '8px',
           fontWeight: '600',
           width: 180,
-          boxShadow: `0 0 15px ${NODE_COLORS.l5}40`,
+          outline: `1px solid ${NODE_COLORS.l5}30`,
         },
       });
 
@@ -584,7 +584,7 @@ function buildL6Group(
           fontSize: '8px',
           fontWeight: '600',
           width: 160,
-          boxShadow: `0 0 15px ${NODE_COLORS.l6}40`,
+          outline: `1px solid ${NODE_COLORS.l6}30`,
         },
       });
 

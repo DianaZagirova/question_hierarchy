@@ -33,11 +33,11 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, onUpdate }) => {
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-lg gradient-text">{agent.name}</CardTitle>
                   {isDeprecated ? (
-                    <span className="px-2 py-0.5 text-[10px] font-mono bg-red-500/20 text-red-400 border border-red-500/30 rounded">
+                    <span className="px-2 py-0.5 text-xs font-mono bg-red-500/20 text-red-400 border border-red-500/30 rounded">
                       DEPRECATED
                     </span>
                   ) : agent.enabled ? (
-                    <span className="px-2 py-0.5 text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
+                    <span className="px-2 py-0.5 text-xs font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
                       ACTIVE
                     </span>
                   ) : null}
@@ -51,7 +51,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, onUpdate }) => {
                 {/* Compact node count display - always visible */}
                 {agent.settings?.nodeCount && (
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400">Nodes:</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-purple-400">Nodes:</span>
                     <div className="flex items-center gap-1">
                       <Input
                         type="number"

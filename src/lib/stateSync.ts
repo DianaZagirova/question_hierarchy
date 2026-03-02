@@ -145,12 +145,21 @@ class StateSync {
       // Import useAppStore dynamically to avoid circular dependency
       const { useAppStore } = await import('../store/useAppStore');
 
-      // Apply state to Zustand store
+      // Reset any 'running' steps to 'pending' — execution doesn't survive reload/switch
+      const cleanedSteps = (state.steps || []).map((s: any) =>
+        s.status === 'running' ? { ...s, status: 'pending', error: undefined } : s
+      );
+
+      // Apply state to Zustand store (restore L6 analysis if persisted)
       useAppStore.setState({
         currentGoal: state.currentGoal || '',
         agents: state.agents || [],
-        steps: state.steps || [],
+        steps: cleanedSteps,
         versions: state.versions || [],
+        highlightedL6Ids: state.highlightedL6Ids || [],
+        l6AnalysisResult: state.l6AnalysisResult || null,
+        l6AnalysisLoading: false,
+        focusedNodeId: null,
       });
 
       console.log('[StateSync] ✓ State loaded from object');
@@ -183,6 +192,10 @@ class StateSync {
           selectedGoalId: null,
           selectedL3Id: null,
           selectedL4Id: null,
+          highlightedL6Ids: [],
+          l6AnalysisResult: null,
+          l6AnalysisLoading: false,
+          focusedNodeId: null,
         });
         console.log('[StateSync] ✓ State reset to defaults (fallback)');
       }
