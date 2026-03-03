@@ -3,10 +3,6 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    zoom: 0.75;
-  }
-
   :root {
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
@@ -197,6 +193,23 @@ select:focus {
 .app-main-container {
   min-height: 100vh;
   min-height: -webkit-fill-available;
+}
+
+/* Guided Tour (react-joyride) — dark theme spotlight */
+.__floater.__floater--open {
+  filter: none !important;
+}
+.react-joyride__overlay {
+  mix-blend-mode: unset !important;
+  background-color: rgba(0, 0, 0, 0.75) !important;
+}
+.react-joyride__spotlight {
+  border-radius: 12px !important;
+  background-color: transparent !important;
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.75),
+    0 0 24px rgba(74, 222, 128, 0.12),
+    inset 0 0 0 2px rgba(74, 222, 128, 0.2) !important;
 }
 
 /* Dynamic height for split view - accounts for header and padding */

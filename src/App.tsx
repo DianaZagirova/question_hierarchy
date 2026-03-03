@@ -13,9 +13,10 @@ import { L6PerspectiveAnalyzer } from './components/L6PerspectiveAnalyzer';
 import { Button } from './components/ui/Button';
 import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
-import { Users, User, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2, Rocket, Square, Send } from 'lucide-react';
+import { Users, User, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2, Rocket, Square, Send, HelpCircle } from 'lucide-react';
 import { runFullPipeline, FullPipelineProgress, shareToTelegram, getSessionFeedback } from './lib/api';
 import { UserNamePrompt, getUserName, getTelegramUser, clearTelegramUser, setUserName as storeUserName } from './components/UserNamePrompt';
+import { GuidedTour, TOUR_COMPLETED_KEY } from './components/GuidedTour';
 import type { TelegramUser } from './components/UserNamePrompt';
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
   const [userName, setUserName] = useState<string | null>(getUserName());
   const [telegramUser, setTelegramUserState] = useState<TelegramUser | null>(getTelegramUser());
   const [telegramSharing, setTelegramSharing] = useState(false);
+  const [tourRunning, setTourRunning] = useState(false);
   const fullPipelineAbortRef = React.useRef<AbortController | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const {
@@ -66,6 +68,14 @@ function App() {
 
   // NOTE: sessionManager.initialize() is called inside useSessionStore.initialize()
   // No separate sessionManager init effect needed — it's all sequenced in initSessions()
+
+  // Auto-trigger guided tour on first visit
+  useEffect(() => {
+    if (userName && !localStorage.getItem(TOUR_COMPLETED_KEY)) {
+      const timer = setTimeout(() => setTourRunning(true), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [userName]);
 
   // File I/O handlers
   const handleLoadPipelineJSON = (file: File) => {
@@ -443,7 +453,8 @@ function App() {
   return (
     <div className="app-main-container min-h-screen bg-background text-foreground overflow-x-hidden">
       <ParticleBackground />
-      
+      <GuidedTour run={tourRunning} onFinish={() => setTourRunning(false)} />
+
       {/* Header */}
       <header className="relative z-20 border-b border-border/40 bg-card/80 backdrop-blur-md">
         <div className="flex items-center justify-between px-4 py-2 w-full overflow-visible">
@@ -461,7 +472,18 @@ function App() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <SessionSwitcher />
+            <button
+              data-tour-help
+              onClick={() => setTourRunning(true)}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-secondary/30 border border-border/30 hover:bg-secondary/50 transition-colors text-sm"
+              title="Show guided tour"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline text-muted-foreground text-xs">Help</span>
+            </button>
+            <div data-tour-session-switcher>
+              <SessionSwitcher />
+            </div>
             {telegramUser && (
               <button
                 onClick={handleShareToTelegram}
@@ -519,7 +541,7 @@ function App() {
       <div className="relative z-10 max-w-[98vw] mx-auto px-3 py-3">
 
         {/* Goal Input */}
-        <Card className="mb-3 bg-card/50 backdrop-blur-sm border border-border/30">
+        <Card className="mb-3 bg-card/50 backdrop-blur-sm border border-border/30" data-tour-goal-input>
           <CardHeader
             className="border-b border-border/20 pb-2 cursor-pointer hover:bg-secondary/20 transition-colors"
             onClick={() => setPrimaryObjectiveCollapsed(!primaryObjectiveCollapsed)}
@@ -550,7 +572,7 @@ function App() {
                   rows={2}
                   className="flex-1 bg-secondary/20 border border-border/40 focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all rounded-md px-3 py-1.5 text-sm resize-y min-h-[50px] max-h-[200px] overflow-y-auto"
                 />
-                <div className="flex flex-col gap-1.5 flex-shrink-0">
+                <div className="flex flex-col gap-1.5 flex-shrink-0" data-tour-run-buttons>
                   {!fullPipelineRunning ? (
                     <Button
                       onClick={handleRunFullPipeline}
@@ -589,7 +611,7 @@ function App() {
               </div>
 
               {/* Row 2: Secondary actions — compact inline */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap" data-tour-secondary-actions>
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="outline"
@@ -633,7 +655,7 @@ function App() {
               </div>
               
               {/* Global Lens Selector */}
-              <div>
+              <div data-tour-lens>
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                   Epistemic Lens (Optional)
                 </label>
@@ -737,7 +759,7 @@ function App() {
         </Card>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-3 bg-card/40 backdrop-blur-sm rounded-lg p-1 border border-border/20">
+        <div className="flex gap-1 mb-3 bg-card/40 backdrop-blur-sm rounded-lg p-1 border border-border/20" data-tour-tabs>
           {([
             { key: 'overview', label: 'Overview', icon: Info },
             { key: 'agents', label: `Agents (${agents.filter(a => a.enabled).length})`, icon: Users },
@@ -773,6 +795,7 @@ function App() {
             <div
               style={{ width: `${splitRatio}%` }}
               className="overflow-auto bg-card/50 backdrop-blur-sm rounded-l-lg shadow-lg border border-border/30 p-4 select-text"
+              data-tour-pipeline-panel
             >
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-foreground/80">Pipeline Steps</h2>
@@ -1020,7 +1043,7 @@ function App() {
               />
 
               {/* L6 Perspective Analysis */}
-              <div className="mt-4">
+              <div className="mt-4" data-tour-best-experiments>
                 <L6PerspectiveAnalyzer />
               </div>
             </div>
@@ -1071,6 +1094,7 @@ function App() {
             <div 
               style={{ width: `${100 - splitRatio}%` }}
               className="bg-card/50 backdrop-blur-sm rounded-r-lg shadow-lg border border-border/30 select-text"
+              data-tour-graph-panel
             >
               <div className="flex items-center justify-between px-3 py-2 border-b border-border/20">
                 <h2 className="text-sm font-semibold text-foreground/80">Knowledge Graph</h2>

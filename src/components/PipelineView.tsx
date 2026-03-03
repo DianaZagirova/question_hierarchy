@@ -245,7 +245,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ steps, agents, onRun
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-tour-step-cards>
       {steps.map((step, index) => {
         const agent = agents.find(a => a.id === step.agentId);
         const isDisabled = agent && agent.enabled === false;

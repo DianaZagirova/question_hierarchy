@@ -1205,7 +1205,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   };
 
   return (
-    <div className="h-full w-full relative bg-background">
+    <div className="h-full w-full relative bg-background" data-tour-graph>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1252,6 +1252,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         {/* Graph Controls - Hidden in Zen Mode */}
         {!zenMode && (
           <Panel position="top-left">
+            <div data-tour-graph-controls>
             <GraphControls
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
@@ -1276,6 +1277,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
               totalNodeCount={totalNodeCount}
               visibleNodeCount={filteredGraph.nodes.length}
             />
+            </div>
           </Panel>
         )}
 
@@ -1308,6 +1310,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
       {/* Node Details Panel - Collapsible */}
       {selectedNode && (
         <div
+          data-tour-node-panel
           className={`absolute top-4 right-4 bg-card/95 backdrop-blur-sm rounded-lg shadow-xl border border-border/50 z-20 transition-all duration-300 ${
             nodeDetailsMinimized
               ? 'w-[300px]'

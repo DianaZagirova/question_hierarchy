@@ -6868,70 +6868,6 @@ if STEP4_OPTIMIZED_AVAILABLE:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.route('/api/user-sessions', methods=['GET'])
-
-def get_user_sessions():
-    username = request.args.get('username')
-    email = request.args.get('email')
-    if not username and not email:
-        return jsonify({'error': 'Provide username or email'}), 400
-    try:
-        with db.engine.connect() as conn:
-            query = text("""
-
-                SELECT s.session_id, s.created_at, s.is_active, u.username
-
-                FROM sessions s
-
-                JOIN users u ON s.user_id = u.user_id
-
-                WHERE u.username = :username OR u.email = :email
-
-                ORDER BY s.created_at DESC
-
-            """)
-
-            result = conn.execute(query, {'username': username, 'email': email})
-
-            sessions = [{'session_id': str(r[0]), 'created_at': r[1].isoformat(), 
-
-                         'is_active': r[2], 'username': r[3]} for r in result.fetchall()]
-
-            return jsonify({'ok': True, 'sessions': sessions})
-
-    except Exception as e:
-
-        return jsonify({'error': str(e)}), 500 
-
-@app.route('/api/user/<int:user_id>', methods=['GET'])
-def get_user_by_id(user_id):
-    try:
-        with db.engine.connect() as conn:
-            # Пишем простой запрос: выбери всё из таблицы users, где id совпадает
-            query = text("""
-                SELECT user_id, username, email, created_at 
-                FROM users 
-                WHERE user_id = :user_id
-            """)
-            
-            result = conn.execute(query, {'user_id': user_id}).fetchone()
-
-            if not result:
-                return jsonify({'ok': False, 'error': 'User not found'}), 404
-
-            # Превращаем результат в красивый словарь
-            user_data = {
-                'user_id': result[0],
-                'username': result[1],
-                'email': result[2],
-                'created_at': result[3].isoformat() if result[3] else None
-            }
-            
-            return jsonify({'ok': True, 'user': user_data})
-
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 3001))
     
@@ -6949,4 +6885,3 @@ if __name__ == '__main__':
         logger.info(f"🔑 OpenAI API Key: {key_status}")
     
     app.run(host='0.0.0.0', port=port, debug=not IS_PRODUCTION)
-
