@@ -149,6 +149,11 @@ export const UserNamePrompt: React.FC<UserNamePromptProps> = ({ onNameSet }) => 
         {/* Telegram Login */}
         {botUsername && (
           <div className="px-6 pb-3">
+            <div className="mb-2 px-3 py-1.5 rounded-md bg-sky-500/10 border border-sky-500/20">
+              <p className="text-[11px] text-sky-300/90 text-center leading-tight">
+                Telegram login is highly recommended to enable feedback tracking, session linking, and full multi-user support
+              </p>
+            </div>
             {tgLoading ? (
               <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
                 <div className="w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
@@ -166,7 +171,7 @@ export const UserNamePrompt: React.FC<UserNamePromptProps> = ({ onNameSet }) => 
         {botUsername && (
           <div className="px-6 flex items-center gap-3 pb-3">
             <div className="flex-1 h-px bg-border/40" />
-            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">or enter name</span>
+            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">or enter name only</span>
             <div className="flex-1 h-px bg-border/40" />
           </div>
         )}

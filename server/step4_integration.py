@@ -7,9 +7,11 @@ Handles database setup, progress callbacks, and error handling
 import logging
 import os
 import asyncio
+import threading
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 import psycopg2
+from psycopg2 import pool as pg_pool
 from sentence_transformers import SentenceTransformer
 
 from step4_pipeline_optimized import OptimizedStep4Pipeline
@@ -39,7 +41,7 @@ class Step4Integration:
 
     def __init__(self):
         self.pipeline: Optional[OptimizedStep4Pipeline] = None
-        self.db_conn = None
+        self.db_pool = None  # ThreadedConnectionPool, not a single connection
         self.embedding_model = None
         self.initialized = False
 
@@ -56,9 +58,9 @@ class Step4Integration:
         try:
             logger.info("[Step4] Initializing optimized pipeline...")
 
-            # 1. Initialize database connection
-            self.db_conn = self._init_database()
-            logger.info("[Step4] ✓ Database connection established")
+            # 1. Initialize database connection pool (thread-safe)
+            self.db_pool = self._init_database()
+            logger.info("[Step4] ✓ Database connection pool established")
 
             # 2. Initialize embedding model (with GPU support)
             self.embedding_model = self._init_embedding_model(use_gpu)
@@ -78,9 +80,9 @@ class Step4Integration:
             )
             logger.info("[Step4] ✓ Knowledge deduplicator initialized")
 
-            # 5. Initialize knowledge cache
+            # 5. Initialize knowledge cache (pass pool, not single connection)
             knowledge_cache = OptimizedKnowledgeCache(
-                db_connection=self.db_conn,
+                db_connection=self.db_pool,
                 embedding_model=self.embedding_model
             )
             logger.info("[Step4] ✓ Knowledge cache initialized")
@@ -123,23 +125,31 @@ class Step4Integration:
             raise Step4IntegrationError(f"Failed to initialize Step 4 pipeline: {e}")
 
     def _init_database(self):
-        """Initialize PostgreSQL connection with pgvector"""
+        """Initialize PostgreSQL connection pool with pgvector"""
         database_url = os.getenv('DATABASE_URL', 'postgresql://omegapoint:changeme@localhost:5432/omegapoint')
 
         try:
-            conn = psycopg2.connect(database_url)
+            db_pool = pg_pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=10,
+                dsn=database_url
+            )
 
-            # Verify pgvector extension
-            cursor = conn.cursor()
-            cursor.execute("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')")
-            has_vector = cursor.fetchone()[0]
-            cursor.close()
+            # Verify pgvector extension using a pooled connection
+            conn = db_pool.getconn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')")
+                has_vector = cursor.fetchone()[0]
+                cursor.close()
+            finally:
+                db_pool.putconn(conn)
 
             if not has_vector:
                 logger.warning("[Step4] pgvector extension not found. Run migration: server/migrations/001_add_scientific_pillars.sql")
                 raise Step4IntegrationError("pgvector extension not installed")
 
-            return conn
+            return db_pool
 
         except psycopg2.Error as e:
             logger.error(f"[Step4] Database connection failed: {e}")
@@ -218,9 +228,8 @@ class Step4Integration:
         start_time = datetime.now()
 
         try:
-            # Run async pipeline in new event loop
+            # Run async pipeline in a thread-local event loop (no global mutation)
             loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
 
             try:
                 result = loop.run_until_complete(
@@ -265,20 +274,21 @@ class Step4Integration:
     def cleanup(self):
         """Cleanup resources (call on shutdown)"""
         try:
-            if self.db_conn:
-                self.db_conn.close()
-                logger.info("[Step4] Database connection closed")
+            if self.db_pool:
+                self.db_pool.closeall()
+                logger.info("[Step4] Database connection pool closed")
         except Exception as e:
             logger.error(f"[Step4] Cleanup error: {e}")
 
 
-# Global instance (initialized on first use)
+# Global instance (initialized on first use, thread-safe)
 _step4_integration: Optional[Step4Integration] = None
+_step4_lock = threading.Lock()
 
 
 def get_step4_integration() -> Step4Integration:
     """
-    Get or create the global Step 4 integration instance
+    Get or create the global Step 4 integration instance (thread-safe).
 
     Returns:
         Initialized Step4Integration instance
@@ -288,7 +298,14 @@ def get_step4_integration() -> Step4Integration:
     """
     global _step4_integration
 
-    if _step4_integration is None:
+    if _step4_integration is not None and _step4_integration.initialized:
+        return _step4_integration
+
+    with _step4_lock:
+        # Double-check inside lock
+        if _step4_integration is not None and _step4_integration.initialized:
+            return _step4_integration
+
         _step4_integration = Step4Integration()
 
         # Check if auto-initialize is enabled

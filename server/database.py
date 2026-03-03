@@ -585,32 +585,39 @@ class DB:
     def upsert_telegram_user(self, telegram_id: int, first_name: str = '',
                               last_name: str = '', username: str = '',
                               photo_url: str = None) -> Dict[str, Any]:
-        """Find or create a user row by Telegram ID. Returns dict with user_id."""
+        """Atomically find-or-create a user row by Telegram ID (INSERT ON CONFLICT)."""
         session = self.get_session()
         try:
-            user = session.query(User).filter(User.telegram_id == telegram_id).first()
             display = ' '.join(filter(None, [first_name, last_name]))
-            if user:
-                user.display_name = display
-                user.username = username or user.username
-                user.photo_url = photo_url or user.photo_url
-                user.last_login_at = datetime.utcnow()
-            else:
-                user = User(
-                    telegram_id=telegram_id,
-                    display_name=display,
-                    username=username,
-                    photo_url=photo_url,
-                    last_login_at=datetime.utcnow(),
-                )
-                session.add(user)
+            new_id = uuid.uuid4()
+
+            stmt = pg_insert(User).values(
+                user_id=new_id,
+                telegram_id=telegram_id,
+                display_name=display,
+                username=username,
+                photo_url=photo_url,
+                last_login_at=datetime.utcnow(),
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['telegram_id'],
+                set_={
+                    'display_name': stmt.excluded.display_name,
+                    'username': stmt.excluded.username,
+                    'photo_url': stmt.excluded.photo_url,
+                    'last_login_at': stmt.excluded.last_login_at,
+                },
+            ).returning(User.user_id, User.telegram_id, User.display_name, User.username)
+
+            result = session.execute(stmt)
+            row = result.fetchone()
             session.commit()
-            session.refresh(user)
+
             return {
-                'user_id': str(user.user_id),
-                'telegram_id': user.telegram_id,
-                'display_name': user.display_name,
-                'username': user.username,
+                'user_id': str(row[0]),
+                'telegram_id': row[1],
+                'display_name': row[2],
+                'username': row[3],
             }
         except Exception as e:
             session.rollback()

@@ -1342,8 +1342,9 @@ def get_session_feedback(session_id, user_session_id):
 
 
 @app.route('/api/feedback/all', methods=['GET'])
-def get_all_feedback():
-    """Get all feedback across all sessions (admin view)"""
+@with_session(db)
+def get_all_feedback(session_id):
+    """Get all feedback across all sessions (requires valid session)"""
     try:
         feedback_list = db.get_all_feedback()
         return jsonify({'feedback': feedback_list})
@@ -3209,7 +3210,8 @@ def get_step4_result(session_id):
 
 
 @app.route('/api/clear-step4-cache', methods=['POST'])
-def clear_step4_cache():
+@with_session(db)
+def clear_step4_cache(session_id):
     """Clear the Step 4 domain scan cache in Redis."""
     try:
         if not redis_client.client:
@@ -5082,7 +5084,7 @@ def run_full_pipeline(session_id):
             try:
                 session_id = db.create_session()
             except Exception:
-                session_id = 'anonymous'
+                return jsonify({'error': 'Unable to create session. Database may be unavailable.'}), 503
 
         data = request.json or {}
         goal = data.get('goal', '')
@@ -5095,6 +5097,10 @@ def run_full_pipeline(session_id):
 
         import uuid as _uuid
         run_id = f"pipeline-{_uuid.uuid4().hex[:12]}"
+
+        # Store session ownership so result endpoint can validate
+        if redis_client.client:
+            redis_client.client.setex(f"full_pipeline_owner:{run_id}", 86400, session_id)
 
         thread = threading.Thread(
             target=_run_full_pipeline_background,
@@ -5115,7 +5121,8 @@ def run_full_pipeline(session_id):
 
 
 @app.route('/api/full-pipeline-result', methods=['GET'])
-def get_full_pipeline_result():
+@optional_session(db)
+def get_full_pipeline_result(session_id):
     """
     Poll for full pipeline result.
     Query params: run_id (required)
@@ -5124,6 +5131,12 @@ def get_full_pipeline_result():
     run_id = request.args.get('run_id')
     if not run_id:
         return jsonify({'error': 'run_id is required'}), 400
+
+    # Verify the requesting session owns this pipeline run
+    if redis_client.client and session_id:
+        owner = redis_client.client.get(f"full_pipeline_owner:{run_id}")
+        if owner and owner.decode('utf-8') != session_id:
+            return jsonify({'error': 'Not authorized to access this pipeline run'}), 403
 
     result_key = f"full_pipeline:{run_id}"
     progress_key = f"full_pipeline_progress:{run_id}"

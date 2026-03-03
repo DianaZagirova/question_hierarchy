@@ -26,11 +26,22 @@ class OptimizedKnowledgeCache:
     def __init__(self, db_connection, embedding_model):
         """
         Args:
-            db_connection: PostgreSQL connection (psycopg2 or SQLAlchemy)
+            db_connection: psycopg2 ThreadedConnectionPool or raw connection
             embedding_model: sentence-transformers model instance
         """
-        self.db = db_connection
+        self._pool = db_connection
         self.model = embedding_model
+
+    def _getconn(self):
+        """Get a connection from the pool (or return raw connection if not a pool)."""
+        if hasattr(self._pool, 'getconn'):
+            return self._pool.getconn()
+        return self._pool  # raw connection fallback
+
+    def _putconn(self, conn):
+        """Return a connection to the pool (no-op for raw connections)."""
+        if hasattr(self._pool, 'putconn'):
+            self._pool.putconn(conn)
 
     def search(self, query: str,
                domain_tags: Optional[List[str]] = None,
@@ -133,8 +144,9 @@ class OptimizedKnowledgeCache:
         """
         params.append(candidate_limit)
 
+        conn = self._getconn()
         try:
-            cursor = self.db.cursor()
+            cursor = conn.cursor()
             cursor.execute(sql, params)
 
             candidates = []
@@ -162,6 +174,8 @@ class OptimizedKnowledgeCache:
         except Exception as e:
             logger.error(f"[Cache] Keyword search error: {e}")
             return []
+        finally:
+            self._putconn(conn)
 
     def _semantic_rerank(self, candidates: List[Dict],
                          query_embedding: np.ndarray,
@@ -228,6 +242,7 @@ class OptimizedKnowledgeCache:
         if not pillar_ids:
             return {}
 
+        conn = self._getconn()
         try:
             sql = """
             SELECT pillar_id, embeddings
@@ -235,7 +250,7 @@ class OptimizedKnowledgeCache:
             WHERE pillar_id = ANY(%s)
             """
 
-            cursor = self.db.cursor()
+            cursor = conn.cursor()
             cursor.execute(sql, (pillar_ids,))
 
             embeddings_dict = {}
@@ -251,6 +266,8 @@ class OptimizedKnowledgeCache:
         except Exception as e:
             logger.error(f"[Cache] Embedding fetch error: {e}")
             return {}
+        finally:
+            self._putconn(conn)
 
     def _calculate_freshness(self, created_at: datetime) -> float:
         """
@@ -323,24 +340,30 @@ class OptimizedKnowledgeCache:
                 last_used_at = NOW()
             """
 
-            cursor = self.db.cursor()
-
-            # Use execute_batch for efficiency (psycopg2.extras)
+            conn = self._getconn()
             try:
-                from psycopg2.extras import execute_batch
-                execute_batch(cursor, sql, values, page_size=100)
-            except ImportError:
-                # Fallback to executemany
-                cursor.executemany(sql, values)
+                cursor = conn.cursor()
 
-            self.db.commit()
-            cursor.close()
+                # Use execute_batch for efficiency (psycopg2.extras)
+                try:
+                    from psycopg2.extras import execute_batch
+                    execute_batch(cursor, sql, values, page_size=100)
+                except ImportError:
+                    # Fallback to executemany
+                    cursor.executemany(sql, values)
+
+                conn.commit()
+                cursor.close()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                self._putconn(conn)
 
             logger.info(f"[Cache] Successfully stored {len(pillars)} pillars")
 
         except Exception as e:
             logger.error(f"[Cache] Storage error: {e}")
-            self.db.rollback()
 
     def update_usage(self, pillar_ids: List[str]):
         """
@@ -349,6 +372,7 @@ class OptimizedKnowledgeCache:
         if not pillar_ids:
             return
 
+        conn = self._getconn()
         try:
             sql = """
             UPDATE scientific_pillars
@@ -358,19 +382,22 @@ class OptimizedKnowledgeCache:
             WHERE pillar_id = ANY(%s)
             """
 
-            cursor = self.db.cursor()
+            cursor = conn.cursor()
             cursor.execute(sql, (pillar_ids,))
-            self.db.commit()
+            conn.commit()
             cursor.close()
 
             logger.info(f"[Cache] Updated usage for {len(pillar_ids)} pillars")
 
         except Exception as e:
             logger.error(f"[Cache] Usage update error: {e}")
-            self.db.rollback()
+            conn.rollback()
+        finally:
+            self._putconn(conn)
 
     def get_statistics(self) -> Dict:
         """Get cache statistics"""
+        conn = self._getconn()
         try:
             sql = """
             SELECT
@@ -382,7 +409,7 @@ class OptimizedKnowledgeCache:
             FROM scientific_pillars
             """
 
-            cursor = self.db.cursor()
+            cursor = conn.cursor()
             cursor.execute(sql)
             row = cursor.fetchone()
             cursor.close()
@@ -398,6 +425,8 @@ class OptimizedKnowledgeCache:
         except Exception as e:
             logger.error(f"[Cache] Statistics error: {e}")
             return {}
+        finally:
+            self._putconn(conn)
 
 
 # Mock database connection for testing

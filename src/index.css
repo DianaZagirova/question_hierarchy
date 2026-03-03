@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  body {
+    zoom: 0.75;
+  }
+
   :root {
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
