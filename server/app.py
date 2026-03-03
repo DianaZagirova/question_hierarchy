@@ -64,6 +64,26 @@ except Exception as e:
     logger.warning("  Continuing without Redis support...")
     sys.stdout.flush()
 
+# ─── Periodic cleanup thread ─────────────────────────────────────────────────
+def _periodic_cleanup():
+    """Background daemon that cleans up expired sessions and orphaned feedback."""
+    import time as _time
+    _time.sleep(60)  # let app fully start
+    while True:
+        try:
+            expired = db.cleanup_expired_sessions()
+            orphaned = db.cleanup_old_orphaned_feedback(days=90)
+            if expired or orphaned:
+                logger.info(f"Cleanup: removed {expired} expired sessions, {orphaned} orphaned feedback entries")
+        except Exception as exc:
+            logger.warning(f"Periodic cleanup error: {exc}")
+        _time.sleep(6 * 3600)  # every 6 hours
+
+_cleanup_thread = threading.Thread(target=_periodic_cleanup, daemon=True)
+_cleanup_thread.start()
+logger.info("Started periodic cleanup thread (runs every 6h)")
+sys.stdout.flush()
+
 # Max parallel workers for batch execution (configurable via .env)
 # Reduced to 15 to prevent 429 rate-limit storms on OpenRouter
 MAX_BATCH_WORKERS = int(os.getenv('MAX_BATCH_WORKERS', '15'))
@@ -1253,6 +1273,20 @@ def submit_feedback(session_id):
         if not node_id or not node_type:
             return jsonify({'error': 'node_id and node_type are required'}), 400
 
+        # Look up user_id bound to this browser session
+        feedback_user_id = None
+        try:
+            from database import Session as SessionModel
+            db_session = db.get_session()
+            row = db_session.query(SessionModel.user_id).filter(
+                SessionModel.session_id == uuid.UUID(session_id)
+            ).first()
+            if row and row.user_id:
+                feedback_user_id = str(row.user_id)
+            db_session.close()
+        except Exception:
+            pass
+
         feedback = db.create_node_feedback(
             session_id=session_id,
             user_session_id=user_session_id,
@@ -1263,6 +1297,7 @@ def submit_feedback(session_id):
             category=data.get('category'),
             author=data.get('author'),
             node_label=data.get('node_label'),
+            user_id=feedback_user_id,
         )
 
         return jsonify({'feedback': feedback})
@@ -6666,13 +6701,32 @@ def verify_telegram_login(data: dict) -> bool:
 
 @app.route('/api/auth/telegram', methods=['POST'])
 def telegram_auth():
-    """Verify Telegram Login Widget callback data"""
+    """Verify Telegram Login Widget callback data and persist user"""
     data = request.json or {}
     if not data.get('id') or not data.get('hash'):
         return jsonify({'error': 'Missing required Telegram auth fields'}), 400
     if not verify_telegram_login(data):
         return jsonify({'error': 'Invalid Telegram authentication'}), 401
-    # Return verified user data
+
+    # Persist user in DB
+    user_id = None
+    try:
+        db_user = db.upsert_telegram_user(
+            telegram_id=int(data['id']),
+            first_name=data.get('first_name', ''),
+            last_name=data.get('last_name', ''),
+            username=data.get('username', ''),
+            photo_url=data.get('photo_url'),
+        )
+        user_id = db_user['user_id']
+
+        # Bind browser session to this user
+        browser_session_id = get_session_id()
+        if browser_session_id:
+            db.bind_user_to_session(browser_session_id, user_id)
+    except Exception as e:
+        logger.warning(f"Telegram user persistence failed (auth still OK): {e}")
+
     return jsonify({
         'ok': True,
         'user': {
@@ -6681,7 +6735,8 @@ def telegram_auth():
             'last_name': data.get('last_name', ''),
             'username': data.get('username', ''),
             'photo_url': data.get('photo_url', ''),
-        }
+        },
+        'user_id': user_id,
     })
 
 @app.route('/api/config/telegram', methods=['GET'])

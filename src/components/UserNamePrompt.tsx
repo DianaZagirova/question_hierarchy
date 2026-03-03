@@ -3,6 +3,7 @@ import { User } from 'lucide-react';
 
 const USER_NAME_KEY = 'omega-point-user-name';
 const TG_USER_KEY = 'omega-point-telegram-user';
+const USER_ID_KEY = 'omega-point-user-id';
 
 export interface TelegramUser {
   id: number;
@@ -35,6 +36,10 @@ export function setTelegramUser(user: TelegramUser): void {
 
 export function clearTelegramUser(): void {
   localStorage.removeItem(TG_USER_KEY);
+}
+
+export function getUserId(): string | null {
+  return localStorage.getItem(USER_ID_KEY);
 }
 
 interface UserNamePromptProps {
@@ -79,6 +84,9 @@ export const UserNamePrompt: React.FC<UserNamePromptProps> = ({ onNameSet }) => 
         const fullName = [data.user.first_name, data.user.last_name].filter(Boolean).join(' ');
         setTelegramUser(data.user);
         setUserName(fullName);
+        if (data.user_id) {
+          localStorage.setItem(USER_ID_KEY, data.user_id);
+        }
         onNameSet(fullName);
       } else {
         console.error('Telegram auth failed:', data.error);

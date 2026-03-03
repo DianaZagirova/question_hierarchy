@@ -8,7 +8,7 @@ import uuid
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, ForeignKey, UniqueConstraint, text
+from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, BigInteger, ForeignKey, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB, insert as pg_insert
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship
@@ -30,6 +30,9 @@ class User(Base):
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True)
     username = Column(String(100))
+    telegram_id = Column(BigInteger, unique=True)
+    display_name = Column(String(200))
+    photo_url = Column(String)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_login_at = Column(DateTime)
     user_metadata = Column(JSONB, default=dict)
@@ -68,7 +71,7 @@ class SessionState(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(UUID(as_uuid=True), ForeignKey('sessions.session_id', ondelete='CASCADE'), nullable=False)
-    state_key = Column(String(50), nullable=False)
+    state_key = Column(String(100), nullable=False)
     state_data = Column(JSONB, nullable=False, default=dict)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -145,6 +148,7 @@ class NodeFeedback(Base):
     comment = Column(String)
     category = Column(String(50))
     author = Column(String(100))
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete='SET NULL'))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
@@ -160,6 +164,7 @@ class NodeFeedback(Base):
             'comment': self.comment,
             'category': self.category,
             'author': self.author,
+            'userId': str(self.user_id) if self.user_id else None,
             'createdAt': self.created_at.isoformat() if self.created_at else None,
             'updatedAt': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -357,14 +362,13 @@ class DB:
 
     def cleanup_expired_sessions(self) -> int:
         """
-        Delete expired inactive sessions
+        Delete expired sessions
         Returns: number of sessions deleted
         """
         session = self.get_session()
         try:
             deleted = session.query(Session).filter(
-                Session.expires_at < datetime.utcnow(),
-                Session.is_active == False
+                Session.expires_at < datetime.utcnow()
             ).delete()
             session.commit()
             return deleted
@@ -470,7 +474,8 @@ class DB:
 
     def create_node_feedback(self, session_id: str, user_session_id: str, node_id: str,
                               node_type: str, rating: int = None, comment: str = None,
-                              category: str = None, author: str = None, node_label: str = None):
+                              category: str = None, author: str = None, node_label: str = None,
+                              user_id: str = None):
         """Create a feedback entry for a graph node"""
         session = self.get_session()
         try:
@@ -484,6 +489,7 @@ class DB:
                 comment=comment,
                 category=category,
                 author=author,
+                user_id=uuid.UUID(user_id) if user_id else None,
             )
             session.add(fb)
             session.commit()
@@ -571,6 +577,78 @@ class DB:
         except Exception as e:
             session.rollback()
             raise e
+        finally:
+            session.close()
+
+    # ─── User Identity ──────────────────────────────────────────────────
+
+    def upsert_telegram_user(self, telegram_id: int, first_name: str = '',
+                              last_name: str = '', username: str = '',
+                              photo_url: str = None) -> Dict[str, Any]:
+        """Find or create a user row by Telegram ID. Returns dict with user_id."""
+        session = self.get_session()
+        try:
+            user = session.query(User).filter(User.telegram_id == telegram_id).first()
+            display = ' '.join(filter(None, [first_name, last_name]))
+            if user:
+                user.display_name = display
+                user.username = username or user.username
+                user.photo_url = photo_url or user.photo_url
+                user.last_login_at = datetime.utcnow()
+            else:
+                user = User(
+                    telegram_id=telegram_id,
+                    display_name=display,
+                    username=username,
+                    photo_url=photo_url,
+                    last_login_at=datetime.utcnow(),
+                )
+                session.add(user)
+            session.commit()
+            session.refresh(user)
+            return {
+                'user_id': str(user.user_id),
+                'telegram_id': user.telegram_id,
+                'display_name': user.display_name,
+                'username': user.username,
+            }
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def bind_user_to_session(self, session_id: str, user_id: str):
+        """Set sessions.user_id for a browser session."""
+        session = self.get_session()
+        try:
+            session.query(Session).filter(
+                Session.session_id == uuid.UUID(session_id)
+            ).update({'user_id': uuid.UUID(user_id)})
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.warning(f"Failed to bind user {user_id} to session {session_id}: {e}")
+        finally:
+            session.close()
+
+    def cleanup_old_orphaned_feedback(self, days: int = 90) -> int:
+        """Delete feedback older than N days whose session_id no longer exists."""
+        session = self.get_session()
+        try:
+            cutoff = datetime.utcnow() - timedelta(days=days)
+            # Subquery for existing session IDs
+            existing = session.query(Session.session_id).subquery()
+            deleted = session.query(NodeFeedback).filter(
+                NodeFeedback.created_at < cutoff,
+                ~NodeFeedback.session_id.in_(session.query(existing))
+            ).delete(synchronize_session='fetch')
+            session.commit()
+            return deleted
+        except Exception as e:
+            session.rollback()
+            logger.warning(f"Orphaned feedback cleanup failed: {e}")
+            return 0
         finally:
             session.close()
 

@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS users (
     user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE,
     username VARCHAR(100),
+    telegram_id BIGINT UNIQUE,
+    display_name VARCHAR(200),
+    photo_url TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_login_at TIMESTAMP,
     user_metadata JSONB DEFAULT '{}'
@@ -22,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
 
 -- ============================================================
 -- Sessions Table
@@ -49,7 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_is_active ON sessions(is_active);
 CREATE TABLE IF NOT EXISTS session_state (
     id SERIAL PRIMARY KEY,
     session_id UUID NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
-    state_key VARCHAR(50) NOT NULL,
+    state_key VARCHAR(100) NOT NULL,
     state_data JSONB NOT NULL DEFAULT '{}',
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE(session_id, state_key)
@@ -77,8 +81,26 @@ CREATE INDEX IF NOT EXISTS idx_session_versions_session_id ON session_versions(s
 CREATE INDEX IF NOT EXISTS idx_session_versions_created_at ON session_versions(created_at);
 
 -- ============================================================
+-- Community Sessions Table
+-- Published sessions visible to all users
+-- ============================================================
+CREATE TABLE IF NOT EXISTS community_sessions (
+    id VARCHAR(100) PRIMARY KEY,
+    name VARCHAR(500) NOT NULL,
+    author VARCHAR(200) DEFAULT 'Anonymous',
+    goal_preview VARCHAR(500) DEFAULT '',
+    session_data JSONB NOT NULL DEFAULT '{}',
+    published_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    source_browser_session UUID,
+    tags JSONB DEFAULT '[]',
+    clone_count INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_sessions_published ON community_sessions(published_at DESC);
+
+-- ============================================================
 -- Cleanup Function
--- Automatically deletes expired sessions (called by cron job)
+-- Automatically deletes expired sessions (called by cleanup thread)
 -- ============================================================
 CREATE OR REPLACE FUNCTION cleanup_expired_sessions()
 RETURNS INTEGER AS $$
@@ -86,7 +108,7 @@ DECLARE
     deleted_count INTEGER;
 BEGIN
     DELETE FROM sessions
-    WHERE expires_at < NOW() AND is_active = FALSE;
+    WHERE expires_at < NOW();
 
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
@@ -125,6 +147,7 @@ CREATE TABLE IF NOT EXISTS node_feedback (
     comment TEXT,
     category VARCHAR(50),
     author VARCHAR(100),
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -132,6 +155,7 @@ CREATE TABLE IF NOT EXISTS node_feedback (
 CREATE INDEX IF NOT EXISTS idx_node_feedback_session ON node_feedback(session_id, user_session_id);
 CREATE INDEX IF NOT EXISTS idx_node_feedback_node ON node_feedback(node_id);
 CREATE INDEX IF NOT EXISTS idx_node_feedback_user_node ON node_feedback(user_session_id, node_id);
+CREATE INDEX IF NOT EXISTS idx_node_feedback_user_id ON node_feedback(user_id);
 
 -- ============================================================
 -- Chat History Table

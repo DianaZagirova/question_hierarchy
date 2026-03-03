@@ -21,6 +21,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./server/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./server/migrations/001_add_scientific_pillars.sql:/docker-entrypoint-initdb.d/02-step4-migration.sql
+      - ./server/migrations/002_wire_users_table.sql:/docker-entrypoint-initdb.d/03-wire-users.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U omegapoint"]
       interval: 10s
