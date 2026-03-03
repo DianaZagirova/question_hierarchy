@@ -140,6 +140,7 @@ class NodeFeedback(Base):
     user_session_id = Column(String(100), nullable=False)
     node_id = Column(String(200), nullable=False)
     node_type = Column(String(50), nullable=False)
+    node_label = Column(String)
     rating = Column(Integer)
     comment = Column(String)
     category = Column(String(50))
@@ -154,6 +155,7 @@ class NodeFeedback(Base):
             'userSessionId': self.user_session_id,
             'nodeId': self.node_id,
             'nodeType': self.node_type,
+            'nodeLabel': self.node_label,
             'rating': self.rating,
             'comment': self.comment,
             'category': self.category,
@@ -468,7 +470,7 @@ class DB:
 
     def create_node_feedback(self, session_id: str, user_session_id: str, node_id: str,
                               node_type: str, rating: int = None, comment: str = None,
-                              category: str = None, author: str = None):
+                              category: str = None, author: str = None, node_label: str = None):
         """Create a feedback entry for a graph node"""
         session = self.get_session()
         try:
@@ -477,6 +479,7 @@ class DB:
                 user_session_id=user_session_id,
                 node_id=node_id,
                 node_type=node_type,
+                node_label=node_label,
                 rating=rating,
                 comment=comment,
                 category=category,

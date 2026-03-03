@@ -1266,6 +1266,12 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               </div>
             </div>
           )}
+          {nodeData.is_cross_cutting && (
+            <div className="bg-indigo-500/10 border border-indigo-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-indigo-400">Cross-Cutting Goal</p>
+              <p className="text-xs mt-1 text-foreground">This goal addresses a systemic cross-cutting failure mode.</p>
+            </div>
+          )}
           {nodeData.scope_note && (
             <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-purple-400">Scope Note</p>
@@ -1695,6 +1701,22 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               </div>
             )}
           </div>
+          {nodeData.s_node_ids && nodeData.s_node_ids.length > 0 && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-cyan-400">Linked S-nodes</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {nodeData.s_node_ids.map((sid: string, i: number) => (
+                  <span key={i} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded font-mono">{sid}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {nodeData.ra_ids && nodeData.ra_ids.length > 0 && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-emerald-400">Linked Requirements</p>
+              <div className="mt-1">{renderIdList(nodeData.ra_ids, pipelineLookup?.ras, 'text-emerald-400')}</div>
+            </div>
+          )}
           {nodeData.spv_focus && (
             <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
               <p className="text-xs font-semibold text-amber-400">SPV Focus</p>
@@ -1703,7 +1725,7 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
           )}
         </div>
       );
-    
+
     case 'ih':
       const mapsToRaIds = Array.isArray(nodeData.maps_to_ra_ids) ? nodeData.maps_to_ra_ids : [];
       const meterClassesIH = Array.isArray(nodeData.meter_classes) ? nodeData.meter_classes : [];
@@ -1783,6 +1805,24 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               </div>
             </div>
           )}
+          {nodeData.feasibility_note && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Feasibility Note</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.feasibility_note}</p>
+            </div>
+          )}
+          {nodeData.cross_field_source && (
+            <div className="bg-violet-500/10 border border-violet-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-violet-400">Cross-Field Source</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.cross_field_source}</p>
+            </div>
+          )}
+          {nodeData.heretical_checklist && (
+            <div className="bg-red-500/10 border border-red-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-red-400">Heretical Checklist</p>
+              <p className="text-xs mt-1 text-foreground">{typeof nodeData.heretical_checklist === 'string' ? nodeData.heretical_checklist : JSON.stringify(nodeData.heretical_checklist)}</p>
+            </div>
+          )}
           {nodeData.notes && (
             <div className="bg-secondary/30 p-2 rounded">
               <p className="text-xs font-semibold text-muted-foreground">Notes</p>
@@ -1791,7 +1831,7 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
           )}
         </div>
       );
-    
+
     case 'l4':
       const distinguishesIHIdsL4 = Array.isArray(nodeData.distinguishes_ih_ids) ? nodeData.distinguishes_ih_ids : [];
 
@@ -1848,9 +1888,21 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <div className="mt-1">{renderIdList(distinguishesIHIdsL4, pipelineLookup?.ihs, 'text-orange-400')}</div>
             </div>
           )}
+          {nodeData.feasibility_note && (
+            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-blue-400">Feasibility Note</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.feasibility_note}</p>
+            </div>
+          )}
+          {nodeData.parent_goal_id && (
+            <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-purple-400">Parent Goal</p>
+              <p className="text-xs mt-1">{renderIdRef(nodeData.parent_goal_id, pipelineLookup?.goals, 'text-purple-400')}</p>
+            </div>
+          )}
         </div>
       );
-    
+
     case 'l5':
       return (
         <div className="space-y-2">
@@ -2071,9 +2123,21 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
               <p className="text-xs mt-1 text-foreground">{nodeData.definition || nodeData.Definition}</p>
             </div>
           )}
+          {nodeData.unit && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Unit</p>
+              <p className="text-xs mt-1 text-foreground font-mono">{nodeData.unit}</p>
+            </div>
+          )}
+          {nodeData.measurement_approach && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+              <p className="text-xs font-semibold text-amber-400">Measurement Approach</p>
+              <p className="text-xs mt-1 text-foreground">{nodeData.measurement_approach}</p>
+            </div>
+          )}
         </div>
       );
-    
+
     case 'domain':
     case 'domain_group':
       return (
@@ -2091,6 +2155,16 @@ export const renderNodeDetails = (nodeType: string, nodeData: any, bridgeLexicon
                 'bg-gray-500/20 text-gray-400'
               }`}>
                 Relevance: {nodeData.relevance_to_goal}
+              </span>
+            )}
+            {nodeData.domain_category && (
+              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                nodeData.domain_category === 'core_mechanistic' ? 'bg-cyan-500/20 text-cyan-300' :
+                nodeData.domain_category === 'adjacent_non_obvious' ? 'bg-purple-500/20 text-purple-300' :
+                nodeData.domain_category === 'measurement_technology' ? 'bg-blue-500/20 text-blue-300' :
+                'bg-gray-500/20 text-gray-400'
+              }`}>
+                {nodeData.domain_category.replace(/_/g, ' ')}
               </span>
             )}
             {nodeData.s_node_count !== undefined && (

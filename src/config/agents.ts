@@ -1041,11 +1041,21 @@ NEVER write "e.g." in any S-I-M-T field. The string "e.g." means "I haven't deci
 ## WHAT MAKES A GENIUS EXPERIMENT
 
 A genius experiment has ALL of these properties:
-1. **PIPELINE-DEPENDENT**: It could NOT be conceived by someone who only read a review article. It requires knowing the specific G→RA→S→L3→IH→L4 chain that produced it.
-2. **MULTI-HYPOTHESIS DISCRIMINATING**: It produces qualitatively different observable patterns under 2+ competing IHs — not just p<0.05 differences, but unmistakable signal separation.
+1. **PIPELINE-DEPENDENT**: It could NOT be conceived by someone who only read a review article. It requires knowing the specific G→RA→S→L3→IH→L4 chain that produced it. If a domain expert without access to the pipeline could propose the same experiment, it is NOT genius.
+2. **MULTI-HYPOTHESIS DISCRIMINATING**: It produces qualitatively different observable patterns under 2+ competing IHs — not just p<0.05 differences, but unmistakable signal separation. The ideal experiment has orthogonal readouts where IH_A predicts pattern X and IH_B predicts pattern Y, with no ambiguity.
 3. **BOTH-OUTCOMES INFORMATIVE**: If the result is null, you learn something specific (stated in "if_null"). "Inconclusive" is never acceptable.
-4. **INTERACTION-TESTING**: It manipulates 2+ variables simultaneously in factorial or sequential designs, testing INTERACTIONS not just individual effects.
+4. **INTERACTION-TESTING**: It manipulates 2+ variables simultaneously in factorial or sequential designs, testing INTERACTIONS not just individual effects. Single-variable experiments are NEVER genius.
 5. **CLEVER SYSTEM CHOICE**: Uses the simplest system that preserves the phenomenon (organoid > mouse > primate when possible), or uses a non-obvious model organism that amplifies the signal.
+6. **CROSS-DOMAIN INSIGHT**: The best experiments borrow techniques, model systems, or conceptual frameworks from UNRELATED fields. An experiment that stays within one discipline's comfort zone will score lower.
+
+## GENIUS SCORING (apply this scale to EVERY L6 you design):
+- 1-3: FORBIDDEN. Baseline characterization, single-knockdown+readout, aged-vs-young without intervention. If you are producing 1-3, you are failing.
+- 4-5: Conventional. Uses established techniques, tests one mechanism. Acceptable ONLY for TOOL_DEV or VALIDATION_DRILL L5 types.
+- 6-7: Good but not brilliant. Multi-variable factorial, requires pipeline context, non-obvious system. This should be your FLOOR for MECHANISM_DRILL L5 types.
+- 8-9: BRILLIANT. Crosses domains, tests genuinely novel interactions, creative methodology that would make a review panel say "I never thought of that." THIS IS YOUR TARGET for most L6 experiments.
+- 10: Paradigm-shifting. Nobody has proposed this approach. Reserve for truly exceptional designs.
+
+YOUR MINIMUM TARGET: Average genius score across ALL L6 should be >= 7.5. If you find yourself designing experiments scoring 5-6, STOP and redesign with more creative methodology, unexpected system choices, or cross-domain techniques.
 
 ## ANTI-PATTERNS — IMMEDIATELY REJECT ANY L6 MATCHING THESE:
 
@@ -1108,8 +1118,29 @@ At least 1 L6 per L5 branch MUST have "discovery_component": true. This means it
 - It's computational and you already have 1 computational L6 → REJECT (convert to wet-lab)
 - The "if_null" says "inconclusive" or is empty → REJECT (redesign until null is informative)
 
+## L6 TITLE FORMAT (MANDATORY — follow this structure exactly):
+Titles MUST lead with the SCIENTIFIC QUESTION or HYPOTHESIS being tested, then the approach. Structure:
+"[What you're testing / proving / discriminating] via [method] in [system]"
+
+BAD titles (methodology-first, uninformative at a glance):
+- "Factorial CRISPR/Cas9 knockdown of key pericellular proteoglycans with systemic inflammatory challenge on Drosophila"
+- "Multi-omics Profiling of Aged Fibroblasts on Tunable Stiffness Hydrogels"
+- "High-Throughput Bioelectric Field Screen for Optimal Elastin-Inducing Parameters"
+
+GOOD titles (question-first, immediately clear what you learn):
+- "Does pericellular proteoglycan loss cause inflammation-driven elastin collapse — CRISPR knockdown in Drosophila"
+- "Can substrate stiffness alone restore aged fibroblast elastin output — multi-omics on tunable hydrogels"
+- "Which bioelectric parameters maximize elastin induction in aged dermis — high-throughput screen + spatial proteomics"
+
+Rules:
+1. First 40 characters must convey the scientific question (graph nodes truncate at 35 chars)
+2. Use active voice: "Does X cause Y", "Can X restore Y", "Which X maximizes Y", "Is X sufficient for Y"
+3. After the dash, name the key technique and system
+4. Never start with a technique name (CRISPR, AFM, RNA-seq, etc.)
+5. Max 120 characters total
+
 ## GENIUS EXAMPLE (calibrate your ambition to this level):
-TITLE: "Factorial dissection of sub-threshold mechanical stiffness and purinergic ATP signaling synergy on glial engulfment of synapses"
+TITLE: "Do mechanosensing + purinergic pathways synergize at sub-threshold — optogenetic factorial in C. elegans"
 SYSTEM: "C. elegans strain CZ10175 (juIs76[Punc-25::GFP] + lin-15), 72h post-L4 adults, n=30/group, maintained at 20°C on standard NGM plates"
 INTERVENTION: "2×2 factorial: (1) optogenetic stiffness via PACT-Rac1 activation (470nm, 2mW/mm², 10s pulses, sub-threshold at 30% max intensity), (2) optogenetic ATP release via ChR2-P2X2 (590nm, sub-threshold at 25% max), (3) combined sub-threshold, (4) vehicle. Plus RNAi knockdown groups: P2Y12 RNAi (Ahringer library clone F13E6.1) and integrin/pat-3 RNAi to test pathway independence."
 METER: "Live confocal imaging (Zeiss LSM 880 Airyscan) at 63x of GFP-labeled motor neuron synapses. Quantify: engulfment events/hour (automated via Imaris spot tracking), process extension rate (μm/min), and engulfment completion time. Secondary: Ca2+ imaging with jRGECO1a in glia."
@@ -1131,7 +1162,7 @@ L5 nodes must be QUESTIONS ending with '?'. L6 tasks must be TASK STATEMENTS (no
         {
           "id": "T_L6_M_G1_01_01_A_01",
           "type": "LEAF_SPEC",
-          "title": "Detailed experimental title describing the ambitious yet feasible approach",
+          "title": "QUESTION-FIRST title: '[What hypothesis/question this tests] — [key method] in [system]'. First 40 chars = the scientific question. Max 120 chars. NEVER start with a technique name.",
           "rationale": "WHY this specific experiment exists: (1) which IH(s) it tests and how, (2) what makes it non-trivial — why it could NOT be conceived without the full G→RA→S→L3→IH→L4 pipeline context, (3) what would be surprising/paradigm-shifting about the result, (4) how it connects to unknown-unknown exploration if applicable",
           "simt_parameters": {
             "system": "Detailed experimental system: specific model/cell line/organism with source, growth conditions, sample size, and experimental setup context",

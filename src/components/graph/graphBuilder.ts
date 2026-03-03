@@ -145,6 +145,7 @@ export const buildGraphFromSteps = (
           metrics: [
             { label: 'FCCs', value: goal.bridge_tags?.failure_channels?.length || 0 },
             { label: 'SPVs', value: goal.bridge_tags?.system_properties_required?.length || 0 },
+            ...(goal.is_cross_cutting ? [{ label: 'Cross-cutting', value: '✓' }] : []),
           ],
         },
         width: dims.width,
@@ -177,9 +178,12 @@ export const buildGraphFromSteps = (
               data: {
                 label: `${spvId}: ${trunc(spv.name || spv.Name || 'SPV', 30)}`,
                 fullText: `${spvId}: ${spv.name || spv.Name || 'SPV'}`,
-                subtitle: `${spv.importance} importance`,
+                subtitle: spv.unit ? `${spv.importance} · ${spv.unit}` : `${spv.importance} importance`,
                 type: 'spv',
                 fullData: spv,
+                metrics: [
+                  ...(spv.measurement_approach ? [{ label: 'Meter', value: trunc(spv.measurement_approach, 20) }] : []),
+                ],
               },
               width: spvDims.width,
               height: spvDims.height,
@@ -220,6 +224,8 @@ export const buildGraphFromSteps = (
       if (isExpanded) {
         raArray.forEach((ra: any) => {
           const raDims = getNodeDimensions('ra');
+          const meterStatus = ra.meter_status || '';
+          const meterBadge = meterStatus === 'EXISTS_2026' ? '✓' : meterStatus === 'PARTIAL_2026' ? '◐' : meterStatus === 'MISSING_2026' ? '✗' : '';
           nodes.push({
             id: `ra-${ra.ra_id}`,
             type: 'standard',
@@ -230,6 +236,10 @@ export const buildGraphFromSteps = (
               subtitle: trunc(ra.requirement_statement, 40),
               type: 'ra',
               fullData: ra,
+              metrics: [
+                ...(ra.timescale ? [{ label: 'Time', value: ra.timescale }] : []),
+                ...(meterBadge ? [{ label: 'Meter', value: `${meterBadge} ${meterStatus.replace('_2026', '')}` }] : []),
+              ],
             },
             width: raDims.width,
             height: raDims.height,
@@ -288,9 +298,11 @@ export const buildGraphFromSteps = (
               .forEach((sNode: any) => {
                 const sNodeDims = getNodeDimensions('scientific');
                 const sNodeTitle = sNode.title || sNode.intervention_title || 'Scientific Intervention';
-                const score = Math.round(sNode.strategic_value_score || sNode.relevance_score || 0);
                 const trl = sNode.readiness_level || sNode.trl || 'N/A';
 
+                const relationship = sNode.relationship_to_goal || '';
+                const relLabel = relationship === 'solves' ? '✓ solves' : relationship === 'partially_solves' ? '◐ partial' : relationship === 'violates' ? '✗ violates' : relationship === 'proxies' ? '~ proxy' : relationship === 'enables_measurement' ? '⊡ enables' : relationship || '';
+                const fragility = sNode.fragility_score;
                 nodes.push({
                   id: `s-${goalId}-${domainId}-${sNode.id || sNode.node_id}`,
                   type: 'standard',
@@ -302,8 +314,9 @@ export const buildGraphFromSteps = (
                     type: 'scientific',
                     fullData: sNode,
                     metrics: [
-                      { label: 'Score', value: score },
                       { label: 'TRL', value: trl },
+                      ...(relLabel ? [{ label: 'Goal', value: relLabel }] : []),
+                      ...(fragility != null ? [{ label: 'Fragility', value: fragility }] : []),
                     ],
                   },
                   width: sNodeDims.width,
@@ -314,6 +327,8 @@ export const buildGraphFromSteps = (
           }
 
           const relevance = domain.relevance_to_goal || domain.relevance || 'MED';
+          const domCategory = domain.domain_category || '';
+          const catLabel = domCategory === 'core_mechanistic' ? 'Core' : domCategory === 'adjacent_non_obvious' ? 'Adjacent' : domCategory === 'measurement_technology' ? 'Measurement' : domCategory || '';
           const domainDims = getNodeDimensions('cluster');
           nodes.push({
             id: domainClusterId,
@@ -321,7 +336,7 @@ export const buildGraphFromSteps = (
             position: { x: 0, y: 0 },
             data: {
               title: domain.domain_name || domain.name,
-              description: `${relevance} relevance domain`,
+              description: catLabel ? `${relevance} · ${catLabel}` : `${relevance} relevance domain`,
               type: 'domain',
               expanded: domainExpanded,
               fullData: domain,
@@ -404,6 +419,8 @@ export const buildGraphFromSteps = (
       if (isExpanded) {
         goalL3s.forEach((q: any) => {
           const l3Dims = getNodeDimensions('l3');
+          const sNodeCount = (q.s_node_ids || []).length;
+          const raCount = (q.ra_ids || []).length;
           nodes.push({
             id: `l3-${q.id}`,
             type: 'standard',
@@ -411,9 +428,14 @@ export const buildGraphFromSteps = (
             data: {
               label: `L3: ${trunc(q.text, 60)}`,
               fullText: `L3: ${q.text || 'L3 Question'}`,
-              subtitle: trunc(q.strategy_used, 40),
+              subtitle: q.strategy_used ? `Strategy: ${q.strategy_used}` : undefined,
               type: 'l3',
               fullData: q,
+              metrics: [
+                ...(sNodeCount > 0 ? [{ label: 'S-nodes', value: sNodeCount }] : []),
+                ...(raCount > 0 ? [{ label: 'RAs', value: raCount }] : []),
+                ...(q.discriminator_target ? [{ label: 'Target', value: trunc(q.discriminator_target, 15) }] : []),
+              ],
             },
             width: l3Dims.width,
             height: l3Dims.height,
@@ -466,6 +488,7 @@ export const buildGraphFromSteps = (
       if (isExpanded) {
         l3IHs.forEach((ih: any) => {
           const ihDims = getNodeDimensions('ih');
+          const ihCategory = (ih.domain_category || '').replace(/_/g, ' ');
           nodes.push({
             id: `ih-${ih.ih_id}`,
             type: 'standard',
@@ -473,9 +496,14 @@ export const buildGraphFromSteps = (
             data: {
               label: `IH: ${trunc(ih.process_hypothesis, 50)}`,
               fullText: `IH: ${ih.process_hypothesis || 'Hypothesis'}`,
-              subtitle: trunc(ih.domain_category, 30),
+              subtitle: ih.discriminating_prediction ? trunc(ih.discriminating_prediction, 50) : trunc(ihCategory, 30),
               type: 'ih',
               fullData: ih,
+              metrics: [
+                ...(ihCategory ? [{ label: 'Domain', value: trunc(ihCategory, 15) }] : []),
+                ...(ih.target_spv ? [{ label: 'SPV', value: ih.target_spv }] : []),
+                ...(ih.heretical_checklist || ih.is_heretical ? [{ label: 'Heretical', value: '✓' }] : []),
+              ],
             },
             width: ihDims.width,
             height: ihDims.height,
@@ -545,6 +573,9 @@ export const buildGraphFromSteps = (
       if (isExpanded) {
         l3L4s.forEach((q: any) => {
           const l4Dims = getNodeDimensions('l4');
+          const l4Type = q.type || q.question_type || '';
+          const typeLabel = l4Type === 'DISCRIMINATOR_Q' ? 'Discriminator' : l4Type === 'MULTI_DISCRIMINATOR' ? 'Multi-Disc' : l4Type === 'UNKNOWN_EXPLORATION' ? 'Unknown Expl.' : l4Type === 'VALIDATION_Q' ? 'Validation' : l4Type.replace(/_/g, ' ') || '';
+          const distCount = (q.distinguishes_ih_ids || []).length;
           nodes.push({
             id: `l4-${q.id}`,
             type: 'compact',
@@ -552,8 +583,13 @@ export const buildGraphFromSteps = (
             data: {
               label: `L4: ${trunc(q.text, 40)}`,
               fullText: `L4: ${q.text || 'L4 Question'}`,
+              subtitle: typeLabel || undefined,
               type: 'l4',
               fullData: q,
+              metrics: [
+                ...(distCount > 0 ? [{ label: 'Tests', value: `${distCount} IHs` }] : []),
+                ...(q.lens ? [{ label: 'Lens', value: q.lens }] : []),
+              ],
             },
             width: l4Dims.width,
             height: l4Dims.height,
@@ -605,6 +641,8 @@ export const buildGraphFromSteps = (
       if (isExpanded) {
         l4L5s.forEach((l5: any) => {
           const l5Dims = getNodeDimensions('l5');
+          const l5Type = l5.type || '';
+          const l5TypeLabel = l5Type === 'MECHANISM_DRILL' ? 'Mechanism' : l5Type === 'TOOL_REQ' ? 'Tool Req' : l5Type === 'MODEL_REQ' ? 'Model Req' : l5Type === 'VALIDATION_DRILL' ? 'Validation' : l5Type.replace(/_/g, ' ') || '';
           nodes.push({
             id: `l5-${l5.id}`,
             type: 'compact',
@@ -612,6 +650,7 @@ export const buildGraphFromSteps = (
             data: {
               label: `L5: ${trunc(l5.text, 40)}`,
               fullText: `L5: ${l5.text || 'L5 Node'}`,
+              subtitle: l5TypeLabel || undefined,
               type: 'l5',
               fullData: l5,
             },
@@ -642,29 +681,45 @@ export const buildGraphFromSteps = (
       const l6ClusterId = `l6-cluster-${l5Id}`;
       const isExpanded = clusterState[l6ClusterId] ?? false;
 
+      const avgGenius = l5L6s.filter((t: any) => t.genius_score != null).length > 0
+        ? (l5L6s.reduce((s: number, t: any) => s + (t.genius_score || 0), 0) / l5L6s.filter((t: any) => t.genius_score != null).length).toFixed(1)
+        : null;
       nodes.push(makeClusterNode(
         l6ClusterId,
-        `L6 Tasks`,
+        `L6 Experiments`,
         `${l5L6s.length} experiment tasks`,
         'l6', isExpanded, l5L6s.length,
         l5L6s.slice(0, 3).map((t: any) => trunc(t.title || 'L6 Task', 55)),
         { tasks: l5L6s, parentL5Id: l5Id },
-        [{ label: 'Tasks', value: l5L6s.length }]
+        [
+          { label: 'Tasks', value: l5L6s.length },
+          ...(avgGenius ? [{ label: 'Avg Genius', value: avgGenius }] : []),
+        ]
       ));
       edges.push(makeEdge(`l5-${l5Id}-${l6ClusterId}`, `l5-${l5Id}`, l6ClusterId, '#14b8a6', { animated: false }));
 
       if (isExpanded) {
         l5L6s.forEach((task: any) => {
           const l6Dims = getNodeDimensions('l6');
+          const simt = task.simt_parameters || {};
+          const systemSummary = trunc(simt.system, 30);
+          const genius = task.genius_score;
+          const feasibility = task.feasibility_score;
           nodes.push({
             id: `l6-${task.id}`,
             type: 'compact',
             position: { x: 0, y: 0 },
             data: {
-              label: `L6: ${trunc(task.title, 35)}`,
+              label: `L6: ${trunc(task.title, 40)}`,
               fullText: `L6: ${task.title || 'L6 Task'}`,
+              subtitle: systemSummary || undefined,
               type: 'l6',
               fullData: task,
+              metrics: [
+                ...(genius != null ? [{ label: 'Genius', value: `${genius}/10` }] : []),
+                ...(feasibility != null ? [{ label: 'Feas', value: `${feasibility}/10` }] : []),
+                ...(task.discovery_component ? [{ label: 'Discovery', value: '✓' }] : []),
+              ],
             },
             width: l6Dims.width,
             height: l6Dims.height,

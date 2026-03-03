@@ -302,6 +302,8 @@ export interface NodeChatParams {
   goal: string;
   lens: string;
   model?: string;
+  graphSummary?: string;
+  l6AnalysisSummary?: string;
 }
 
 /**
@@ -365,6 +367,68 @@ export const streamNodeChat = (
     });
 
   return () => controller.abort();
+};
+
+// ─── Chat History Persistence ──────────────────────────────────────────
+
+export const saveChatHistory = async (
+  conversationId: string | null,
+  messages: NodeChatMessage[],
+  selectedNodeIds: string[],
+): Promise<{ conversationId: string | null }> => {
+  try {
+    const sessionId = sessionManager.getSessionId();
+    const res = await fetch(`${API_URL}/api/chat-history/save`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(sessionId && { 'X-Session-ID': sessionId }),
+      },
+      body: JSON.stringify({ conversationId, messages, selectedNodeIds }),
+    });
+    const data = await res.json();
+    return { conversationId: data.conversationId || null };
+  } catch {
+    return { conversationId: null };
+  }
+};
+
+export const archiveChatHistory = async (conversationId: string | null): Promise<void> => {
+  if (!conversationId) return;
+  try {
+    const sessionId = sessionManager.getSessionId();
+    await fetch(`${API_URL}/api/chat-history/archive`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(sessionId && { 'X-Session-ID': sessionId }),
+      },
+      body: JSON.stringify({ conversationId }),
+    });
+  } catch { /* silent */ }
+};
+
+export const loadChatHistory = async (): Promise<{
+  conversationId: string | null;
+  messages: NodeChatMessage[];
+  selectedNodeIds: string[];
+}> => {
+  try {
+    const sessionId = sessionManager.getSessionId();
+    const res = await fetch(`${API_URL}/api/chat-history/load`, {
+      headers: {
+        ...(sessionId && { 'X-Session-ID': sessionId }),
+      },
+    });
+    const data = await res.json();
+    return {
+      conversationId: data.conversationId || null,
+      messages: data.messages || [],
+      selectedNodeIds: data.selectedNodeIds || [],
+    };
+  } catch {
+    return { conversationId: null, messages: [], selectedNodeIds: [] };
+  }
 };
 
 // ─── Full Pipeline: run all steps (1→2→3→4→6→7→8→9) on the backend ──
@@ -576,6 +640,7 @@ export interface SubmitFeedbackParams {
   node_id: string;
   node_type: string;
   user_session_id: string;
+  node_label?: string;
   rating?: number;
   comment?: string;
   category?: string;
@@ -588,6 +653,7 @@ export interface NodeFeedbackEntry {
   userSessionId: string;
   nodeId: string;
   nodeType: string;
+  nodeLabel: string | null;
   rating: number | null;
   comment: string | null;
   category: string | null;
@@ -632,6 +698,20 @@ export const updateNodeFeedback = async (feedbackId: string, params: UpdateFeedb
 
 export const deleteNodeFeedback = async (feedbackId: string): Promise<void> => {
   await api.delete(`/api/feedback/${feedbackId}`);
+};
+
+// ─── Share to Telegram ──────────────────────────────────────────────────────
+
+export interface ShareToTelegramParams {
+  chat_id: number;
+  summary: string;
+  session_json: Record<string, any>;
+  filename: string;
+}
+
+export const shareToTelegram = async (params: ShareToTelegramParams): Promise<{ ok: boolean }> => {
+  const response = await api.post('/api/share/telegram', params);
+  return response.data;
 };
 
 export default api;

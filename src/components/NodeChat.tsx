@@ -1,15 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageSquare, Send, X, Trash2, StopCircle, Sparkles } from 'lucide-react';
-import { streamNodeChat, NodeChatMessage } from '@/lib/api';
+import { MessageSquare, Send, X, Trash2, StopCircle, Sparkles, GitBranch, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
+import { streamNodeChat, NodeChatMessage, saveChatHistory, archiveChatHistory, loadChatHistory } from '@/lib/api';
+import { PipelineStep } from '@/types';
+import { SelectedNodeData, getNodesByType } from '@/lib/chatContextBuilder';
+import { NodeChatBranchSelector } from './NodeChatBranchSelector';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-interface SelectedNodeData {
-  id: string;
-  type: string;
-  label: string;
-  fullData?: any;
-}
 
 interface NodeChatProps {
   isOpen: boolean;
@@ -17,24 +13,29 @@ interface NodeChatProps {
   selectedNodes: SelectedNodeData[];
   onRemoveNode: (nodeId: string) => void;
   onClearNodes: () => void;
+  onAddNodes: (nodes: SelectedNodeData[]) => void;
   q0: string;
   goal: string;
   lens: string;
+  graphSummary: string;
+  l6AnalysisSummary: string;
+  steps: PipelineStep[];
+  highlightedL6Ids: string[];
 }
 
 const NODE_TYPE_COLORS: Record<string, string> = {
-  q0: 'bg-blue-500/20 border-blue-500/50 text-blue-300',
-  goal: 'bg-purple-500/20 border-purple-500/50 text-purple-300',
-  spv: 'bg-amber-500/20 border-amber-500/50 text-amber-300',
-  ra: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300',
-  domain: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300',
-  scientific: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300',
-  l3: 'bg-red-500/20 border-red-500/50 text-red-300',
-  ih: 'bg-orange-500/20 border-orange-500/50 text-orange-300',
-  l4: 'bg-lime-500/20 border-lime-500/50 text-lime-300',
-  l5: 'bg-green-400/20 border-green-400/50 text-green-300',
-  l6: 'bg-teal-500/20 border-teal-500/50 text-teal-300',
-  common_l6: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300',
+  q0: 'bg-blue-500/25 border-blue-400/60 text-blue-200',
+  goal: 'bg-purple-500/25 border-purple-400/60 text-purple-200',
+  spv: 'bg-amber-500/25 border-amber-400/60 text-amber-200',
+  ra: 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200',
+  domain: 'bg-cyan-500/25 border-cyan-400/60 text-cyan-200',
+  scientific: 'bg-cyan-500/25 border-cyan-400/60 text-cyan-200',
+  l3: 'bg-red-500/25 border-red-400/60 text-red-200',
+  ih: 'bg-orange-500/25 border-orange-400/60 text-orange-200',
+  l4: 'bg-lime-500/25 border-lime-400/60 text-lime-200',
+  l5: 'bg-green-400/25 border-green-400/60 text-green-200',
+  l6: 'bg-teal-500/25 border-teal-400/60 text-teal-200',
+  common_l6: 'bg-yellow-500/25 border-yellow-400/60 text-yellow-200',
 };
 
 const getNodeTypeLabel = (type: string): string => {
@@ -46,23 +47,64 @@ const getNodeTypeLabel = (type: string): string => {
   return labels[type] || type.toUpperCase();
 };
 
+const MIN_WIDTH = 380;
+const MAX_WIDTH = 700;
+const DEFAULT_WIDTH = 460;
+
 export const NodeChat: React.FC<NodeChatProps> = ({
   isOpen,
   onClose,
   selectedNodes,
   onRemoveNode,
   onClearNodes,
+  onAddNodes,
   q0,
   goal,
   lens,
+  graphSummary,
+  l6AnalysisSummary,
+  steps,
+  highlightedL6Ids,
 }) => {
   const [messages, setMessages] = useState<NodeChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [showBranchSelector, setShowBranchSelector] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_WIDTH);
   const abortRef = useRef<(() => void) | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const loadedRef = useRef(false);
+
+  // Load chat history on first open
+  useEffect(() => {
+    if (isOpen && !loadedRef.current) {
+      loadedRef.current = true;
+      loadChatHistory().then(({ conversationId, messages: saved }) => {
+        if (saved.length > 0) {
+          conversationIdRef.current = conversationId;
+          setMessages(saved);
+        }
+      });
+    }
+  }, [isOpen]);
+
+  // Auto-save after messages change (debounced)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (messages.length === 0 || isStreaming) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const nodeIds = selectedNodes.map(n => n.id);
+      saveChatHistory(conversationIdRef.current, messages, nodeIds).then(({ conversationId }) => {
+        if (conversationId) conversationIdRef.current = conversationId;
+      });
+    }, 1000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [messages, isStreaming, selectedNodes]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -76,9 +118,28 @@ export const NodeChat: React.FC<NodeChatProps> = ({
     }
   }, [isOpen]);
 
+  // Resize drag handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeRef.current = { startX: e.clientX, startWidth: panelWidth };
+    const onMove = (ev: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const delta = resizeRef.current.startX - ev.clientX;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, resizeRef.current.startWidth + delta));
+      setPanelWidth(newWidth);
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [panelWidth]);
+
   const handleSend = useCallback(() => {
     const text = inputText.trim();
-    if (!text || isStreaming || selectedNodes.length === 0) return;
+    if (!text || isStreaming) return;
 
     const userMessage: NodeChatMessage = { role: 'user', content: text };
     const newMessages = [...messages, userMessage];
@@ -87,7 +148,6 @@ export const NodeChat: React.FC<NodeChatProps> = ({
     setIsStreaming(true);
     setStreamingContent('');
 
-    // Prepare node data for context (compact version)
     const nodesForContext = selectedNodes.map(n => ({
       id: n.id,
       type: n.type,
@@ -102,6 +162,8 @@ export const NodeChat: React.FC<NodeChatProps> = ({
         q0,
         goal,
         lens,
+        graphSummary,
+        l6AnalysisSummary,
       },
       (token) => {
         setStreamingContent(prev => prev + token);
@@ -125,7 +187,7 @@ export const NodeChat: React.FC<NodeChatProps> = ({
     );
 
     abortRef.current = abort;
-  }, [inputText, isStreaming, selectedNodes, messages, q0, goal, lens]);
+  }, [inputText, isStreaming, selectedNodes, messages, q0, goal, lens, graphSummary, l6AnalysisSummary]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.();
@@ -141,9 +203,14 @@ export const NodeChat: React.FC<NodeChatProps> = ({
 
   const handleClearChat = useCallback(() => {
     if (isStreaming) handleStop();
+    // Archive the conversation in DB (keeps data, hides from UI)
+    if (conversationIdRef.current && messages.length > 0) {
+      archiveChatHistory(conversationIdRef.current);
+    }
+    conversationIdRef.current = null;
     setMessages([]);
     setStreamingContent('');
-  }, [isStreaming, handleStop]);
+  }, [isStreaming, handleStop, messages.length]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -152,85 +219,172 @@ export const NodeChat: React.FC<NodeChatProps> = ({
     }
   }, [handleSend]);
 
+  const handleQuickAddBestL6 = useCallback(() => {
+    const l6Nodes = getNodesByType('l6', steps);
+    const bestSet = new Set(highlightedL6Ids);
+    const best = l6Nodes.filter(n => bestSet.has(n.id));
+    onAddNodes(best.length > 0 ? best : l6Nodes.slice(0, 5));
+  }, [steps, highlightedL6Ids, onAddNodes]);
+
+  const handleQuickAddGoals = useCallback(() => {
+    onAddNodes(getNodesByType('goal', steps));
+  }, [steps, onAddNodes]);
+
+  const handleQuickAddL3s = useCallback(() => {
+    onAddNodes(getNodesByType('l3', steps));
+  }, [steps, onAddNodes]);
+
   if (!isOpen) return null;
 
+  const suggestions = selectedNodes.length > 0
+    ? [
+        'Explain the relationship between these nodes',
+        'Are there any gaps or weaknesses?',
+        'Suggest improvements or alternatives',
+      ]
+    : [
+        'What are the most promising experiments?',
+        'Summarize the research strategy',
+        'Which goals have the most coverage gaps?',
+        'Compare the top L6 experiments',
+      ];
+
+  // Shared prose classes for markdown rendering
+  const proseClasses = 'prose prose-invert prose-sm max-w-none [&_p]:my-1.5 [&_p]:leading-relaxed [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-0.5 [&_li]:leading-relaxed [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-foreground [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:text-foreground/90 [&_strong]:text-foreground [&_strong]:font-semibold [&_code]:text-[12px] [&_code]:bg-black/40 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-emerald-300 [&_pre]:bg-black/40 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[12px] [&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-foreground/80 [&_table]:text-[12px] [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_a]:text-primary [&_a]:underline';
+
   return (
-    <div className="absolute inset-y-0 right-0 w-[420px] bg-card/98 backdrop-blur-md border-l border-border/50 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-300">
+    <div
+      className="absolute inset-y-0 right-0 bg-card border-l border-border shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-300"
+      style={{ width: panelWidth }}
+    >
+      {/* Resize handle */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 group hover:bg-primary/20 active:bg-primary/30 transition-colors"
+        onMouseDown={handleResizeStart}
+      >
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <GripVertical className="w-3 h-3 text-muted-foreground" />
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-gradient-to-r from-primary/5 to-accent/5">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h3 className="font-bold text-sm">Node Chat</h3>
+            <h3 className="font-bold text-sm text-foreground">Research Chat</h3>
             <p className="text-xs text-muted-foreground">
-              {selectedNodes.length} node{selectedNodes.length !== 1 ? 's' : ''} selected
+              {selectedNodes.length > 0
+                ? `${selectedNodes.length} node${selectedNodes.length !== 1 ? 's' : ''} focused`
+                : 'Full pipeline context'}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={handleClearChat}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
             title="Clear chat"
           >
             <Trash2 className="w-4 h-4" />
           </button>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Selected Nodes Chips */}
-      <div className="px-4 py-3 border-b border-border/20 bg-secondary/5">
+      {/* Selected Nodes & Quick Add */}
+      <div className="px-4 py-3 border-b border-border/40 bg-muted/20">
         {selectedNodes.length === 0 ? (
-          <div className="flex items-center gap-2 py-2">
-            <div className="w-1 h-1 bg-primary/40 rounded-full animate-pulse" />
-            <p className="text-xs text-muted-foreground">
-              Click nodes in the graph (Ctrl/Cmd + Click) to add them to chat context
+          <div className="space-y-2.5">
+            <p className="text-xs text-foreground/70">
+              Ask anything about your pipeline, or add nodes for focused analysis:
             </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={handleQuickAddGoals}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-purple-500/15 border border-purple-400/40 text-purple-200 hover:bg-purple-500/25 hover:border-purple-400/60 transition-colors"
+              >
+                Add Goals
+              </button>
+              <button
+                onClick={handleQuickAddBestL6}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-teal-500/15 border border-teal-400/40 text-teal-200 hover:bg-teal-500/25 hover:border-teal-400/60 transition-colors"
+              >
+                Add Best L6
+              </button>
+              <button
+                onClick={handleQuickAddL3s}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-red-500/15 border border-red-400/40 text-red-200 hover:bg-red-500/25 hover:border-red-400/60 transition-colors"
+              >
+                Add All L3s
+              </button>
+              <button
+                onClick={() => setShowBranchSelector(!showBranchSelector)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                  showBranchSelector
+                    ? 'bg-primary/20 border border-primary/50 text-primary'
+                    : 'bg-muted/40 border border-border/50 text-foreground/70 hover:bg-muted/60 hover:text-foreground'
+                }`}
+              >
+                <GitBranch className="w-3 h-3" />
+                Browse Tree
+                {showBranchSelector ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground/80">
-                Selected Nodes ({selectedNodes.length})
+              <span className="text-xs font-semibold text-foreground/90">
+                Focused Nodes ({selectedNodes.length})
               </span>
-              {selectedNodes.length > 1 && (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={onClearNodes}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-all hover:gap-1.5"
+                  onClick={() => setShowBranchSelector(!showBranchSelector)}
+                  className={`flex items-center gap-0.5 text-xs transition-colors p-1 rounded ${
+                    showBranchSelector ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                  }`}
+                  title="Browse tree to add nodes"
                 >
-                  <Trash2 className="w-3 h-3" />
-                  Clear all
+                  <GitBranch className="w-3.5 h-3.5" />
                 </button>
-              )}
+                {selectedNodes.length > 1 && (
+                  <button
+                    onClick={onClearNodes}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-all"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto">
+            <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto">
               {selectedNodes.map(node => (
                 <div
                   key={node.id}
                   className={`
-                    group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border
+                    group inline-flex items-center gap-1.5 px-2 py-1 rounded-md border
                     transition-all duration-200 hover:shadow-md animate-in fade-in zoom-in-95 duration-200
-                    ${NODE_TYPE_COLORS[node.type] || 'bg-slate-500/20 border-slate-500/50 text-slate-300'}
+                    ${NODE_TYPE_COLORS[node.type] || 'bg-slate-500/25 border-slate-400/60 text-slate-200'}
                   `}
                 >
-                  <span className="text-[9px] font-bold uppercase tracking-wide">
+                  <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
                     {getNodeTypeLabel(node.type)}
                   </span>
-                  <div className="w-px h-3 bg-current opacity-30" />
-                  <span className="max-w-[100px] truncate text-[11px] font-medium">
+                  <span className="max-w-[120px] truncate text-[11px] font-medium">
                     {node.label?.replace(/^(Q0|Goal|L\d|IH|RA|SPV|Domain):?\s*/i, '')}
                   </span>
                   <button
                     onClick={() => onRemoveNode(node.id)}
-                    className="ml-0.5 p-0.5 rounded hover:bg-red-500/30 hover:text-red-300 transition-all opacity-60 group-hover:opacity-100"
+                    className="ml-0.5 p-0.5 rounded hover:bg-red-500/30 hover:text-red-300 transition-all opacity-50 group-hover:opacity-100"
                     title="Remove node"
                   >
                     <X className="w-3 h-3" />
@@ -240,30 +394,43 @@ export const NodeChat: React.FC<NodeChatProps> = ({
             </div>
           </div>
         )}
+
+        {/* Branch Selector (collapsible) */}
+        {showBranchSelector && (
+          <div className="mt-2">
+            <NodeChatBranchSelector
+              steps={steps}
+              highlightedL6Ids={highlightedL6Ids}
+              onAddNodes={onAddNodes}
+            />
+          </div>
+        )}
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && !streamingContent && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6 opacity-60">
-            <MessageSquare className="w-10 h-10 text-primary/40 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground mb-1">Ask about your nodes</p>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Select nodes from the graph and ask questions about their scientific validity, relationships, or implications.
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+              <MessageSquare className="w-6 h-6 text-primary/60" />
+            </div>
+            <p className="text-sm font-medium text-foreground/80 mb-1">
+              {selectedNodes.length > 0 ? 'Ask about your nodes' : 'Ask about your research pipeline'}
             </p>
-            <div className="mt-4 space-y-1.5 w-full">
-              {[
-                'Explain the relationship between these nodes',
-                'Are there any gaps or weaknesses?',
-                'Suggest improvements or alternatives',
-              ].map((suggestion, i) => (
+            <p className="text-xs text-foreground/50 leading-relaxed mb-5 max-w-[280px]">
+              {selectedNodes.length > 0
+                ? 'Questions about validity, relationships, or implications of selected nodes.'
+                : 'Full pipeline hierarchy and top experiments are loaded as context.'}
+            </p>
+            <div className="space-y-2 w-full max-w-[320px]">
+              {suggestions.map((suggestion, i) => (
                 <button
                   key={i}
                   onClick={() => {
                     setInputText(suggestion);
                     inputRef.current?.focus();
                   }}
-                  className="w-full text-left text-[11px] px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors border border-border/20"
+                  className="w-full text-left text-xs px-3.5 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 text-foreground/70 hover:text-foreground transition-colors border border-border/30 hover:border-border/50"
                 >
                   {suggestion}
                 </button>
@@ -279,16 +446,16 @@ export const NodeChat: React.FC<NodeChatProps> = ({
           >
             <div
               className={`
-                max-w-[90%] rounded-xl px-3 py-2 text-[12px] leading-relaxed
+                max-w-[92%] rounded-xl px-4 py-3 text-[13px] leading-relaxed
                 ${msg.role === 'user'
-                  ? 'bg-primary/20 border border-primary/30 text-foreground'
-                  : 'bg-muted/30 border border-border/30 text-foreground'
+                  ? 'bg-primary/15 border border-primary/30 text-foreground'
+                  : 'bg-muted/30 border border-border/40 text-foreground'
                 }
               `}
             >
-              <div className="prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_code]:text-[11px] [&_code]:bg-black/30 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-black/30 [&_pre]:p-2 [&_pre]:rounded-md [&_pre]:text-[11px] [&_blockquote]:border-l-2 [&_blockquote]:border-primary/40 [&_blockquote]:pl-3 [&_blockquote]:italic [&_table]:text-[11px] [&_th]:px-2 [&_td]:px-2">
+              <div className={proseClasses}>
                 {msg.role === 'user' ? (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  <p className="whitespace-pre-wrap my-0">{msg.content}</p>
                 ) : (
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 )}
@@ -300,10 +467,10 @@ export const NodeChat: React.FC<NodeChatProps> = ({
         {/* Streaming response */}
         {streamingContent && (
           <div className="flex justify-start">
-            <div className="max-w-[90%] rounded-xl px-3 py-2 text-[12px] leading-relaxed bg-muted/30 border border-border/30 text-foreground">
-              <div className="prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_code]:text-[11px] [&_code]:bg-black/30 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-black/30 [&_pre]:p-2 [&_pre]:rounded-md [&_pre]:text-[11px] [&_blockquote]:border-l-2 [&_blockquote]:border-primary/40 [&_blockquote]:pl-3 [&_blockquote]:italic [&_table]:text-[11px] [&_th]:px-2 [&_td]:px-2">
+            <div className="max-w-[92%] rounded-xl px-4 py-3 text-[13px] leading-relaxed bg-muted/30 border border-border/40 text-foreground">
+              <div className={proseClasses}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
-                <span className="inline-block w-1.5 h-4 bg-primary/60 animate-pulse ml-0.5 align-middle" />
+                <span className="inline-block w-1.5 h-4 bg-primary/70 animate-pulse ml-0.5 align-middle rounded-sm" />
               </div>
             </div>
           </div>
@@ -312,11 +479,11 @@ export const NodeChat: React.FC<NodeChatProps> = ({
         {/* Loading indicator */}
         {isStreaming && !streamingContent && (
           <div className="flex justify-start">
-            <div className="rounded-xl px-3 py-2 bg-muted/30 border border-border/30">
+            <div className="rounded-xl px-4 py-3 bg-muted/30 border border-border/40">
               <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-2 h-2 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -326,18 +493,17 @@ export const NodeChat: React.FC<NodeChatProps> = ({
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border/30 px-3 py-3 bg-card/50">
+      <div className="border-t border-border/50 px-4 py-3 bg-card">
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={selectedNodes.length === 0 ? 'Select nodes first...' : 'Ask about these nodes...'}
-            disabled={selectedNodes.length === 0}
+            placeholder="Ask about your research pipeline..."
             rows={1}
-            className="flex-1 resize-none bg-muted/30 border border-border/30 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-40 max-h-[100px] overflow-y-auto"
-            style={{ minHeight: '38px' }}
+            className="flex-1 resize-none bg-muted/40 border border-border/50 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 max-h-[100px] overflow-y-auto transition-colors"
+            style={{ minHeight: '40px' }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
@@ -347,7 +513,7 @@ export const NodeChat: React.FC<NodeChatProps> = ({
           {isStreaming ? (
             <button
               onClick={handleStop}
-              className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 transition-colors flex-shrink-0"
+              className="p-2.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 transition-colors flex-shrink-0"
               title="Stop generating"
             >
               <StopCircle className="w-4 h-4" />
@@ -355,8 +521,8 @@ export const NodeChat: React.FC<NodeChatProps> = ({
           ) : (
             <button
               onClick={handleSend}
-              disabled={!inputText.trim() || selectedNodes.length === 0}
-              className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+              disabled={!inputText.trim()}
+              className="p-2.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 transition-colors disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
               title="Send message"
             >
               <Send className="w-4 h-4" />

@@ -18,10 +18,12 @@ import { renderNodeDetails } from './StepOutputViewer';
 import { NodeChat } from './NodeChat';
 import { NodeDataEditor } from './NodeDataEditor';
 import { NodeLLMImprover } from './NodeLLMImprover';
-import { Edit3, Sparkles, Minimize2, Maximize2, X, MessageSquare } from 'lucide-react';
+import { Edit3, Sparkles, Minimize2, Maximize2, X, MessageSquare, GitBranch, Users } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { useSessionStore } from '@/store/useSessionStore';
 import { NodeFeedbackForm } from './NodeFeedbackForm';
+import { getSessionFeedback } from '@/lib/api';
+import { buildGraphSummaryForChat, buildL6AnalysisSummary, getNodeDescendants, getNodesByType, SelectedNodeData } from '@/lib/chatContextBuilder';
 
 interface GraphVisualizationImprovedProps {
   steps: PipelineStep[];
@@ -63,11 +65,21 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   const [focusedGoalId, setFocusedGoalId] = useState<string | null>(null);
   const [compactMode, setCompactMode] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackNodeIds, setFeedbackNodeIds] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string; nodeType: string; nodeLabel: string; nodeData?: any } | null>(null);
   const { fitView } = useReactFlow();
-  const { updateNodeData, highlightedL6Ids, setHighlightedL6Ids, focusedNodeId, setFocusedNodeId } = useAppStore();
+  const { updateNodeData, highlightedL6Ids, setHighlightedL6Ids, focusedNodeId, setFocusedNodeId, l6AnalysisResult } = useAppStore();
   const prevHighlightCountRef = useRef(highlightedL6Ids.length);
   const { activeSessionId } = useSessionStore();
-  
+
+  // Load feedback node IDs for the active session
+  useEffect(() => {
+    if (!activeSessionId) return;
+    getSessionFeedback(activeSessionId).then(entries => {
+      setFeedbackNodeIds(new Set(entries.map(e => e.nodeId)));
+    }).catch(() => {});
+  }, [activeSessionId]);
+
   // Extract bridge lexicon from Step 2 for node detail lookups
   const step2 = steps.find(s => s.id === 2);
   const bridgeLexicon = step2?.output?.bridge_lexicon || step2?.output?.Bridge_Lexicon || step2?.output?.bridgeLexicon || {};
@@ -323,12 +335,17 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
       const isAncestorHighlight = highlightedAncestorIds.has(node.id);
       const isDimmed = hasActiveHighlights && !isHighlightedL6 && !isAncestorHighlight;
 
+      // Check if this node has feedback
+      const feedbackId = node.data.type === 'q0' ? 'q0' : (node.data.fullData?.id || '');
+      const hasFeedback = feedbackNodeIds.has(feedbackId);
+
       // Apply highlighting styles
       const nodeWithHighlight = {
         ...node,
         data: {
           ...node.data,
           isHighlighted: isHighlightedL6 || isAncestorHighlight,
+          hasFeedback,
         },
         style: {
           ...node.style,
@@ -370,7 +387,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
       }
       return nodeWithHighlight;
     });
-  }, [filteredGraph.nodes, onNodeHighlight, highlightedL6Ids, highlightedAncestorIds]);
+  }, [filteredGraph.nodes, onNodeHighlight, highlightedL6Ids, highlightedAncestorIds, feedbackNodeIds]);
 
   // Compute in-graph layer labels: use filteredGraph (stable positions, not affected by highlight changes)
   const layerLabels = useMemo(() => {
@@ -582,15 +599,57 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
   const onPaneClick = useCallback(() => {
     setSelectedNode(null);
     setFeedbackOpen(false);
+    setContextMenu(null);
     if (onNodeHighlight) {
       onNodeHighlight(null, null);
     }
   }, [onNodeHighlight]);
 
-  // Extract Q0, goal, and lens from pipeline steps for chat context
+  // Extract Q0, goals, and lens from pipeline steps for chat context
   const q0Text = steps.find(s => s.id === 1)?.output?.text || steps.find(s => s.id === 1)?.input || '';
-  const goalText = steps.find(s => s.id === 2)?.output?.goals?.[0]?.title || '';
+  const allGoals = steps.find(s => s.id === 2)?.output?.goals || [];
+  const goalText = allGoals.map((g: any, i: number) => `${i + 1}. [${g.id}] ${g.title || g.name || g.id}`).join('\n') || '';
   const lensText = steps.find(s => s.id === 2)?.output?.lens || '';
+
+  // Build compressed pipeline context for chat
+  const graphSummary = useMemo(
+    () => buildGraphSummaryForChat(steps, highlightedL6Ids),
+    [steps, highlightedL6Ids]
+  );
+  const l6AnalysisSummary = useMemo(
+    () => buildL6AnalysisSummary(l6AnalysisResult),
+    [l6AnalysisResult]
+  );
+
+  // Bulk-add nodes to chat
+  const handleAddChatNodes = useCallback((newNodes: SelectedNodeData[]) => {
+    setChatNodes(prev => {
+      const existingIds = new Set(prev.map(n => n.id));
+      return [...prev, ...newNodes.filter(n => !existingIds.has(n.id))];
+    });
+    if (!chatOpen) setChatOpen(true);
+  }, [chatOpen]);
+
+  // Right-click context menu on graph nodes
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        nodeId: node.id,
+        nodeType: node.data.type,
+        nodeLabel: node.data.fullText || node.data.label || node.id,
+        nodeData: node.data.fullData,
+      });
+    },
+    []
+  );
+
+  // Close context menu on pane/node click
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenu(null);
+  }, []);
 
   // Layer toggle handler
   const handleLayerToggle = useCallback((layerId: string) => {
@@ -1154,6 +1213,7 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
+        onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
@@ -1331,9 +1391,18 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
               {feedbackOpen && selectedNode && (
                 <div className="mb-3">
                   <NodeFeedbackForm
-                    nodeId={selectedNode.id}
+                    nodeId={selectedNode.type === 'q0' ? 'q0' : (selectedNode.fullData?.id || selectedNode.label || 'unknown')}
                     nodeType={selectedNode.type}
+                    nodeLabel={selectedNode.fullText || selectedNode.label || ''}
                     userSessionId={activeSessionId || ''}
+                    onFeedbackChange={(nodeId, hasFeedback) => {
+                      setFeedbackNodeIds(prev => {
+                        const next = new Set(prev);
+                        if (hasFeedback) next.add(nodeId);
+                        else next.delete(nodeId);
+                        return next;
+                      });
+                    }}
                   />
                 </div>
               )}
@@ -1369,9 +1438,14 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
         selectedNodes={chatNodes}
         onRemoveNode={(nodeId) => setChatNodes(prev => prev.filter(n => n.id !== nodeId))}
         onClearNodes={() => setChatNodes([])}
+        onAddNodes={handleAddChatNodes}
         q0={q0Text}
         goal={goalText}
         lens={lensText}
+        graphSummary={graphSummary}
+        l6AnalysisSummary={l6AnalysisSummary}
+        steps={steps}
+        highlightedL6Ids={highlightedL6Ids}
       />
 
       {/* Node Data Editor */}
@@ -1418,6 +1492,62 @@ export const GraphVisualizationImproved: React.FC<GraphVisualizationImprovedProp
             className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-xs font-semibold transition-colors"
           >
             Done
+          </button>
+        </div>
+      )}
+
+      {/* Right-click Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-card border border-border rounded-lg shadow-[0_8px_30px_rgba(0,0,0,0.5)] py-1.5 min-w-[200px] animate-in fade-in zoom-in-95 duration-150"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={handleContextMenuClose}
+        >
+          <button
+            className="w-full text-left px-3.5 py-2 text-xs text-foreground/90 hover:bg-muted/60 hover:text-foreground flex items-center gap-2.5 transition-colors"
+            onClick={() => {
+              handleAddChatNodes([{
+                id: contextMenu.nodeId,
+                type: contextMenu.nodeType,
+                label: contextMenu.nodeLabel,
+                fullData: contextMenu.nodeData,
+              }]);
+              setContextMenu(null);
+            }}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-primary" />
+            Add to Chat
+          </button>
+          {['goal', 'l3', 'ih', 'l4', 'l5'].includes(contextMenu.nodeType) && (
+            <button
+              className="w-full text-left px-3.5 py-2 text-xs text-foreground/90 hover:bg-muted/60 hover:text-foreground flex items-center gap-2.5 transition-colors"
+              onClick={() => {
+                const self: SelectedNodeData = {
+                  id: contextMenu.nodeId,
+                  type: contextMenu.nodeType,
+                  label: contextMenu.nodeLabel,
+                  fullData: contextMenu.nodeData,
+                };
+                const descendants = getNodeDescendants(contextMenu.nodeId, contextMenu.nodeType, steps);
+                handleAddChatNodes([self, ...descendants]);
+                setContextMenu(null);
+              }}
+            >
+              <GitBranch className="w-3.5 h-3.5 text-purple-300" />
+              Add Branch to Chat
+            </button>
+          )}
+          <div className="mx-2 my-1 border-t border-border/30" />
+          <button
+            className="w-full text-left px-3.5 py-2 text-xs text-foreground/90 hover:bg-muted/60 hover:text-foreground flex items-center gap-2.5 transition-colors"
+            onClick={() => {
+              const siblings = getNodesByType(contextMenu.nodeType, steps);
+              handleAddChatNodes(siblings);
+              setContextMenu(null);
+            }}
+          >
+            <Users className="w-3.5 h-3.5 text-cyan-300" />
+            Add All {contextMenu.nodeType.toUpperCase()}s
           </button>
         </div>
       )}

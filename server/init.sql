@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS node_feedback (
     user_session_id VARCHAR(100) NOT NULL,
     node_id VARCHAR(200) NOT NULL,
     node_type VARCHAR(50) NOT NULL,
+    node_label TEXT,
     rating SMALLINT CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
     category VARCHAR(50),
@@ -130,6 +131,26 @@ CREATE TABLE IF NOT EXISTS node_feedback (
 
 CREATE INDEX IF NOT EXISTS idx_node_feedback_session ON node_feedback(session_id, user_session_id);
 CREATE INDEX IF NOT EXISTS idx_node_feedback_node ON node_feedback(node_id);
+CREATE INDEX IF NOT EXISTS idx_node_feedback_user_node ON node_feedback(user_session_id, node_id);
+
+-- ============================================================
+-- Chat History Table
+-- Stores all chat conversations (persisted even when user clears UI)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS chat_history (
+    id SERIAL PRIMARY KEY,
+    session_id UUID NOT NULL,
+    conversation_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+    messages JSONB NOT NULL DEFAULT '[]',
+    selected_node_ids JSONB DEFAULT '[]',
+    is_archived BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_history_session ON chat_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_history_conversation ON chat_history(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_chat_history_session_active ON chat_history(session_id, is_archived);
 
 -- ============================================================
 -- Grant permissions (optional, for production security)

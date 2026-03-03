@@ -13,9 +13,10 @@ import { L6PerspectiveAnalyzer } from './components/L6PerspectiveAnalyzer';
 import { Button } from './components/ui/Button';
 import { Select } from './components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/Card';
-import { Users, User, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2, Rocket, Square } from 'lucide-react';
-import { runFullPipeline, FullPipelineProgress } from './lib/api';
-import { UserNamePrompt, getUserName } from './components/UserNamePrompt';
+import { Users, User, GitBranch, Save, History, Network, LayoutGrid, Download, Shield, Zap, Target, X, Play, RefreshCw, Upload, FileJson, Trash2, Eye, EyeOff, Info, Maximize2, Minimize2, Rocket, Square, Send } from 'lucide-react';
+import { runFullPipeline, FullPipelineProgress, shareToTelegram, getSessionFeedback } from './lib/api';
+import { UserNamePrompt, getUserName, getTelegramUser, clearTelegramUser, setUserName as storeUserName } from './components/UserNamePrompt';
+import type { TelegramUser } from './components/UserNamePrompt';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'split' | 'pipeline' | 'graph' | 'versions' | 'scientific'>('split');
@@ -36,6 +37,8 @@ function App() {
   const [fullPipelineProgress, setFullPipelineProgress] = useState<FullPipelineProgress | null>(null);
   const [fullPipelineError, setFullPipelineError] = useState(false);
   const [userName, setUserName] = useState<string | null>(getUserName());
+  const [telegramUser, setTelegramUserState] = useState<TelegramUser | null>(getTelegramUser());
+  const [telegramSharing, setTelegramSharing] = useState(false);
   const fullPipelineAbortRef = React.useRef<AbortController | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const {
@@ -53,6 +56,8 @@ function App() {
     deleteVersion,
     resetPipeline,
     setL6AnalysisResult,
+    highlightedL6Ids,
+    l6AnalysisResult,
   } = useAppStore();
 
   // Pipeline execution hook (handles all step running, aborting, single-goal execution)
@@ -83,6 +88,161 @@ function App() {
   const handleSaveInputsOutputs = () => {
     saveInputsOutputs(currentGoal, steps, selectedGoalId);
     alert('Input/Output check file saved successfully!');
+  };
+
+  const handleShareToTelegram = async () => {
+    if (!telegramUser?.id) return;
+    setTelegramSharing(true);
+    try {
+      const activeSession = sessions?.find((s: any) => s.id === activeSessionId);
+      const sessionName = activeSession?.name || '';
+      const q0 = steps[0]?.output?.master_question || steps[0]?.output?.Q0 || '';
+
+      // ── Count pipeline stats ──
+      const goalsArr = steps[1]?.output?.goals || [];
+      const goalCount = Array.isArray(goalsArr) ? goalsArr.length : 0;
+
+      const raOutput = steps[2]?.output;
+      let raCount = 0;
+      if (raOutput && typeof raOutput === 'object') {
+        Object.values(raOutput).forEach((v: any) => { if (Array.isArray(v)) raCount += v.length; });
+      }
+
+      const l3Output = steps[5]?.output;
+      const l3s = l3Output?.l3_questions || (Array.isArray(l3Output) ? l3Output : []);
+      const l3Count = l3s.length;
+
+      const ihOutput = steps[6]?.output;
+      let ihCount = 0;
+      if (Array.isArray(ihOutput)) ihOutput.forEach((g: any) => {
+        const qs = g?.l3_questions || g?.questions || [];
+        qs.forEach((q: any) => { ihCount += (q?.instantiation_hypotheses || []).length; });
+      });
+
+      const l4Output = steps[7]?.output;
+      const l4s = l4Output?.l4_questions || (Array.isArray(l4Output) ? l4Output : []);
+      const l4Count = l4s.length;
+
+      let l6Count = 0;
+      const l6Output = steps[8]?.output;
+      if (l6Output) {
+        const walkL6 = (arr: any[]) => arr?.forEach((item: any) => {
+          if (item?.l6_leaf_specifications) l6Count += item.l6_leaf_specifications.length;
+          else if (item?.l5_mechanistic_sub_questions) {
+            item.l5_mechanistic_sub_questions.forEach((l5: any) => {
+              if (l5?.l6_leaf_specifications) l6Count += l5.l6_leaf_specifications.length;
+            });
+          }
+        });
+        if (Array.isArray(l6Output)) walkL6(l6Output);
+        else if (l6Output.results) walkL6(l6Output.results);
+      }
+
+      // ── Feedback ──
+      let feedbackEntries: any[] = [];
+      if (activeSessionId) {
+        try { feedbackEntries = await getSessionFeedback(activeSessionId); } catch { /* */ }
+      }
+
+      // ── Build concise text summary ──
+      const esc = (s: string) => s.replace(/[*_`\[]/g, '\\$&');
+      const lines: string[] = [];
+
+      lines.push('🔬 *Omega Point — Session Report*');
+      if (sessionName) lines.push(`📋 ${esc(sessionName)}`);
+      lines.push('');
+
+      if (q0) {
+        lines.push('*Q₀:*');
+        lines.push(`_${esc(q0.length > 200 ? q0.slice(0, 200) + '…' : q0)}_`);
+        lines.push('');
+      }
+      if (currentGoal && currentGoal !== q0) {
+        lines.push(`*Goal:* ${esc(currentGoal.slice(0, 120))}`);
+        lines.push('');
+      }
+
+      // Pipeline stats block
+      const statParts: string[] = [];
+      if (goalCount) statParts.push(`${goalCount} goals`);
+      if (raCount) statParts.push(`${raCount} req. atoms`);
+      if (l3Count) statParts.push(`${l3Count} L3 questions`);
+      if (ihCount) statParts.push(`${ihCount} hypotheses`);
+      if (l4Count) statParts.push(`${l4Count} L4 tactical`);
+      if (l6Count) statParts.push(`${l6Count} L6 experiments`);
+      if (statParts.length) {
+        lines.push(`*Pipeline:* ${statParts.join(' → ')}`);
+        lines.push('');
+      }
+
+      // Best L6 — top 3 one-liners
+      if (l6AnalysisResult?.selected_experiments?.length) {
+        lines.push('*Top experiments:*');
+        l6AnalysisResult.selected_experiments.slice(0, 3).forEach((exp) => {
+          lines.push(`  #${exp.rank} ⭐${exp.score}/10 — ${esc(exp.key_insight?.slice(0, 90) || exp.l6_id)}`);
+        });
+        const total = l6AnalysisResult.selected_experiments.length;
+        if (total > 3) lines.push(`  _…and ${total - 3} more in the file_`);
+        lines.push('');
+      } else if (highlightedL6Ids.length > 0) {
+        lines.push(`*Best L6:* ${highlightedL6Ids.length} selected`);
+        lines.push('');
+      }
+
+      // Feedback count
+      if (feedbackEntries.length > 0) {
+        lines.push(`*Feedback:* ${feedbackEntries.length} note${feedbackEntries.length > 1 ? 's' : ''} on ${new Set(feedbackEntries.map(f => f.nodeId)).size} node${new Set(feedbackEntries.map(f => f.nodeId)).size > 1 ? 's' : ''}`);
+        lines.push('');
+      }
+
+      lines.push('📎 _Full session JSON attached below_');
+      lines.push('_Shared from_ [Omega Point](https://q0.openlongevity.work)');
+
+      const summary = lines.join('\n');
+
+      // ── Build full session JSON ──
+      const sessionJson: Record<string, any> = {
+        goal: currentGoal,
+        timestamp: new Date().toISOString(),
+        session_name: sessionName,
+        steps: steps.map(s => ({
+          id: s.id,
+          name: s.name,
+          status: s.status,
+          output: s.output,
+          timestamp: s.timestamp,
+        })),
+        highlighted_l6_ids: highlightedL6Ids,
+        l6_analysis: l6AnalysisResult,
+        feedback: feedbackEntries.map(fb => ({
+          node_id: fb.nodeId,
+          node_type: fb.nodeType,
+          node_label: fb.nodeLabel,
+          rating: fb.rating,
+          category: fb.category,
+          comment: fb.comment,
+          created_at: fb.createdAt,
+        })),
+      };
+
+      // Filename
+      const slug = (currentGoal || 'session').slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+      const filename = `omega_point_${slug}_${Date.now()}.json`;
+
+      await shareToTelegram({
+        chat_id: telegramUser.id,
+        summary,
+        session_json: sessionJson,
+        filename,
+      });
+
+      alert('Report sent to your Telegram! Check your chat with @omega_point_q0_bot');
+    } catch (err: any) {
+      console.error('Share to Telegram failed:', err);
+      alert(err?.response?.data?.error || err.message);
+    } finally {
+      setTelegramSharing(false);
+    }
   };
 
   const handleEditOutput = (stepId: number, newOutput: any) => {
@@ -232,7 +392,7 @@ function App() {
   };
 
   // Session management
-  const { initialize: initSessions, updateActiveSessionMeta, saveCurrentToSession, isLoading: sessionsLoading } = useSessionStore();
+  const { initialize: initSessions, updateActiveSessionMeta, saveCurrentToSession, isLoading: sessionsLoading, activeSessionId, sessions } = useSessionStore();
 
   useEffect(() => {
     if (!userName) return;
@@ -296,26 +456,59 @@ function App() {
               <span className="gradient-text">POINT</span>
             </h1>
             <span className="hidden sm:inline text-[10px] text-muted-foreground/70 uppercase tracking-wide">
-              Goal → Science → Experiments
+              Ontological Mapping &amp; Epistemic Generation Agents
             </span>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
             <SessionSwitcher />
+            {telegramUser && (
+              <button
+                onClick={handleShareToTelegram}
+                disabled={telegramSharing}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-sky-500/10 border border-sky-400/40 hover:bg-sky-500/20 transition-colors cursor-pointer text-sm disabled:opacity-50 disabled:cursor-wait"
+                title="Share session report to your Telegram"
+              >
+                {telegramSharing ? (
+                  <div className="w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5 text-sky-400" />
+                )}
+                <span className="text-sky-300 font-medium">Share</span>
+              </button>
+            )}
             {userName && (
               <button
                 onClick={() => {
-                  const newName = prompt('Change your name:', userName);
-                  if (newName && newName.trim()) {
-                    localStorage.setItem('omega-point-user-name', newName.trim());
-                    setUserName(newName.trim());
+                  if (telegramUser) {
+                    if (window.confirm('Log out from Telegram?')) {
+                      clearTelegramUser();
+                      setTelegramUserState(null);
+                      localStorage.removeItem('omega-point-user-name');
+                      setUserName(null);
+                    }
+                  } else {
+                    const newName = prompt('Change your name:', userName);
+                    if (newName && newName.trim()) {
+                      storeUserName(newName.trim());
+                      setUserName(newName.trim());
+                    }
                   }
                 }}
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-secondary/30 border border-border/30 hover:bg-secondary/50 transition-colors cursor-pointer text-sm"
-                title="Click to change your name"
+                title={telegramUser ? 'Click to log out' : 'Click to change your name'}
               >
-                <User className="w-3.5 h-3.5 text-muted-foreground" />
+                {telegramUser?.photo_url ? (
+                  <img src={telegramUser.photo_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                ) : (
+                  <User className="w-3.5 h-3.5 text-muted-foreground" />
+                )}
                 <span className="font-medium text-foreground/80">{userName}</span>
+                {telegramUser && (
+                  <svg viewBox="0 0 24 24" className="w-3 h-3 text-sky-400" fill="currentColor">
+                    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+                  </svg>
+                )}
               </button>
             )}
             <span className="w-1.5 h-1.5 rounded-full bg-green-400" title="System online" />

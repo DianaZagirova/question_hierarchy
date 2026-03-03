@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from 'lucide-react';
 
 const USER_NAME_KEY = 'omega-point-user-name';
+const TG_USER_KEY = 'omega-point-telegram-user';
 
-interface UserNamePromptProps {
-  onNameSet: (name: string) => void;
+export interface TelegramUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
 }
 
 export function getUserName(): string | null {
@@ -15,14 +20,102 @@ export function setUserName(name: string): void {
   localStorage.setItem(USER_NAME_KEY, name);
 }
 
+export function getTelegramUser(): TelegramUser | null {
+  try {
+    const raw = localStorage.getItem(TG_USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setTelegramUser(user: TelegramUser): void {
+  localStorage.setItem(TG_USER_KEY, JSON.stringify(user));
+}
+
+export function clearTelegramUser(): void {
+  localStorage.removeItem(TG_USER_KEY);
+}
+
+interface UserNamePromptProps {
+  onNameSet: (name: string) => void;
+}
+
 export const UserNamePrompt: React.FC<UserNamePromptProps> = ({ onNameSet }) => {
   const [name, setName] = useState('');
+  const [botUsername, setBotUsername] = useState('');
+  const [tgLoading, setTgLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const tgContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Auto-focus the input
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
+
+  // Fetch bot config
+  useEffect(() => {
+    fetch('/api/config/telegram')
+      .then(r => r.json())
+      .then(data => {
+        if (data.enabled && data.botUsername) {
+          setBotUsername(data.botUsername);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Telegram auth callback
+  const handleTelegramAuth = useCallback(async (tgUser: any) => {
+    setTgLoading(true);
+    try {
+      // Verify with our backend
+      const res = await fetch('/api/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tgUser),
+      });
+      const data = await res.json();
+      if (data.ok && data.user) {
+        const fullName = [data.user.first_name, data.user.last_name].filter(Boolean).join(' ');
+        setTelegramUser(data.user);
+        setUserName(fullName);
+        onNameSet(fullName);
+      } else {
+        console.error('Telegram auth failed:', data.error);
+        setTgLoading(false);
+      }
+    } catch (err) {
+      console.error('Telegram auth error:', err);
+      setTgLoading(false);
+    }
+  }, [onNameSet]);
+
+  // Mount the Telegram widget
+  useEffect(() => {
+    if (!botUsername || !tgContainerRef.current) return;
+
+    // Expose callback globally
+    (window as any).onTelegramAuth = handleTelegramAuth;
+
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.setAttribute('data-telegram-login', botUsername);
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-radius', '8');
+    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    script.setAttribute('data-request-access', 'write');
+    script.async = true;
+
+    // Clear previous
+    if (tgContainerRef.current) {
+      tgContainerRef.current.innerHTML = '';
+      tgContainerRef.current.appendChild(script);
+    }
+
+    return () => {
+      delete (window as any).onTelegramAuth;
+    };
+  }, [botUsername, handleTelegramAuth]);
 
   const handleSubmit = () => {
     const trimmed = name.trim();
@@ -41,11 +134,36 @@ export const UserNamePrompt: React.FC<UserNamePromptProps> = ({ onNameSet }) => 
           </div>
           <h2 className="text-lg font-bold text-foreground">Welcome to Omega Point</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Enter your name so your work can be identified across sessions
+            Sign in to track your work across sessions
           </p>
         </div>
 
-        {/* Input */}
+        {/* Telegram Login */}
+        {botUsername && (
+          <div className="px-6 pb-3">
+            {tgLoading ? (
+              <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+                Signing in with Telegram...
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div ref={tgContainerRef} className="flex justify-center min-h-[40px]" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Divider */}
+        {botUsername && (
+          <div className="px-6 flex items-center gap-3 pb-3">
+            <div className="flex-1 h-px bg-border/40" />
+            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">or enter name</span>
+            <div className="flex-1 h-px bg-border/40" />
+          </div>
+        )}
+
+        {/* Manual name input */}
         <div className="px-6 pb-2">
           <input
             ref={inputRef}

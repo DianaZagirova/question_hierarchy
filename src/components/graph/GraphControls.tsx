@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, RotateCcw, Target, Layers, Lightbulb, FlaskConical, ListChecks, Microscope, Workflow, MessageSquare, Focus, Maximize2, ChevronRight, ChevronDown, Home, Eye, EyeOff, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Search, Filter, RotateCcw, Target, Layers, Lightbulb, FlaskConical, ListChecks, Microscope, Workflow, Focus, Maximize2, ChevronRight, ChevronDown, Home, Eye, EyeOff, PanelLeftClose, PanelLeftOpen, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -92,29 +92,35 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
         >
           <PanelLeftOpen size={18} className="text-muted-foreground group-hover:text-foreground transition-colors" />
         </button>
-        {/* Quick action buttons when collapsed */}
+        {/* AI Chat floating button when collapsed */}
         {onChatToggle && (
           <button
             onClick={onChatToggle}
-            className={`bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-2 border border-border/50 hover:bg-card transition-colors ${
-              chatOpen ? 'text-primary border-primary/50' : 'text-muted-foreground'
+            className={`relative backdrop-blur-sm rounded-lg shadow-lg p-2.5 border-2 transition-all group ${
+              chatOpen
+                ? 'border-violet-400 bg-violet-500/25 shadow-violet-500/20'
+                : 'border-violet-400/50 bg-violet-500/10 hover:bg-violet-500/20 hover:border-violet-400/80 hover:shadow-violet-500/15'
             }`}
-            title="Node Chat"
+            title="AI Research Chat"
           >
-            <MessageSquare size={16} />
-            {chatNodeCount && chatNodeCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
+            <MessageCircle size={20} className={`transition-colors ${
+              chatOpen ? 'text-violet-300' : 'text-violet-400 group-hover:text-violet-300'
+            }`} />
+            {chatNodeCount && chatNodeCount > 0 ? (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-violet-500 text-[8px] font-bold text-white flex items-center justify-center shadow-sm">
                 {chatNodeCount}
               </span>
+            ) : (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             )}
           </button>
         )}
         <button
           onClick={onResetView}
-          className="bg-blue-600/90 backdrop-blur-sm rounded-lg shadow-lg p-2 border border-blue-400/50 hover:bg-blue-500 transition-colors text-white"
+          className="backdrop-blur-sm rounded-lg shadow-lg p-2.5 border-2 border-sky-400/50 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/80 hover:shadow-sky-500/15 transition-all group"
           title="Reset view"
         >
-          <RotateCcw size={16} />
+          <RotateCcw size={20} className="text-sky-400 group-hover:text-sky-300 transition-colors" />
         </button>
       </div>
     );
@@ -316,27 +322,31 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
               {compactMode ? 'Normal' : 'Compact'}
             </Button>
           )}
-          <Button size="sm" onClick={onResetView} className="flex-1 h-6 text-[10px] px-1.5 bg-blue-600 hover:bg-blue-500 text-white border-0">
-            <RotateCcw size={10} className="mr-0.5" />Reset
+          <Button size="sm" variant="outline" onClick={onResetView} className="flex-1 h-7 text-[10px] px-1.5 border-sky-400/50 text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/80">
+            <RotateCcw size={11} className="mr-0.5" />Reset
           </Button>
         </div>
 
-        {/* Chat button */}
+        {/* AI Chat button */}
         {onChatToggle && (
           <Button
             size="sm"
             variant="outline"
             onClick={onChatToggle}
-            className={`w-full h-6 text-[10px] ${
-              chatOpen ? 'border-primary/60 text-primary bg-primary/10' : ''
+            className={`w-full h-7 text-[10px] px-1.5 border-2 ${
+              chatOpen
+                ? 'border-violet-400 text-violet-300 bg-violet-500/20'
+                : 'border-violet-400/50 text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 hover:border-violet-400/80'
             }`}
           >
-            <MessageSquare size={10} className="mr-1" />
-            Chat
-            {chatNodeCount && chatNodeCount > 0 && (
-              <span className="ml-1 px-1 rounded-full bg-primary/30 text-primary text-[9px] font-bold leading-none">
+            <MessageCircle size={11} className="mr-1" />
+            AI Chat
+            {chatNodeCount && chatNodeCount > 0 ? (
+              <span className="ml-1 px-1 rounded-full bg-violet-500/20 text-violet-300 text-[8px] font-bold leading-tight">
                 {chatNodeCount}
               </span>
+            ) : (
+              <span className="ml-1 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             )}
           </Button>
         )}

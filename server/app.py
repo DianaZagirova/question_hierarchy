@@ -11,11 +11,14 @@ import threading
 import sys
 import logging
 import hashlib
+import hmac
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from dotenv import load_dotenv
 
 # Import multi-session support modules
+import uuid
+from sqlalchemy import text
 from database import db
 from redis_client import redis_client
 from session_middleware import get_session_id, require_session, with_session, optional_session
@@ -996,6 +999,137 @@ def unpublish_community_session(session_id, community_id):
         return jsonify({'error': str(e)}), 500
 
 
+# ─── Remote Session Sync ──────────────────────────────────────────────────────
+
+def _fetch_json(url, timeout=30):
+    """Fetch JSON from a URL using stdlib urllib (no requests dependency)."""
+    from urllib.request import urlopen, Request
+    from urllib.error import URLError, HTTPError
+    req = Request(url, headers={'Accept': 'application/json', 'User-Agent': 'OmegaPoint/1.0'})
+    resp = urlopen(req, timeout=timeout)
+    return json.loads(resp.read().decode('utf-8'))
+
+
+@app.route('/api/remote/pull', methods=['POST'])
+@with_session(db)
+def pull_remote_sessions(session_id):
+    """Pull community sessions from a remote server and import them locally.
+
+    Body: {"remote_url": "https://server-a.com", "session_ids": ["id1", "id2"]}
+    If session_ids is omitted, pulls ALL community sessions from the remote.
+    No authentication needed on the remote — community endpoints are public.
+    """
+    from urllib.error import URLError, HTTPError
+    import uuid as _uuid
+    try:
+        data = request.json or {}
+        remote_url = data.get('remote_url', '').rstrip('/')
+        if not remote_url:
+            return jsonify({'error': 'remote_url is required'}), 400
+
+        session_ids = data.get('session_ids')  # None = pull all
+
+        # Step 1: List or fetch specific sessions from remote
+        if session_ids:
+            remote_sessions = []
+            for sid in session_ids:
+                try:
+                    remote_sessions.append(_fetch_json(f'{remote_url}/api/community-sessions/{sid}'))
+                except HTTPError as e:
+                    logger.warning(f"  ⚠️ Remote session {sid}: {e.code}")
+        else:
+            listing = _fetch_json(f'{remote_url}/api/community-sessions?limit=200')
+            items = listing.get('sessions', [])
+            # Fetch full data for each
+            remote_sessions = []
+            for item in items:
+                cid = item.get('id')
+                if not cid:
+                    continue
+                try:
+                    remote_sessions.append(_fetch_json(f'{remote_url}/api/community-sessions/{cid}'))
+                except HTTPError:
+                    continue
+
+        if not remote_sessions:
+            return jsonify({'imported': 0, 'message': 'No sessions found on remote'})
+
+        # Step 2: Import into local user sessions
+        sessions_data = db.get_session_state(session_id, 'user_sessions') or {'sessions': []}
+        sessions = sessions_data.get('sessions', [])
+        existing_names = {s.get('name') for s in sessions}
+
+        imported = []
+        for remote in remote_sessions:
+            name = remote.get('name', 'Remote Session')
+            # Skip duplicates by name
+            if name in existing_names:
+                logger.info(f"  ⏭️ Skipping duplicate: {name}")
+                continue
+
+            new_id = f"s-{int(time.time())}-{_uuid.uuid4().hex[:6]}"
+            new_session = {
+                'id': new_id,
+                'name': name,
+                'createdAt': datetime.utcnow().isoformat(),
+                'updatedAt': datetime.utcnow().isoformat(),
+                'goalPreview': remote.get('goal_preview', remote.get('goalPreview', '')),
+                'pulledFrom': remote_url,
+                'remoteId': remote.get('id', ''),
+            }
+            sessions.append(new_session)
+            existing_names.add(name)
+
+            # Save session data
+            session_data = remote.get('data') or remote.get('session_data')
+            if session_data:
+                db.save_session_state(session_id, f'user_session_{new_id}', session_data)
+
+            imported.append(new_session)
+            logger.info(f"  ✅ Imported: {name} → {new_id}")
+
+        db.save_session_state(session_id, 'user_sessions', {'sessions': sessions})
+        logger.info(f"  📥 Pulled {len(imported)} sessions from {remote_url}")
+
+        return jsonify({
+            'imported': len(imported),
+            'sessions': imported,
+            'skipped_duplicates': len(remote_sessions) - len(imported),
+        })
+    except URLError as e:
+        return jsonify({'error': f'Cannot connect to {remote_url}: {e.reason}'}), 502
+    except Exception as e:
+        logger.error(f"Error pulling remote sessions: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/remote/list', methods=['POST'])
+def list_remote_sessions():
+    """List community sessions available on a remote server (no auth).
+
+    Body: {"remote_url": "https://server-a.com"}
+    """
+    from urllib.error import URLError
+    try:
+        data = request.json or {}
+        remote_url = data.get('remote_url', '').rstrip('/')
+        if not remote_url:
+            return jsonify({'error': 'remote_url is required'}), 400
+
+        result = _fetch_json(f'{remote_url}/api/community-sessions?limit=200', timeout=15)
+        return jsonify({
+            'remote_url': remote_url,
+            'sessions': result.get('sessions', []),
+            'total': result.get('total', 0),
+        })
+    except URLError as e:
+        return jsonify({'error': f'Cannot connect to {remote_url}: {e.reason}'}), 502
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ─── End Remote Session Sync ──────────────────────────────────────────────────
+
 # ─── End Community Sessions ────────────────────────────────────────────────────
 
 # ─── Session Bookmarks ────────────────────────────────────────────────────────
@@ -1128,6 +1262,7 @@ def submit_feedback(session_id):
             comment=data.get('comment'),
             category=data.get('category'),
             author=data.get('author'),
+            node_label=data.get('node_label'),
         )
 
         return jsonify({'feedback': feedback})
@@ -2219,7 +2354,18 @@ def _genius_verify_l6_batch(l6_tasks, q0_text, agents_config):
 
 ## YOUR TASKS (in order):
 
-### 1. ELIMINATE HEDGING
+### 1. REWRITE TITLES (MANDATORY)
+Every L6 title MUST follow this structure: "[Scientific question/hypothesis being tested] — [key method] in [system]"
+Rules:
+- First 40 characters must convey the scientific question (graph nodes truncate titles)
+- Use active voice: "Does X cause Y", "Can X restore Y", "Which X maximizes Y", "Is X sufficient for Y"
+- After the dash, name the key technique and system
+- NEVER start with a technique name (CRISPR, AFM, RNA-seq, Factorial, Multi-omics, etc.)
+- Max 120 characters total
+BAD: "Factorial CRISPR/Cas9 knockdown of key pericellular proteoglycans with inflammatory challenge on Drosophila"
+GOOD: "Does pericellular proteoglycan loss drive inflammation-induced elastin collapse — CRISPR factorial in Drosophila"
+
+### 2. ELIMINATE HEDGING
 Scan every S-I-M-T field. Replace ALL instances of vague language:
 - "e.g.," followed by a specific thing → KEEP only the specific thing, remove "e.g.,"
 - "such as" → pick the best option and commit
@@ -2227,17 +2373,17 @@ Scan every S-I-M-T field. Replace ALL instances of vague language:
 - Parenthetical alternatives "(or X)" → pick one, remove alternatives
 - "e.g." must NOT appear anywhere in the output SIMT fields
 
-### 2. REJECT MEDIOCRE EXPERIMENTS
+### 3. REJECT MEDIOCRE EXPERIMENTS
 Remove any L6 that:
 - A trained postdoc could design after reading one review article
 - Tests only 1 variable at 1 timepoint (no factorial, no time-course)
 - Is a pure computational model (ABM, parameter sweep) — keep at most 1 per batch
 - Is pure omics (RNA-seq, proteomics) without a creative perturbation design
 
-### 3. MERGE PERMUTATIONS
+### 4. MERGE PERMUTATIONS
 If 2+ experiments differ only in which compound/knockdown they test but ask the same mechanistic question, merge them into ONE factorial experiment with multiple arms.
 
-### 4. ENHANCE SPECIFICITY
+### 5. ENHANCE SPECIFICITY
 For each surviving experiment:
 - System: ensure species, strain, source, sample size are all present
 - Intervention: ensure compound name, catalog number or source, dose, schedule, controls are all present
@@ -2245,7 +2391,7 @@ For each surviving experiment:
 - Threshold: ensure quantitative threshold, statistical test, sample size, timepoints are present
 - If a catalog number is unknown, write "source: [vendor name]" — do NOT invent fake catalog numbers (no "#XYZ" or placeholder numbers)
 
-### 5. CALIBRATE FEASIBILITY
+### 6. CALIBRATE FEASIBILITY
 Score honestly across the FULL 1-10 range:
 - 9-10: Standard techniques, 1-3 months, single researcher
 - 7-8: Specialized equipment, 6-12 months, single lab
@@ -2253,20 +2399,22 @@ Score honestly across the FULL 1-10 range:
 - 3-4: Institutional commitment, 2-5 years, rare facilities
 - 1-2: Technology doesn't exist yet
 
-### 6. PRESERVE AND ENHANCE if_null (MANDATORY)
+### 7. PRESERVE AND ENHANCE if_null (MANDATORY)
 Every experiment MUST have a non-empty "if_null" field. This is CRITICAL — it tells us what we learn if the experiment fails. Rules:
 - If the original has if_null, preserve it or improve it
 - If the original is missing if_null, GENERATE one
 - "Inconclusive", "uninformative", "the hypothesis is wrong" are NOT acceptable if_null values
 - Good if_null: "Null result would indicate that [mechanism X] is not the rate-limiting step, redirecting investigation to [mechanism Y] as predicted by IH_02"
 
-### 7. GENIUS SCORING (be HARSH — use the full 1-10 range)
-- 1-3: Baseline characterization, standard drug-dose-response, single-variable knockout+phenotype. Any postdoc could design this.
-- 4-5: Reasonable hypothesis-testing experiment but conventional methodology. Uses established techniques in a known system.
-- 6-7: Good multi-variable design that requires pipeline context. Tests interactions between mechanisms. Non-obvious system choice.
-- 8-9: Brilliant experiment that crosses domains, tests genuinely novel hypotheses, uses creative methodology. Would excite a review panel.
-- 10: Paradigm-shifting if it works. Nobody has proposed this approach.
-Experiments scoring genius < 4 should be flagged for rejection or redesign.
+### 8. GENIUS SCORING (be HARSH — use the full 1-10 range, target average >= 7.5)
+- 1-3: REJECT IMMEDIATELY. Baseline characterization, standard drug-dose-response, single-variable knockout+phenotype. Any postdoc could design this. These should not exist in the output.
+- 4-5: Conventional. Hypothesis-testing but uses only established techniques in a well-known system. Single-domain thinking. Acceptable ONLY for TOOL_DEV or VALIDATION_DRILL type L5 branches. Flag for redesign if attached to MECHANISM_DRILL.
+- 6-7: Multi-variable factorial design that requires pipeline context. Tests interactions between mechanisms. Non-obvious system choice. BUT: stays within one discipline's comfort zone. This is the MINIMUM acceptable for mechanism-testing experiments.
+- 8-9: BRILLIANT — THIS IS YOUR TARGET. Crosses domains (borrows techniques from unrelated fields), tests genuinely novel interactions nobody has combined before, creative methodology that would make a review panel say "why didn't I think of that." Orthogonal readouts where different IHs predict qualitatively different patterns. Uses unexpected model organisms or perturbation combinations.
+- 10: Paradigm-shifting. Nobody has proposed this approach. The experiment design itself is a conceptual advance.
+
+Experiments scoring genius < 5 should be flagged for rejection or complete redesign.
+If the average genius score across all experiments is below 7.0, you are being too conservative — redesign the weakest experiments with more cross-domain creativity.
 
 ## OUTPUT FORMAT
 Return JSON:
@@ -3752,30 +3900,90 @@ def node_chat(session_id):
     q0 = data.get('q0', '')
     goal = data.get('goal', '')
     lens = data.get('lens', '')
-    model = data.get('model', 'gpt-4.1')
+    model = data.get('model', 'google/gemini-2.5-flash')
+    graph_summary = data.get('graphSummary', '')
+    l6_analysis_summary = data.get('l6AnalysisSummary', '')
 
-    # Build system prompt with permanent context
-    system_prompt = f"""You are an expert scientific research advisor for the Omega Point project. You help the user analyze, question, and reason about nodes in a hierarchical knowledge graph that decomposes a master research question into actionable experiments.
+    # Build system prompt with full pipeline context
+    graph_section = f"""
+───────────────────────────────────────
+PIPELINE HIERARCHY (compressed tree — Goal → L3 → IH → L4 → L5 → L6):
+{graph_summary}
+───────────────────────────────────────""" if graph_summary else ""
+
+    l6_section = f"""
+TOP EXPERIMENTS (AI-ranked best L6):
+{l6_analysis_summary}""" if l6_analysis_summary else ""
+
+    if selected_nodes:
+        nodes_section = f"""
+USER-FOCUSED NODES ({len(selected_nodes)} selected — answer primarily about these):
+{json.dumps(selected_nodes, indent=2)}"""
+    else:
+        nodes_section = """
+No specific nodes are focused. The user is asking about the FULL pipeline.
+Use the hierarchy tree and top experiments above to answer comprehensively."""
+
+    system_prompt = f"""You are an expert scientific research advisor embedded in the **Omega Point** system — a multi-agent pipeline that decomposes ambitious scientific goals into extraordinary yet realistic, executable lab experiments.
+
+=== OMEGA POINT ARCHITECTURE ===
+
+The system is built on a core philosophy: systematically arrive at experiments so ingenious that nobody has done them before, yet so well-grounded they could run in a real lab tomorrow. Each level exists because the previous one is too abstract to act on, and the next one is too concrete to plan without it.
+
+**The Decomposition Hierarchy (why each level exists):**
+
+1. **Q0 (Master Question)** — The root. A single, dense, solution-neutral question that frames the entire research program. It must be ambitious enough to demand novel science (paradigm-level, not incremental). Everything downstream is derived from Q0.
+
+2. **Goal Pillars (G-nodes)** — MECE decomposition of Q0 into required end-states via Inverse Failure Analysis: "what biological failure modes must be prevented?" inverted into positive targets. Each pillar targets a FUNCTIONAL requirement, not an anatomical compartment. They also produce a **Bridge Lexicon** (SPVs = System Property Variables, FCCs = Failure Channel Codes) — the shared measurement language for the whole pipeline.
+
+3. **Requirement Atoms (RAs)** — Each Goal Pillar is atomized into 5-9 testable, solution-agnostic requirements. Each RA binds a state variable to a perturbation class, timescale, failure shape, and meter class. They include non-obvious inter-subsystem cascade requirements and mandatory "unknown-unknown" atoms. RAs define WHAT must be true without saying HOW.
+
+4. **Domains + Scientific Pillars (S-nodes)** — The system maps each goal to 8-12 specific research domains (not generic fields — targeted, non-obvious domains). Within each domain, it identifies 15-25 established, evidence-based Scientific Pillars backed by real literature (PubMed, Semantic Scholar, OpenAlex). This is where the pipeline connects to EXISTING science — what humanity already knows.
+
+   **The key transition**: Steps 1-3 define WHAT we need (goal-side). Step 4 maps WHAT EXISTS (science-side). The GAP between them drives everything below.
+
+5. **(Merged into Step 4)** — Strategic matching of goals to science, identifying magnitude/execution/timescale/knowledge gaps.
+
+6. **L3 Frontier Questions** — These target the strategic gap between Goal and Scientific Reality. They must be UNANSWERABLE by literature search — genuine epistemic gaps requiring NEW experiments. Four strategies: Genesis Probes (complete void), Contextual Decoupling (fragility traps), Causal Pivot (proxy mirages), Arbitration Logic (cluster clashes). L3s challenge assumptions, connect across scales, and include adversarial falsification attempts.
+
+7. **Instantiation Hypotheses (IHs)** — Each L3 question spawns competing hypotheses across diverse domain categories (interface integrity, information/control, structural, resource/energetic, environmental). Must include HERETICAL hypotheses and cross-domain transfer hypotheses. The best IHs are those where confirming OR refuting them changes how we think about the problem.
+
+8. **L4 Tactical Questions** — Decompose L3+IH pairs into concrete, discriminating questions. >=50% must be DISCRIMINATOR questions that pit IHs against each other. Trivial "does X affect Y" questions are forbidden — each L4 must require the full hierarchical context (G+RA+S+L3+IH) to even conceive. Includes mandatory unknown-exploration nodes.
+
+9. **L5 Mechanistic Sub-questions + L6 Experimental Protocols** — L5s break L4s into testable mechanistic sub-questions. L6s are the leaf nodes: fully specified experiments with concrete **S-I-M-T parameters**:
+   - **System**: specific model organism/cell line with source and conditions
+   - **Intervention**: named compounds with catalog numbers, doses, schedules, controls
+   - **Meter**: specific assays/instruments with protocols
+   - **Threshold/Time**: quantitative success criteria with statistical power
+   Every L6 must be both AMBITIOUS and FEASIBLE — no textbook experiments allowed.
+
+10. **Common Experiment Synthesis** — Evaluates whether multiple L6 tasks within an L4 branch can be unified into a single experiment greater than the sum of its parts. Brutally honest: rejects vague umbrella experiments that test nothing well.
+
+**Reading the hierarchy**: Any path from Q0 → G → L3 → IH → L4 → L5 → L6 tells a complete scientific story: "We need X (goal), science knows Y (pillars), the gap is Z (L3), we hypothesize A (IH), we can discriminate by asking B (L4), specifically testing C (L5) via experiment D (L6)."
+
+=== CURRENT SESSION DATA ===
 
 MASTER QUESTION (Q0):
 {q0}
 
-CURRENT GOAL:
-{goal}
+GOAL PILLARS:
+{goal if goal else 'Not yet generated'}
 
-EPISTEMIC LENS:
-{lens if lens else 'None specified'}
+EPISTEMIC LENS: {lens if lens else 'None specified'}
+{graph_section}
+{l6_section}
+{nodes_section}
 
-SELECTED NODES ({len(selected_nodes)} node(s)):
-{json.dumps(selected_nodes, indent=2)}
-
-INSTRUCTIONS:
-- Answer questions about the selected nodes, their relationships, scientific validity, and implications.
-- You can suggest improvements, identify gaps, propose alternatives, or explain mechanisms.
-- Be concise but thorough. Use scientific terminology appropriate to the domain.
-- Reference specific node IDs when discussing them.
-- If the user asks about connections between nodes, reason about causal chains and dependencies.
-- You may use markdown formatting in your responses."""
+=== RESPONSE GUIDELINES ===
+- Use **markdown** formatting: headers, bold, bullet lists, tables where helpful.
+- Reference specific **node IDs** (e.g., L6_G1_..., L3-G1-2) so the user can locate them in the graph.
+- Be scientifically rigorous. Use domain-appropriate terminology.
+- When discussing experiments, reference their S-I-M-T parameters (System, Intervention, Meter, Threshold/Time).
+- When comparing experiments, use structured formats (tables or ranked lists with rationale).
+- If the user asks about gaps or weaknesses, be specific about what's missing and suggest concrete next steps.
+- If no nodes are focused, reason about the full pipeline — identify patterns, gaps, and the strongest/weakest branches.
+- When asked about "why" a level exists or how the pipeline works, use the architecture knowledge above to explain the decomposition logic.
+- Always connect your answers back to the hierarchical context: how does this node/question/experiment relate to its parent goal, the L3 gap it addresses, and the IH it tests?"""
 
     # Build messages for the API call
     api_messages = [{"role": "system", "content": system_prompt}]
@@ -3796,7 +4004,7 @@ INSTRUCTIONS:
                 model=resolved,
                 messages=api_messages,
                 temperature=0.7,
-                max_tokens=4096,
+                max_tokens=8192,
                 stream=True,
             )
             if API_PROVIDER == 'openrouter':
@@ -3841,6 +4049,157 @@ INSTRUCTIONS:
             'Content-Type': 'text/event-stream; charset=utf-8',
         }
     )
+
+# ─── Chat History Persistence ────────────────────────────────────────────────
+
+def _ensure_chat_history_table():
+    """Create chat_history table if it doesn't exist (idempotent)."""
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS chat_history (
+                    id SERIAL PRIMARY KEY,
+                    session_id UUID NOT NULL,
+                    conversation_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+                    messages JSONB NOT NULL DEFAULT '[]',
+                    selected_node_ids JSONB DEFAULT '[]',
+                    is_archived BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_history_session ON chat_history(session_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_history_conversation ON chat_history(conversation_id)"))
+            conn.commit()
+    except Exception as e:
+        logger.debug(f"[Chat History] Table check: {e}")
+
+# Ensure table exists on import
+try:
+    _ensure_chat_history_table()
+except Exception:
+    pass
+
+
+@app.route('/api/chat-history/save', methods=['POST'])
+@with_session(db)
+def save_chat_history(session_id):
+    """Save or update a chat conversation. Keeps archived copies."""
+    data = request.json
+    conversation_id = data.get('conversationId')
+    messages = data.get('messages', [])
+    selected_node_ids = data.get('selectedNodeIds', [])
+
+    if not messages:
+        return jsonify({'ok': True, 'skipped': True})
+
+    try:
+        session_uuid = uuid.UUID(session_id)
+        with db.engine.connect() as conn:
+            if conversation_id:
+                # Update existing conversation
+                conv_uuid = uuid.UUID(conversation_id)
+                result = conn.execute(
+                    text("""
+                        UPDATE chat_history
+                        SET messages = :messages, selected_node_ids = :node_ids, updated_at = NOW()
+                        WHERE conversation_id = :conv_id AND session_id = :session_id AND is_archived = FALSE
+                        RETURNING id
+                    """),
+                    {'messages': json.dumps(messages), 'node_ids': json.dumps(selected_node_ids),
+                     'conv_id': str(conv_uuid), 'session_id': str(session_uuid)}
+                )
+                if result.rowcount == 0:
+                    # Conversation was archived or doesn't exist — create new
+                    new_conv = uuid.uuid4()
+                    conn.execute(
+                        text("""
+                            INSERT INTO chat_history (session_id, conversation_id, messages, selected_node_ids)
+                            VALUES (:session_id, :conv_id, :messages, :node_ids)
+                        """),
+                        {'session_id': str(session_uuid), 'conv_id': str(new_conv),
+                         'messages': json.dumps(messages), 'node_ids': json.dumps(selected_node_ids)}
+                    )
+                    conversation_id = str(new_conv)
+            else:
+                # Create new conversation
+                new_conv = uuid.uuid4()
+                conn.execute(
+                    text("""
+                        INSERT INTO chat_history (session_id, conversation_id, messages, selected_node_ids)
+                        VALUES (:session_id, :conv_id, :messages, :node_ids)
+                    """),
+                    {'session_id': str(session_uuid), 'conv_id': str(new_conv),
+                     'messages': json.dumps(messages), 'node_ids': json.dumps(selected_node_ids)}
+                )
+                conversation_id = str(new_conv)
+            conn.commit()
+
+        return jsonify({'ok': True, 'conversationId': conversation_id})
+    except Exception as e:
+        logger.warning(f"[Chat History] Save error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chat-history/archive', methods=['POST'])
+@with_session(db)
+def archive_chat_history(session_id):
+    """Archive a conversation (user cleared chat). Data is kept but hidden from UI."""
+    data = request.json
+    conversation_id = data.get('conversationId')
+
+    if not conversation_id:
+        return jsonify({'ok': True})
+
+    try:
+        session_uuid = uuid.UUID(session_id)
+        conv_uuid = uuid.UUID(conversation_id)
+        with db.engine.connect() as conn:
+            conn.execute(
+                text("""
+                    UPDATE chat_history SET is_archived = TRUE, updated_at = NOW()
+                    WHERE conversation_id = :conv_id AND session_id = :session_id
+                """),
+                {'conv_id': str(conv_uuid), 'session_id': str(session_uuid)}
+            )
+            conn.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        logger.warning(f"[Chat History] Archive error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chat-history/load', methods=['GET'])
+@with_session(db)
+def load_chat_history(session_id):
+    """Load the active (non-archived) conversation for this session."""
+    try:
+        session_uuid = uuid.UUID(session_id)
+        with db.engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT conversation_id, messages, selected_node_ids, created_at, updated_at
+                    FROM chat_history
+                    WHERE session_id = :session_id AND is_archived = FALSE
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """),
+                {'session_id': str(session_uuid)}
+            )
+            row = result.mappings().first()
+            if row:
+                return jsonify({
+                    'conversationId': str(row['conversation_id']),
+                    'messages': row['messages'] if isinstance(row['messages'], list) else json.loads(row['messages']) if row['messages'] else [],
+                    'selectedNodeIds': row['selected_node_ids'] if isinstance(row['selected_node_ids'], list) else json.loads(row['selected_node_ids']) if row['selected_node_ids'] else [],
+                    'createdAt': row['created_at'].isoformat() if row['created_at'] else None,
+                    'updatedAt': row['updated_at'].isoformat() if row['updated_at'] else None,
+                })
+            return jsonify({'conversationId': None, 'messages': [], 'selectedNodeIds': []})
+    except Exception as e:
+        logger.warning(f"[Chat History] Load error: {e}")
+        return jsonify({'conversationId': None, 'messages': [], 'selectedNodeIds': []})
+
 
 # ─── L6 Perspective Analysis ──────────────────────────────────────────────────
 
@@ -5457,7 +5816,7 @@ def _run_full_pipeline_background(run_id, session_id, goal, global_lens, agent_o
             # Smart IH selection: only IHs this L4 actually distinguishes
             target_ih_ids = l4q.get('distinguishes_ih_ids', [])
             l3_all_ihs = ihs_by_l3.get(parent_l3_id, [])
-            if target_ih_ids and l4q.get('question_type', '') != 'UNKNOWN_EXPLORATION':
+            if target_ih_ids and l4q.get('type', l4q.get('question_type', '')) != 'UNKNOWN_EXPLORATION':
                 selected_ihs = [ih for ih in l3_all_ihs if ih.get('ih_id') in target_ih_ids]
                 if not selected_ihs:
                     selected_ihs = l3_all_ihs
@@ -6282,6 +6641,152 @@ if IS_PRODUCTION and os.path.isdir(DIST_DIR):
             return _send(DIST_DIR, path)
         # Otherwise serve index.html (client-side routing)
         return _send(DIST_DIR, 'index.html')
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Telegram Auth
+# ═══════════════════════════════════════════════════════════════════════════════
+
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', '')
+
+def verify_telegram_login(data: dict) -> bool:
+    """Verify that login data actually came from Telegram."""
+    if not TELEGRAM_BOT_TOKEN:
+        return False
+    check_hash = data.get('hash', '')
+    # Build check string from all fields except hash
+    filtered = {k: v for k, v in data.items() if k != 'hash'}
+    check_string = '\n'.join(f'{k}={v}' for k, v in sorted(filtered.items()))
+    secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
+    computed = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+    # Verify hash matches and auth_date is recent (< 1 day)
+    if time.time() - int(data.get('auth_date', 0)) > 86400:
+        return False
+    return computed == check_hash
+
+@app.route('/api/auth/telegram', methods=['POST'])
+def telegram_auth():
+    """Verify Telegram Login Widget callback data"""
+    data = request.json or {}
+    if not data.get('id') or not data.get('hash'):
+        return jsonify({'error': 'Missing required Telegram auth fields'}), 400
+    if not verify_telegram_login(data):
+        return jsonify({'error': 'Invalid Telegram authentication'}), 401
+    # Return verified user data
+    return jsonify({
+        'ok': True,
+        'user': {
+            'id': data.get('id'),
+            'first_name': data.get('first_name', ''),
+            'last_name': data.get('last_name', ''),
+            'username': data.get('username', ''),
+            'photo_url': data.get('photo_url', ''),
+        }
+    })
+
+@app.route('/api/config/telegram', methods=['GET'])
+def telegram_config():
+    """Return public Telegram bot config for the frontend widget"""
+    return jsonify({
+        'botUsername': TELEGRAM_BOT_USERNAME,
+        'enabled': bool(TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_USERNAME),
+    })
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Share to Telegram
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/share/telegram', methods=['POST'])
+def share_to_telegram():
+    """Send a concise summary message + full session JSON file to user's Telegram."""
+    if not TELEGRAM_BOT_TOKEN:
+        return jsonify({'error': 'Telegram bot not configured'}), 500
+
+    data = request.json or {}
+    chat_id = data.get('chat_id')
+    if not chat_id:
+        return jsonify({'error': 'chat_id is required'}), 400
+
+    summary_text = data.get('summary', '')
+    session_json = data.get('session_json')
+    filename = data.get('filename', f'omega_point_{int(time.time())}.json')
+
+    if not summary_text and not session_json:
+        return jsonify({'error': 'Nothing to share'}), 400
+
+    try:
+        # 1. Send concise text summary
+        if summary_text:
+            _tg_send_message(chat_id, summary_text)
+
+        # 2. Always send full JSON as a document
+        if session_json:
+            json_str = json.dumps(session_json, indent=2, ensure_ascii=False)
+            _tg_send_document(chat_id, json_str, filename, 'application/json')
+
+        return jsonify({'ok': True})
+
+    except Exception as e:
+        err_str = str(e)
+        logger.error(f"Telegram share error: {err_str}")
+        if '403' in err_str or 'Forbidden' in err_str:
+            return jsonify({'error': 'Bot cannot message you yet. Please open @' + TELEGRAM_BOT_USERNAME + ' in Telegram and press Start first.'}), 400
+        if '400' in err_str and 'chat not found' in err_str.lower():
+            return jsonify({'error': 'Bot cannot message you yet. Please open @' + TELEGRAM_BOT_USERNAME + ' in Telegram and press Start first.'}), 400
+        return jsonify({'error': f'Failed to send to Telegram: {err_str}'}), 500
+
+
+def _tg_escape(text: str) -> str:
+    """Escape special chars for Telegram Markdown parse mode."""
+    for ch in ['*', '_', '`', '[']:
+        text = text.replace(ch, '\\' + ch)
+    return text
+
+
+def _tg_send_message(chat_id, text):
+    """Send a text message via Telegram Bot API."""
+    import urllib.request
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = json.dumps({
+        'chat_id': chat_id,
+        'text': text,
+        'parse_mode': 'Markdown',
+        'disable_web_page_preview': True,
+    }).encode('utf-8')
+    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+    resp = urllib.request.urlopen(req, timeout=15)
+    result = json.loads(resp.read())
+    if not result.get('ok'):
+        raise Exception(f"Telegram API error: {result}")
+    return result
+
+
+def _tg_send_document(chat_id, file_content: str, filename: str, mime_type: str = 'text/plain'):
+    """Send a file as a document via Telegram Bot API multipart upload."""
+    import urllib.request
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+
+    boundary = f"----FormBoundary{int(time.time() * 1000)}"
+    parts = []
+
+    # chat_id field
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n{chat_id}')
+
+    # document field
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="document"; filename="{filename}"\r\nContent-Type: {mime_type}\r\n\r\n{file_content}')
+
+    parts.append(f'--{boundary}--')
+
+    body = '\r\n'.join(parts).encode('utf-8')
+    req = urllib.request.Request(url, data=body, headers={
+        'Content-Type': f'multipart/form-data; boundary={boundary}',
+    })
+    resp = urllib.request.urlopen(req, timeout=60)
+    result = json.loads(resp.read())
+    if not result.get('ok'):
+        raise Exception(f"Telegram API error: {result}")
+    return result
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Cleanup handlers
